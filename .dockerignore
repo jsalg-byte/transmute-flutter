@@ -1,0 +1,14 @@
+.dart_tool
+.fvm
+.git
+.idea
+android/.gradle
+build
+coverage
+ios/Flutter/ephemeral
+macos/Flutter/ephemeral
+docs
+test
+*.iml
+*.log
+.DS_Store
