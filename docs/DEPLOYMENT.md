@@ -1,33 +1,33 @@
 # Deploying Transmute Flutter
 
-This application is a static Flutter web app. The included `Dockerfile` builds
-the pinned Flutter SDK release, then serves the result with Nginx on port 80.
-It intentionally does not contain database credentials, JWT secrets, object
-storage credentials, or an API proxy.
+This application is a static Flutter web app. The checked-in `release/web`
+bundle is served by the included native Nginx image on port 80. This avoids
+emulating Flutter's AMD64 Linux SDK on the ARM64 Coolify host. It intentionally
+does not contain database credentials, JWT secrets, object storage credentials,
+or an API proxy.
 
 ## Checked-in deployment configuration
 
-- `docker-compose.yml` is the Coolify Docker Compose definition. It builds the
-  root `Dockerfile`, exposes only internal port `80`, and carries a `/healthz`
-  container health check.
-- `.env.coolify.example` is the exact non-secret environment configuration to
-  enter in Coolify. Do not commit an `.env` file with infrastructure secrets.
+- `Dockerfile` is the Coolify build definition. It serves the release bundle
+  on internal port `80` and carries a `/healthz` container health check.
 - There are deliberately no custom Docker networks or hand-written Traefik
   labels. In a normal Git-based Docker Compose application, Coolify owns the
   generated proxy labels and its managed network.
 
 ## Required production settings
 
-Configure these Docker build arguments in the deployment system:
+Build the API-mode bundle before committing a release:
 
-| Build argument | Required value |
-| --- | --- |
-| `TRANSMUTE_REPOSITORY_MODE` | `api` |
-| `TRANSMUTE_API_BASE_URL` | The public HTTPS Fastify API URL, for example `https://api.transmute.mzootfb.xyz` |
+```sh
+.fvm/flutter_sdk/bin/flutter build web --release \
+  --no-wasm-dry-run \
+  --dart-define=TRANSMUTE_REPOSITORY_MODE=api \
+  --dart-define=TRANSMUTE_API_BASE_URL=https://api.transmute.mzootfb.xyz
+rsync -a --delete build/web/ release/web/
+```
 
-The API base URL is public client configuration, not a secret. The Compose file
-defaults to the production API URL but the explicit Coolify values above remain
-the release configuration of record.
+The public API URL is baked into the committed release bundle; it is not a
+secret and is not a Coolify runtime variable.
 
 The approved Flutter production origin is `https://transmute2.mzootfb.xyz`.
 Configure the Fastify API's `CORS_ORIGINS` runtime variable to contain that
@@ -38,11 +38,10 @@ exact value. Do not add wildcard origins and do not leave the temporary
 
 1. Create a **new** application for this Flutter project; do not replace the
    existing Expo web application without an explicit migration decision.
-2. Select **Docker Compose** as the build pack, set base directory to `/`, and
-   set the Compose file to `docker-compose.yml`.
-3. In Coolify Environment Variables, add the two values from
-   `.env.coolify.example`: `TRANSMUTE_REPOSITORY_MODE=api` and
-   `TRANSMUTE_API_BASE_URL=https://api.transmute.mzootfb.xyz`.
+2. Select **Dockerfile** as the build pack, set base directory to `/`, and use
+   `/Dockerfile`.
+3. No Coolify environment variables are required; the committed release bundle
+   is built with the public API URL before it is pushed.
 4. In the generated `Domains for transmute-flutter` field, set
    `https://transmute2.mzootfb.xyz`. Coolify will route it to port 80 and
    manage HTTPS; do not manually enable editable container labels.

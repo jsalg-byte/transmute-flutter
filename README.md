@@ -64,7 +64,7 @@ retryable create-set failure path.
 
 ## Production deployment
 
-The included Docker image builds the pinned Flutter web release and serves it
+The included Docker image serves the versioned `release/web` Flutter bundle
 with Nginx, including direct-link fallback for GoRouter routes. See
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for required build arguments, API
 CORS configuration, health checks, and Coolify deployment steps.
