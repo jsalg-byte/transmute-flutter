@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1
 
-FROM debian:bookworm-slim AS builder
+# Flutter 3.44.6 publishes an AMD64 Linux SDK. The final Nginx image still
+# uses the deployment host's native architecture.
+FROM --platform=linux/amd64 debian:bookworm-slim AS builder
 
 ARG FLUTTER_VERSION=3.44.6
 ARG FLUTTER_SHA256=a6320fd72e9a2690c08e2a6a70874a30cb120dee7c78f49d2c628bd7c9e20525
