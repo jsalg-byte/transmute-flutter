@@ -21,6 +21,7 @@ RUN curl --fail --location --retry 3 \
     && echo "${FLUTTER_SHA256}  /tmp/flutter.tar.xz" | sha256sum --check --strict \
     && tar --extract --xz --file /tmp/flutter.tar.xz --directory /opt \
     && rm /tmp/flutter.tar.xz \
+    && git config --global --add safe.directory /opt/flutter \
     && flutter config --no-analytics
 
 WORKDIR /app
