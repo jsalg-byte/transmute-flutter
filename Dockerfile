@@ -35,6 +35,7 @@ COPY . ./
 
 RUN test -n "${TRANSMUTE_API_BASE_URL}" \
     && flutter build web --release \
+      --no-wasm-dry-run \
       --dart-define=TRANSMUTE_REPOSITORY_MODE=${TRANSMUTE_REPOSITORY_MODE} \
       --dart-define=TRANSMUTE_API_BASE_URL=${TRANSMUTE_API_BASE_URL}
 
