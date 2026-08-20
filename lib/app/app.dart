@@ -20,6 +20,7 @@ import '../features/planning/presentation/planning_screen.dart';
 import '../features/progress/presentation/progress_screen.dart';
 import '../features/workout_history/presentation/history_screens.dart';
 import '../features/workout_plans/presentation/plan_screens.dart';
+import '../shared/theme/transmute_palette.dart';
 
 class TransmuteApp extends ConsumerStatefulWidget {
   const TransmuteApp({super.key});
@@ -145,21 +146,19 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
   @override
   Widget build(BuildContext context) {
     final preference = ref.watch(effectiveThemePreferenceProvider);
-    final palette = preference.palette;
     final brightness = preference.brightness;
     final isDark = brightness == PreferenceBrightness.dark;
-    final surface = isDark ? const Color(0xff14131A) : const Color(0xffF4EBD8);
-    final raised = isDark ? const Color(0xff201E29) : const Color(0xffFCF7EC);
-    final ink = isDark ? const Color(0xffF4F0E6) : const Color(0xff171821);
-    final muted = isDark ? const Color(0xffBDB7B2) : const Color(0xff605D63);
-    final divider = isDark ? const Color(0xff413D50) : const Color(0xffD9CEB9);
+    final tokens = TransmutePalette.forPreference(preference);
     final colors = ColorScheme.fromSeed(
-      seedColor: _paletteSeed(palette),
+      seedColor: tokens.oxide,
       brightness: isDark ? Brightness.dark : Brightness.light,
-      surface: surface,
-      onSurface: ink,
-      onSurfaceVariant: muted,
-      outline: divider,
+      surface: tokens.surface,
+      onSurface: tokens.ink,
+      onSurfaceVariant: tokens.muted,
+      outline: tokens.divider,
+      primary: tokens.oxide,
+      secondary: tokens.gold,
+      error: tokens.rest,
     );
     return MaterialApp.router(
       title: 'Transmute',
@@ -167,16 +166,17 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
         colorScheme: colors,
         scaffoldBackgroundColor: colors.surface,
         useMaterial3: true,
+        extensions: [tokens],
         cardTheme: CardThemeData(
-          color: raised,
+          color: tokens.raised,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.zero,
-            side: BorderSide(color: divider),
+            side: BorderSide(color: tokens.divider),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: raised,
+          fillColor: tokens.raised,
           border: OutlineInputBorder(borderRadius: BorderRadius.zero),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
@@ -227,13 +227,3 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
 class _RouterRefresh extends ChangeNotifier {
   void refresh() => notifyListeners();
 }
-
-Color _paletteSeed(ThemePalette palette) => switch (palette) {
-  ThemePalette.transmute => const Color(0xff6D4C41),
-  ThemePalette.flameAlchemist => const Color(0xffB54334),
-  ThemePalette.hawkeye => const Color(0xff556B8E),
-  ThemePalette.automailMechanic => const Color(0xff3D7390),
-  ThemePalette.avarice => const Color(0xff8A6B19),
-  ThemePalette.scarredMan => const Color(0xff6B7650),
-  ThemePalette.armorBoundSoul => const Color(0xff596E75),
-};

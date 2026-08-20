@@ -41,6 +41,7 @@ void main() {
     await tester.pumpAndSettle();
 
     for (final label in [
+      'Workout',
       'Exercise library',
       'Nutrition',
       'Progress',
@@ -51,7 +52,10 @@ void main() {
       'Friends',
       'Settings',
     ]) {
-      expect(find.text(label), findsOneWidget);
+      expect(
+        find.text(label),
+        label == 'Workout' ? findsWidgets : findsOneWidget,
+      );
     }
   });
 
@@ -64,7 +68,23 @@ void main() {
   testWidgets('1440dp uses the full desktop header navigation', (tester) async {
     await pumpShell(tester, 1440);
     expect(find.text('TRANSMUTE'), findsOneWidget);
-    expect(find.text('Workout Plans'), findsOneWidget);
+    for (final label in [
+      'Dashboard',
+      'Workout Plans',
+      'Workout',
+      'Sessions',
+      'Exercise library',
+      'Nutrition',
+      'Progress',
+      'Fasting',
+      'Goals',
+      'Planning',
+      'Arcana',
+      'Friends',
+      'Settings',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
   });

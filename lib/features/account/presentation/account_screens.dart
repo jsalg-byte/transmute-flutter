@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/theme/transmute_palette.dart';
 import '../../../shared/widgets/app_shell.dart';
 
 class FriendsScreen extends ConsumerStatefulWidget {
@@ -387,13 +388,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     ),
   );
-  Widget _themeCard(UserPreferences preferences) {
-    final selected =
-        preferences.theme ??
-        const ThemePreference(
-          palette: ThemePalette.transmute,
-          brightness: PreferenceBrightness.light,
-        );
+  Widget _themeCard(UserPreferences _) {
+    final selected = ref.watch(effectiveThemePreferenceProvider);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -422,15 +418,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       .map(
                         (palette) => SizedBox(
                           width: width,
-                          child: ChoiceChip(
+                          child: _PaletteChoice(
+                            palette: palette,
+                            brightness: selected.brightness,
                             selected: selected.palette == palette,
-                            label: SizedBox(
-                              width: double.infinity,
-                              child: Text(_paletteLabel(palette)),
-                            ),
-                            onSelected: _saving
+                            onTap: _saving
                                 ? null
-                                : (_) => _setTheme(
+                                : () => _setTheme(
                                     ThemePreference(
                                       palette: palette,
                                       brightness: selected.brightness,
@@ -481,10 +475,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     () => ref.read(preferencesRepositoryProvider).setActivePlan(id),
     'Active workout plan saved.',
   );
-  Future<void> _setTheme(ThemePreference preference) => _run(
-    () => ref.read(preferencesRepositoryProvider).setTheme(preference),
-    'Theme preference saved.',
-  );
+  Future<void> _setTheme(ThemePreference preference) {
+    final prior = ref.read(effectiveThemePreferenceProvider);
+    ref.read(themeOverrideProvider.notifier).set(preference);
+    return _run(() async {
+      try {
+        await ref.read(preferencesRepositoryProvider).setTheme(preference);
+      } catch (_) {
+        ref.read(themeOverrideProvider.notifier).set(prior);
+        rethrow;
+      }
+    }, 'Theme preference saved.');
+  }
+
   Future<void> _run(Future<void> Function() operation, String success) async {
     setState(() => _saving = true);
     try {
@@ -506,6 +509,111 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) setState(() => _saving = false);
     }
   }
+}
+
+class _PaletteChoice extends StatelessWidget {
+  const _PaletteChoice({
+    required this.palette,
+    required this.brightness,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ThemePalette palette;
+  final PreferenceBrightness brightness;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = TransmutePalette.forPalette(palette, brightness);
+    final outline = selected
+        ? Theme.of(context).colorScheme.primary
+        : TransmutePalette.of(context).divider;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${_paletteLabel(palette)} color theme',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(color: outline, width: selected ? 2 : 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _PalettePreview(
+                        label: brightness == PreferenceBrightness.light
+                            ? 'Light palette'
+                            : 'Dark palette',
+                        tokens: tokens,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _paletteLabel(palette),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PalettePreview extends StatelessWidget {
+  const _PalettePreview({required this.label, required this.tokens});
+
+  final String label;
+  final TransmutePalette tokens;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: TransmutePalette.of(context).muted,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1,
+        ),
+      ),
+      const SizedBox(height: 6),
+      Row(
+        children: [
+          for (final color in [
+            tokens.surface,
+            tokens.ink,
+            tokens.oxide,
+            tokens.gold,
+          ])
+            Expanded(
+              child: Container(
+                height: 20,
+                margin: const EdgeInsets.only(right: 3),
+                decoration: BoxDecoration(
+                  color: color,
+                  border: Border.all(color: tokens.divider),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ],
+  );
 }
 
 class _RequestCard extends StatelessWidget {

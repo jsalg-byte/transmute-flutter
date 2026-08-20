@@ -20,6 +20,7 @@ class AppShell extends ConsumerWidget {
   static const _primary = <_ShellDestination>[
     _ShellDestination('Dashboard', '/dashboard'),
     _ShellDestination('Workout Plans', '/plans'),
+    _ShellDestination('Workout', '/session'),
     _ShellDestination('Sessions', '/history'),
   ];
 
@@ -46,6 +47,13 @@ class AppShell extends ConsumerWidget {
 
   static const _account = <_ShellDestination>[
     _ShellDestination('Settings', '/settings'),
+  ];
+
+  static const _desktopDestinations = <_ShellDestination>[
+    ..._primary,
+    ..._record,
+    ..._growth,
+    ..._account,
   ];
 
   @override
@@ -99,7 +107,7 @@ class AppShell extends ConsumerWidget {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        for (final destination in _primary)
+                        for (final destination in _desktopDestinations)
                           _DesktopNavItem(
                             destination: destination,
                             selected: _isSelected(location, destination.route),
