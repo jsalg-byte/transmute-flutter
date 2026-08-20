@@ -159,13 +159,10 @@ final arcanaProvider = AsyncNotifierProvider<ArcanaController, ArcanaData>(
 /// reconciliation. Keeping the previous data visible while a mutation runs
 /// also leaves the collection usable if a request fails.
 class ArcanaController extends AsyncNotifier<ArcanaData> {
-  late final ArcanaRepository _repository;
+  ArcanaRepository get _repository => ref.read(arcanaRepositoryProvider);
 
   @override
-  Future<ArcanaData> build() {
-    _repository = ref.watch(arcanaRepositoryProvider);
-    return _repository.read();
-  }
+  Future<ArcanaData> build() => ref.watch(arcanaRepositoryProvider).read();
 
   Future<ArcanaData> refresh() async {
     state = const AsyncLoading();
