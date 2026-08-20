@@ -19,15 +19,13 @@ or an API proxy.
 Build the API-mode bundle before committing a release:
 
 ```sh
-.fvm/flutter_sdk/bin/flutter build web --release \
-  --no-wasm-dry-run \
-  --dart-define=TRANSMUTE_REPOSITORY_MODE=api \
-  --dart-define=TRANSMUTE_API_BASE_URL=https://api.transmute.mzootfb.xyz
-rsync -a --delete build/web/ release/web/
+./scripts/build_web_release.sh
 ```
 
 The public API URL is baked into the committed release bundle; it is not a
-secret and is not a Coolify runtime variable.
+secret and is not a Coolify runtime variable. The script also versions the
+Flutter bootstrap and application URLs so browsers cannot reuse an old bundle
+after a deployment.
 
 The approved Flutter production origin is `https://transmute2.mzootfb.xyz`.
 Configure the Fastify API's `CORS_ORIGINS` runtime variable to contain that
