@@ -23,7 +23,7 @@ class ExerciseLibraryScreen extends ConsumerStatefulWidget {
 
 class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
   final _query = TextEditingController();
-  String? _selectedGroup;
+  final _selectedGroups = <String>{};
 
   @override
   void dispose() {
@@ -83,9 +83,12 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
               data: (exercises) => _LibraryContent(
                 exercises: exercises,
                 query: _query.text.trim(),
-                selectedGroup: _selectedGroup,
-                onGroupSelected: (group) =>
-                    setState(() => _selectedGroup = group),
+                selectedGroups: _selectedGroups,
+                onGroupToggled: (group) => setState(() {
+                  if (!_selectedGroups.add(group))
+                    _selectedGroups.remove(group);
+                }),
+                onGroupsCleared: () => setState(_selectedGroups.clear),
               ),
             ),
           ),
@@ -99,13 +102,15 @@ class _LibraryContent extends StatelessWidget {
   const _LibraryContent({
     required this.exercises,
     required this.query,
-    required this.selectedGroup,
-    required this.onGroupSelected,
+    required this.selectedGroups,
+    required this.onGroupToggled,
+    required this.onGroupsCleared,
   });
   final List<Exercise> exercises;
   final String query;
-  final String? selectedGroup;
-  final ValueChanged<String?> onGroupSelected;
+  final Set<String> selectedGroups;
+  final ValueChanged<String> onGroupToggled;
+  final VoidCallback onGroupsCleared;
 
   @override
   Widget build(BuildContext context) {
@@ -131,13 +136,11 @@ class _LibraryContent extends StatelessWidget {
           .toList()
         ..sort(),
     ];
-    final activeGroup = selectedGroup != null && groups.contains(selectedGroup)
-        ? selectedGroup
-        : null;
-    final visible = activeGroup == null
+    final activeGroups = selectedGroups.where(groups.contains).toSet();
+    final visible = activeGroups.isEmpty
         ? matched
         : matched
-              .where((exercise) => exercise.muscleGroup == activeGroup)
+              .where((exercise) => activeGroups.contains(exercise.muscleGroup))
               .toList();
 
     return CustomScrollView(
@@ -145,8 +148,8 @@ class _LibraryContent extends StatelessWidget {
         SliverToBoxAdapter(
           child: _BodyMusclePicker(
             availableGroups: availableGroups,
-            selectedGroup: activeGroup,
-            onSelected: onGroupSelected,
+            selectedGroups: activeGroups,
+            onGroupToggled: onGroupToggled,
           ),
         ),
         SliverToBoxAdapter(child: const SizedBox(height: 24)),
@@ -160,12 +163,10 @@ class _LibraryContent extends StatelessWidget {
         else ...[
           SliverToBoxAdapter(
             child: _ResultsHeading(
-              group: activeGroup,
+              groups: activeGroups,
               movementCount: visible.length,
               query: query,
-              onClearGroup: activeGroup == null
-                  ? null
-                  : () => onGroupSelected(null),
+              onClearGroups: activeGroups.isEmpty ? null : onGroupsCleared,
             ),
           ),
           SliverToBoxAdapter(child: const SizedBox(height: 8)),
@@ -187,12 +188,12 @@ class _LibraryContent extends StatelessWidget {
 class _BodyMusclePicker extends StatelessWidget {
   const _BodyMusclePicker({
     required this.availableGroups,
-    required this.selectedGroup,
-    required this.onSelected,
+    required this.selectedGroups,
+    required this.onGroupToggled,
   });
   final Set<String> availableGroups;
-  final String? selectedGroup;
-  final ValueChanged<String?> onSelected;
+  final Set<String> selectedGroups;
+  final ValueChanged<String> onGroupToggled;
 
   @override
   Widget build(BuildContext context) {
@@ -204,14 +205,14 @@ class _BodyMusclePicker extends StatelessWidget {
           builder: (context, constraints) {
             final compact = constraints.maxWidth < 620;
             final anatomy = _Anatomy(
-              selectedGroup: selectedGroup,
+              selectedGroups: selectedGroups,
               availableGroups: availableGroups,
-              onSelected: onSelected,
+              onGroupToggled: onGroupToggled,
             );
             final controls = _MuscleGroupControls(
-              selectedGroup: selectedGroup,
+              selectedGroups: selectedGroups,
               availableGroups: availableGroups,
-              onSelected: onSelected,
+              onGroupToggled: onGroupToggled,
             );
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -222,7 +223,7 @@ class _BodyMusclePicker extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Select a highlighted group to show its movements below.',
+                  'Tap one or more body groups to show their movements below.',
                   style: TextStyle(color: palette.muted),
                 ),
                 const SizedBox(height: 16),
@@ -249,21 +250,20 @@ class _BodyMusclePicker extends StatelessWidget {
 
 class _Anatomy extends StatelessWidget {
   const _Anatomy({
-    required this.selectedGroup,
+    required this.selectedGroups,
     required this.availableGroups,
-    required this.onSelected,
+    required this.onGroupToggled,
   });
-  final String? selectedGroup;
+  final Set<String> selectedGroups;
   final Set<String> availableGroups;
-  final ValueChanged<String?> onSelected;
+  final ValueChanged<String> onGroupToggled;
 
   @override
   Widget build(BuildContext context) {
-    final palette = TransmutePalette.of(context);
     return Semantics(
-      label: selectedGroup == null
-          ? 'Front and back muscle anatomy. Choose a muscle group below.'
-          : '$selectedGroup selected in the anatomy.',
+      label: selectedGroups.isEmpty
+          ? 'Front and back muscle anatomy. Tap a body region to select it.'
+          : '${selectedGroups.join(', ')} selected in the anatomy.',
       child: SizedBox(
         height: 260,
         child: Row(
@@ -272,7 +272,6 @@ class _Anatomy extends StatelessWidget {
             _BodySide(
               asset: 'assets/transmute/muscle-front.svg',
               label: 'Front body',
-              color: _anatomyColor(palette),
               hotspots: const [
                 _HotspotSpec('Shoulders', .16, .10),
                 _HotspotSpec('Chest', .50, .25),
@@ -281,14 +280,13 @@ class _Anatomy extends StatelessWidget {
                 _HotspotSpec('Quads', .50, .67),
               ],
               availableGroups: availableGroups,
-              selectedGroup: selectedGroup,
-              onSelected: onSelected,
+              selectedGroups: selectedGroups,
+              onGroupToggled: onGroupToggled,
             ),
             const SizedBox(width: 8),
             _BodySide(
               asset: 'assets/transmute/muscle-back.svg',
               label: 'Back body',
-              color: _anatomyColor(palette),
               hotspots: const [
                 _HotspotSpec('Shoulders', .50, .10),
                 _HotspotSpec('Back', .50, .29),
@@ -297,36 +295,31 @@ class _Anatomy extends StatelessWidget {
                 _HotspotSpec('Calves', .50, .88),
               ],
               availableGroups: availableGroups,
-              selectedGroup: selectedGroup,
-              onSelected: onSelected,
+              selectedGroups: selectedGroups,
+              onGroupToggled: onGroupToggled,
             ),
           ],
         ),
       ),
     );
   }
-
-  Color _anatomyColor(TransmutePalette palette) =>
-      selectedGroup == null ? palette.oxide : palette.gold;
 }
 
 class _BodySide extends StatelessWidget {
   const _BodySide({
     required this.asset,
     required this.label,
-    required this.color,
     required this.hotspots,
     required this.availableGroups,
-    required this.selectedGroup,
-    required this.onSelected,
+    required this.selectedGroups,
+    required this.onGroupToggled,
   });
   final String asset;
   final String label;
-  final Color color;
   final List<_HotspotSpec> hotspots;
   final Set<String> availableGroups;
-  final String? selectedGroup;
-  final ValueChanged<String?> onSelected;
+  final Set<String> selectedGroups;
+  final ValueChanged<String> onGroupToggled;
 
   static final _templates = <String, Future<String>>{
     'assets/transmute/muscle-front.svg': rootBundle.loadString(
@@ -338,39 +331,42 @@ class _BodySide extends StatelessWidget {
   };
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 126,
-    height: 260,
-    child: Stack(
-      children: [
-        Semantics(
-          label: label,
-          child: FutureBuilder<String>(
-            future: _templates[asset],
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) return const SizedBox.expand();
-              return SvgPicture.string(
-                _tintAnatomy(snapshot.data!, color),
-                width: 126,
-                height: 260,
-              );
-            },
-          ),
-        ),
-        for (final hotspot in hotspots)
-          Positioned(
-            left: hotspot.x * 126 - 21,
-            top: hotspot.y * 260 - 16,
-            child: _AnatomyHotspot(
-              group: hotspot.group,
-              active: selectedGroup == hotspot.group,
-              enabled: availableGroups.contains(hotspot.group),
-              onSelected: onSelected,
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    return SizedBox(
+      width: 126,
+      height: 260,
+      child: Stack(
+        children: [
+          Semantics(
+            label: label,
+            child: FutureBuilder<String>(
+              future: _templates[asset],
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return const SizedBox.expand();
+                return SvgPicture.string(
+                  _colorAnatomy(snapshot.data!, selectedGroups, palette),
+                  width: 126,
+                  height: 260,
+                );
+              },
             ),
           ),
-      ],
-    ),
-  );
+          for (final hotspot in hotspots)
+            Positioned(
+              left: hotspot.x * 126 - 24,
+              top: hotspot.y * 260 - 24,
+              child: _AnatomyRegionTapTarget(
+                group: hotspot.group,
+                selected: selectedGroups.contains(hotspot.group),
+                enabled: availableGroups.contains(hotspot.group),
+                onGroupToggled: onGroupToggled,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _HotspotSpec {
@@ -380,71 +376,41 @@ class _HotspotSpec {
   final double y;
 }
 
-class _AnatomyHotspot extends StatelessWidget {
-  const _AnatomyHotspot({
+class _AnatomyRegionTapTarget extends StatelessWidget {
+  const _AnatomyRegionTapTarget({
     required this.group,
-    required this.active,
+    required this.selected,
     required this.enabled,
-    required this.onSelected,
+    required this.onGroupToggled,
   });
   final String group;
-  final bool active;
+  final bool selected;
   final bool enabled;
-  final ValueChanged<String?> onSelected;
+  final ValueChanged<String> onGroupToggled;
 
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    selected: active,
-    label: 'Show $group exercises',
+    selected: selected,
+    label: '${selected ? 'Deselect' : 'Select'} $group muscle group',
     hint: enabled ? null : 'No exercises in this group',
-    child: Tooltip(
-      message: enabled ? group : 'No $group exercises',
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkResponse(
-          onTap: enabled ? () => onSelected(active ? null : group) : null,
-          radius: 22,
-          child: Container(
-            width: 42,
-            height: 32,
-            decoration: BoxDecoration(
-              color: active
-                  ? TransmutePalette.of(context).gold.withValues(alpha: .90)
-                  : enabled
-                  ? TransmutePalette.of(context).raised.withValues(alpha: .75)
-                  : Colors.transparent,
-              border: Border.all(
-                color: active
-                    ? TransmutePalette.of(context).ink
-                    : enabled
-                    ? TransmutePalette.of(context).oxide
-                    : Colors.transparent,
-              ),
-            ),
-            child: enabled
-                ? Icon(
-                    Icons.touch_app_outlined,
-                    size: 16,
-                    color: TransmutePalette.of(context).ink,
-                  )
-                : null,
-          ),
-        ),
-      ),
+    child: GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: enabled ? () => onGroupToggled(group) : null,
+      child: const SizedBox(width: 48, height: 48),
     ),
   );
 }
 
 class _MuscleGroupControls extends StatelessWidget {
   const _MuscleGroupControls({
-    required this.selectedGroup,
+    required this.selectedGroups,
     required this.availableGroups,
-    required this.onSelected,
+    required this.onGroupToggled,
   });
-  final String? selectedGroup;
+  final Set<String> selectedGroups;
   final Set<String> availableGroups;
-  final ValueChanged<String?> onSelected;
+  final ValueChanged<String> onGroupToggled;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -454,14 +420,14 @@ class _MuscleGroupControls extends StatelessWidget {
       runSpacing: 8,
       children: [
         for (final group in _knownGroups)
-          ChoiceChip(
+          FilterChip(
             label: Text(group),
-            selected: selectedGroup == group,
+            selected: selectedGroups.contains(group),
             onSelected: availableGroups.contains(group)
-                ? (selected) => onSelected(selected ? group : null)
+                ? (_) => onGroupToggled(group)
                 : null,
             tooltip: availableGroups.contains(group)
-                ? 'Show $group exercises'
+                ? 'Toggle $group exercises'
                 : 'No $group exercises in this library',
           ),
       ],
@@ -471,15 +437,15 @@ class _MuscleGroupControls extends StatelessWidget {
 
 class _ResultsHeading extends StatelessWidget {
   const _ResultsHeading({
-    required this.group,
+    required this.groups,
     required this.movementCount,
     required this.query,
-    this.onClearGroup,
+    this.onClearGroups,
   });
-  final String? group;
+  final Set<String> groups;
   final int movementCount;
   final String query;
-  final VoidCallback? onClearGroup;
+  final VoidCallback? onClearGroups;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -490,7 +456,11 @@ class _ResultsHeading extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              group == null ? 'All movements' : '$group movements',
+              groups.isEmpty
+                  ? 'All movements'
+                  : groups.length == 1
+                  ? '${groups.single} movements'
+                  : 'Selected movements',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 4),
@@ -500,19 +470,26 @@ class _ResultsHeading extends StatelessWidget {
           ],
         ),
       ),
-      if (onClearGroup != null)
+      if (onClearGroups != null)
         TextButton.icon(
-          onPressed: onClearGroup,
+          onPressed: onClearGroups,
           icon: const Icon(Icons.clear),
-          label: const Text('All groups'),
+          label: const Text('Clear selection'),
         ),
     ],
   );
 }
 
-class _ExerciseAccordion extends StatelessWidget {
+class _ExerciseAccordion extends StatefulWidget {
   const _ExerciseAccordion({super.key, required this.exercise});
   final Exercise exercise;
+
+  @override
+  State<_ExerciseAccordion> createState() => _ExerciseAccordionState();
+}
+
+class _ExerciseAccordionState extends State<_ExerciseAccordion> {
+  var _isExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -520,14 +497,17 @@ class _ExerciseAccordion extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
+        onExpansionChanged: (expanded) => setState(() {
+          _isExpanded = expanded;
+        }),
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         title: Text(
-          exercise.name,
+          widget.exercise.name,
           style: Theme.of(context).textTheme.titleMedium,
         ),
         subtitle: Text(
-          '${_categoryLabel(exercise.category)} · ${exercise.muscleGroup ?? 'Muscle group not specified'}',
+          '${_categoryLabel(widget.exercise.category)} · ${widget.exercise.muscleGroup ?? 'Muscle group not specified'}',
         ),
         iconColor: palette.oxide,
         collapsedIconColor: palette.muted,
@@ -543,13 +523,14 @@ class _ExerciseAccordion extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          if (exercise.demoUrl == null)
+          if (widget.exercise.demoUrl == null)
             const _DemoUnavailable()
           else
             _ExerciseDemo(
-              name: exercise.name,
-              url: exercise.demoUrl!,
-              sourceName: exercise.demoSourceName,
+              name: widget.exercise.name,
+              url: widget.exercise.demoUrl!,
+              sourceName: widget.exercise.demoSourceName,
+              autoPlay: _isExpanded,
             ),
         ],
       ),
@@ -583,9 +564,15 @@ class _DemoUnavailable extends StatelessWidget {
 }
 
 class _ExerciseDemo extends StatefulWidget {
-  const _ExerciseDemo({required this.name, required this.url, this.sourceName});
+  const _ExerciseDemo({
+    required this.name,
+    required this.url,
+    required this.autoPlay,
+    this.sourceName,
+  });
   final String name;
   final String url;
+  final bool autoPlay;
   final String? sourceName;
 
   @override
@@ -619,6 +606,7 @@ class _ExerciseDemoState extends State<_ExerciseDemo> {
         return;
       }
       setState(() => _controller = controller);
+      if (widget.autoPlay) await controller.play();
     } catch (_) {
       await controller.dispose();
       if (mounted) {
@@ -631,6 +619,19 @@ class _ExerciseDemoState extends State<_ExerciseDemo> {
   void dispose() {
     _controller?.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ExerciseDemo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.autoPlay == widget.autoPlay) return;
+    final controller = _controller;
+    if (controller == null) return;
+    if (widget.autoPlay) {
+      controller.play();
+    } else {
+      controller.pause();
+    }
   }
 
   @override
@@ -664,30 +665,37 @@ class _ExerciseDemoState extends State<_ExerciseDemo> {
     }
     return Semantics(
       label: '${widget.name} demonstration',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: controller.value.aspectRatio,
-            child: VideoPlayer(controller),
-          ),
-          const SizedBox(height: 8),
-          FilledButton.tonalIcon(
-            onPressed: () => setState(() {
-              controller.value.isPlaying
-                  ? controller.pause()
-                  : controller.play();
-            }),
-            icon: Icon(
-              controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+      child: AspectRatio(
+        aspectRatio: controller.value.aspectRatio,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            VideoPlayer(controller),
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: controller,
+                builder: (context, value, _) => Material(
+                  color: Colors.black.withValues(alpha: .58),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    tooltip: value.isPlaying
+                        ? 'Pause demonstration'
+                        : 'Play demonstration',
+                    color: Colors.white,
+                    onPressed: () {
+                      value.isPlaying ? controller.pause() : controller.play();
+                    },
+                    icon: Icon(
+                      value.isPlaying ? Icons.pause : Icons.play_arrow,
+                    ),
+                  ),
+                ),
+              ),
             ),
-            label: Text(
-              controller.value.isPlaying
-                  ? 'Pause demonstration'
-                  : 'Play demonstration',
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -830,7 +838,37 @@ String _categoryLabel(String category) => switch (category) {
   _ => category,
 };
 
-String _tintAnatomy(String svg, Color color) {
-  final hex = '#${color.toARGB32().toRadixString(16).substring(2)}';
-  return svg.replaceAll(RegExp(r'\{\{[^}]+}}'), hex);
+const _groupRegions = <String, Set<String>>{
+  'Chest': {'chest'},
+  'Back': {'upper-back', 'lower-back', 'trapezius'},
+  'Shoulders': {'deltoids', 'trapezius'},
+  'Arms': {'biceps', 'triceps', 'forearm'},
+  'Core': {'abs', 'obliques'},
+  'Quads': {'quadriceps', 'adductors'},
+  'Hamstrings': {'hamstring', 'gluteal'},
+  'Calves': {'calves', 'tibialis'},
+};
+
+String _colorAnatomy(
+  String svg,
+  Set<String> selectedGroups,
+  TransmutePalette palette,
+) {
+  final selectedRegions = selectedGroups.expand(
+    (group) => _groupRegions[group] ?? const <String>{},
+  );
+  final selected = selectedRegions.toSet();
+  final neutral = _hex(palette.divider.withValues(alpha: .62));
+  final red = _hex(palette.rest);
+
+  return svg.replaceAllMapped(RegExp(r'\{\{([^}]+)}}'), (match) {
+    final token = match.group(1)!;
+    final region = token.endsWith('Stroke')
+        ? token.substring(0, token.length - 'Stroke'.length)
+        : token;
+    return selected.contains(region) ? red : neutral;
+  });
 }
+
+String _hex(Color color) =>
+    '#${color.toARGB32().toRadixString(16).substring(2)}';

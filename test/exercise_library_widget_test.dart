@@ -38,11 +38,17 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Create exercise'), findsNothing);
 
-      await tester.tap(find.bySemanticsLabel('Show Chest exercises'));
+      await tester.tap(find.bySemanticsLabel('Select Chest muscle group'));
       await tester.pumpAndSettle();
 
       expect(find.text('Chest movements'), findsOneWidget);
       expect(find.byType(ExpansionTile), findsOneWidget);
+
+      await tester.tap(find.bySemanticsLabel('Select Back muscle group'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Selected movements'), findsOneWidget);
+      expect(find.byType(ExpansionTile), findsNWidgets(2));
 
       await tester.tap(find.text('Barbell bench press'));
       await tester.pumpAndSettle();
