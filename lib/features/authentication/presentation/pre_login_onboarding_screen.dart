@@ -423,15 +423,22 @@ const _oxide = Color(0xff6D79A0);
 
 const _wordmarkStyle = TextStyle(
   color: _ink,
+  fontFamily: 'Spectral',
   fontSize: 15,
   fontWeight: FontWeight.w800,
   letterSpacing: 2.1,
 );
 
-const _stageStyle = TextStyle(color: _oxide, fontSize: 12, letterSpacing: 1.5);
+const _stageStyle = TextStyle(
+  color: _oxide,
+  fontFamily: 'Spectral',
+  fontSize: 12,
+  letterSpacing: 1.5,
+);
 
 const _operationStyle = TextStyle(
   color: _body,
+  fontFamily: 'Spectral',
   fontSize: 12,
   fontWeight: FontWeight.w800,
   letterSpacing: 2.1,
@@ -439,6 +446,7 @@ const _operationStyle = TextStyle(
 
 const _titleStyle = TextStyle(
   color: _ink,
+  fontFamily: 'Spectral',
   fontSize: 49,
   fontWeight: FontWeight.w900,
   height: 47 / 49,

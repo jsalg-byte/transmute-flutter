@@ -164,7 +164,6 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
     return MaterialApp.router(
       title: 'Transmute',
       theme: ThemeData(
-        fontFamily: 'CastoroTitling',
         colorScheme: colors,
         scaffoldBackgroundColor: colors.surface,
         useMaterial3: true,
@@ -189,8 +188,35 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
           ),
         ),
         textTheme: const TextTheme(
-          displaySmall: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-          titleLarge: TextStyle(fontWeight: FontWeight.bold),
+          displayLarge: TextStyle(
+            fontFamily: 'Spectral',
+            fontWeight: FontWeight.bold,
+          ),
+          displayMedium: TextStyle(
+            fontFamily: 'Spectral',
+            fontWeight: FontWeight.bold,
+          ),
+          displaySmall: TextStyle(
+            fontFamily: 'Spectral',
+            fontSize: 32,
+            fontWeight: FontWeight.bold,
+          ),
+          headlineLarge: TextStyle(
+            fontFamily: 'Spectral',
+            fontWeight: FontWeight.bold,
+          ),
+          headlineMedium: TextStyle(
+            fontFamily: 'Spectral',
+            fontWeight: FontWeight.bold,
+          ),
+          headlineSmall: TextStyle(
+            fontFamily: 'Spectral',
+            fontWeight: FontWeight.bold,
+          ),
+          titleLarge: TextStyle(
+            fontFamily: 'Spectral',
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
       routerConfig: _router,

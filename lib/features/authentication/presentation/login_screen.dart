@@ -486,6 +486,7 @@ const _destructive = Color(0xffA95B5B);
 
 const _wordmarkStyle = TextStyle(
   color: _ink,
+  fontFamily: 'Spectral',
   fontSize: 15,
   fontWeight: FontWeight.w800,
   letterSpacing: 2.1,
@@ -495,18 +496,21 @@ const _headerLinkStyle = TextStyle(
   decoration: TextDecoration.underline,
   decorationColor: _destructive,
   decorationThickness: 1,
+  fontFamily: 'Spectral',
   fontSize: 14,
   fontWeight: FontWeight.w800,
 );
 
 const _eyebrowStyle = TextStyle(
   color: _oxide,
+  fontFamily: 'Spectral',
   fontSize: 12,
   letterSpacing: 1.5,
 );
 
 const _titleStyle = TextStyle(
   color: _ink,
+  fontFamily: 'Spectral',
   fontSize: 54,
   fontWeight: FontWeight.w900,
   height: 52 / 54,
