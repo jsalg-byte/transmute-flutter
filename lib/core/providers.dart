@@ -148,9 +148,49 @@ final arcanaRepositoryProvider = Provider<ArcanaRepository>(
       ? MockArcanaRepository()
       : ApiArcanaRepository(ref.watch(dioProvider)),
 );
-final arcanaProvider = FutureProvider<ArcanaData>(
-  (ref) => ref.watch(arcanaRepositoryProvider).read(),
+final arcanaProvider = AsyncNotifierProvider<ArcanaController, ArcanaData>(
+  ArcanaController.new,
 );
+
+/// Owns the server-backed Arcana projection and its two allowed mutations.
+///
+/// Stages and evidence are deliberately never calculated here: both mock and
+/// API repositories return the canonical projection after a pin or
+/// reconciliation. Keeping the previous data visible while a mutation runs
+/// also leaves the collection usable if a request fails.
+class ArcanaController extends AsyncNotifier<ArcanaData> {
+  late final ArcanaRepository _repository;
+
+  @override
+  Future<ArcanaData> build() {
+    _repository = ref.watch(arcanaRepositoryProvider);
+    return _repository.read();
+  }
+
+  Future<ArcanaData> refresh() async {
+    state = const AsyncLoading();
+    try {
+      final next = await _repository.read();
+      state = AsyncData(next);
+      return next;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+      rethrow;
+    }
+  }
+
+  Future<ArcanaData> pin(ArcanaSlot slot, String cardId) async {
+    final next = await _repository.pin(slot, cardId);
+    state = AsyncData(next);
+    return next;
+  }
+
+  Future<ArcanaData> reconcile() async {
+    final next = await _repository.reconcile();
+    state = AsyncData(next);
+    return next;
+  }
+}
 final friendsRepositoryProvider = Provider<FriendsRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockFriendsRepository(ref.watch(mockStoreProvider))
