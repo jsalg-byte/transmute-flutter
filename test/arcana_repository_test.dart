@@ -36,4 +36,19 @@ void main() {
       'fool',
     );
   });
+
+  test('Arcana controller can rebuild after its repository is refreshed', () async {
+    final repository = MockArcanaRepository();
+    final container = ProviderContainer(
+      overrides: [arcanaRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(arcanaProvider.future);
+    container.invalidate(arcanaRepositoryProvider);
+    await Future<void>.delayed(Duration.zero);
+
+    final data = await container.read(arcanaProvider.future);
+    expect(data.cards, hasLength(15));
+  });
 }
