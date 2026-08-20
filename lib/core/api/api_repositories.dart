@@ -1267,7 +1267,7 @@ class ApiArcanaRepository implements ArcanaRepository {
     final body = await _request(
       () => _dio.get<Map<String, dynamic>>('/v1/arcana'),
     );
-    return _arcana(body.data!);
+    return mapArcanaResponse(body.data!);
   }
 
   @override
@@ -1278,7 +1278,7 @@ class ApiArcanaRepository implements ArcanaRepository {
         data: {'slot': slot.name, 'cardId': cardId},
       ),
     );
-    return _arcana(body.data!);
+    return mapArcanaResponse(body.data!);
   }
 
   @override
@@ -1286,7 +1286,7 @@ class ApiArcanaRepository implements ArcanaRepository {
     final body = await _request(
       () => _dio.post<Map<String, dynamic>>('/v1/arcana/reconcile'),
     );
-    return _arcana(body.data!['arcana'] as Map<String, dynamic>);
+    return mapArcanaResponse(body.data!['arcana'] as Map<String, dynamic>);
   }
 }
 
@@ -1721,7 +1721,7 @@ Food _barcodeFood(Map<String, dynamic> map) => Food(
   servingSizeUnit: _servingUnit(map['servingSizeUnit']),
   servingSizeText: map['servingSizeText'] as String?,
 );
-ArcanaData _arcana(Map<String, dynamic> map) => ArcanaData(
+ArcanaData mapArcanaResponse(Map<String, dynamic> map) => ArcanaData(
   ruleVersion: map['ruleVersion'] as int,
   cards: (map['cards'] as List<dynamic>)
       .map((item) => _arcanaCard(item as Map<String, dynamic>))
@@ -1832,7 +1832,6 @@ Map<String, dynamic> _themePreferenceBody(ThemePreference preference) => {
   'mode': preference.brightness == PreferenceBrightness.dark ? 'dark' : 'light',
 };
 ArcanaCard _arcanaCard(Map<String, dynamic> map) {
-  final rawEvidence = map['stageEvidence'] as Map<String, dynamic>;
   return ArcanaCard(
     id: map['id'] as String,
     number: map['number'] as String,
@@ -1843,15 +1842,55 @@ ArcanaCard _arcanaCard(Map<String, dynamic> map) {
     earnedAt: map['earnedAt'] == null
         ? null
         : DateTime.parse(map['earnedAt'] as String),
-    stageEvidence: {
-      for (final entry in rawEvidence.entries)
-        ArcanaStage.values.byName(entry.key): _arcanaEvidence(
-          entry.value as Map<String, dynamic>,
-        ),
-    },
+    stageEvidence: _arcanaEvidenceByStage(map['stageEvidence']),
     nextMilestone: map['nextMilestone'] == null
         ? null
         : _arcanaMilestone(map['nextMilestone'] as Map<String, dynamic>),
+  );
+}
+
+/// Normalizes the actual Arcana response while preserving its one canonical
+/// model. Older persisted `user_arcana_states` rows can contain a JSON-encoded
+/// stage map inside one stage entry; the API currently returns that exact
+/// shape. We unwrap only valid Arcana stage keys, then map the evidence.
+Map<ArcanaStage, ArcanaEvidence> _arcanaEvidenceByStage(Object? value) {
+  final raw = _arcanaJsonMap(value);
+  final evidence = <ArcanaStage, ArcanaEvidence>{};
+  for (final entry in raw.entries) {
+    final stage = ArcanaStage.values.byName(entry.key);
+    final candidate = _arcanaJsonMap(entry.value);
+    final nestedStages = candidate.keys
+        .where((key) => ArcanaStage.values.any((stage) => stage.name == key))
+        .toList();
+    if (nestedStages.isEmpty) {
+      evidence[stage] = _arcanaEvidence(candidate);
+      continue;
+    }
+    if (nestedStages.length != candidate.length) {
+      throw const AppFailure(
+        'arcana_contract_error',
+        'Arcana returned an invalid evidence record.',
+      );
+    }
+    for (final nested in candidate.entries) {
+      evidence[ArcanaStage.values.byName(nested.key)] = _arcanaEvidence(
+        _arcanaJsonMap(nested.value),
+      );
+    }
+  }
+  return evidence;
+}
+
+Map<String, dynamic> _arcanaJsonMap(Object? value) {
+  if (value is Map<String, dynamic>) return value;
+  if (value is Map) return value.cast<String, dynamic>();
+  if (value is String) {
+    final decoded = jsonDecode(value);
+    if (decoded is Map) return decoded.cast<String, dynamic>();
+  }
+  throw const AppFailure(
+    'arcana_contract_error',
+    'Arcana returned an invalid evidence record.',
   );
 }
 

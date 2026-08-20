@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:transmute_flutter/core/api/api_repositories.dart';
+import 'package:transmute_flutter/core/domain/models.dart';
 import 'package:transmute_flutter/core/domain/repositories.dart';
 
 void main() {
@@ -74,6 +75,51 @@ void main() {
       }
     },
   );
+
+  test('Arcana adapter unwraps a legacy encoded stage-evidence map', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'));
+    dio.httpClientAdapter = _StubAdapter((options) {
+      expect(options.path, '/v1/arcana');
+      return {
+        'ruleVersion': 1,
+        'pins': const <String, String?>{},
+        'cards': [
+          {
+            'id': 'fool',
+            'number': '0',
+            'name': 'The Fool',
+            'focus': 'Beginning the work.',
+            'source': 'original-geometric',
+            'stage': 'illuminated',
+            'earnedAt': '2026-07-28T18:39:05.388Z',
+            'stageEvidence': {
+              'revealed': jsonEncode({
+                'illuminated': {
+                  'triggeringEventIds': const [],
+                  'summary': 'Qualified sessions recover the beginning of the work.',
+                  'stats': {'qualifiedSessions': 25, 'activeWeeks': 8},
+                  'source': 'recovered',
+                  'earnedAt': '2026-07-28T18:39:05.388Z',
+                },
+              }),
+            },
+            'nextMilestone': null,
+          },
+        ],
+      };
+    });
+
+    final data = await ApiArcanaRepository(dio).read();
+
+    expect(
+      data.cards.single.stageEvidence[ArcanaStage.illuminated]!.summary,
+      'Qualified sessions recover the beginning of the work.',
+    );
+    expect(
+      data.cards.single.stageEvidence[ArcanaStage.illuminated]!.stats,
+      containsPair('qualifiedSessions', 25),
+    );
+  });
 }
 
 class _StubAdapter implements HttpClientAdapter {
