@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -674,9 +675,13 @@ double _milestoneProgress(ArcanaMilestone milestone) {
   return (milestone.current / milestone.target).clamp(0.0, 1.0).toDouble();
 }
 
-String _messageFor(Object error) => error is AppFailure
-    ? error.message
-    : 'Your collection could not be loaded. Try again.';
+String _messageFor(Object error) {
+  if (error is AppFailure) return error.message;
+  if (kDebugMode) {
+    return 'Debug detail: ${error.runtimeType}: $error';
+  }
+  return 'Your collection could not be loaded. Try again.';
+}
 
 void _failure(BuildContext context, AppFailure error) {
   if (!context.mounted) return;
