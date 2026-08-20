@@ -49,13 +49,6 @@ class AppShell extends ConsumerWidget {
     _ShellDestination('Settings', '/settings'),
   ];
 
-  static const _desktopDestinations = <_ShellDestination>[
-    ..._primary,
-    ..._record,
-    ..._growth,
-    ..._account,
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final width = MediaQuery.sizeOf(context).width;
@@ -103,17 +96,16 @@ class AppShell extends ConsumerWidget {
                 Divider(height: 1, color: palette.divider),
                 SizedBox(
                   height: 70,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (final destination in _desktopDestinations)
-                          _DesktopNavItem(
-                            destination: destination,
-                            selected: _isSelected(location, destination.route),
-                          ),
-                      ],
-                    ),
+                  child: Row(
+                    children: [
+                      for (final destination in _primary)
+                        _DesktopNavItem(
+                          destination: destination,
+                          selected: _isSelected(location, destination.route),
+                        ),
+                      const Spacer(),
+                      _desktopDestinationMenu(context, location),
+                    ],
                   ),
                 ),
                 Divider(height: 1, color: palette.divider),
@@ -249,6 +241,68 @@ class AppShell extends ConsumerWidget {
       const PopupMenuDivider(),
       const PopupMenuItem(value: '/logout', child: Text('Sign out')),
     ],
+  );
+
+  Widget _desktopDestinationMenu(
+    BuildContext context,
+    String location,
+  ) => PopupMenuButton<String>(
+    tooltip: 'Open all navigation',
+    onSelected: context.go,
+    itemBuilder: (_) => [
+      const PopupMenuItem(
+        enabled: false,
+        child: Text('RECORD', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      for (final item in _record) _desktopMenuItem(context, location, item),
+      const PopupMenuItem(
+        enabled: false,
+        child: Text('GROWTH', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      for (final item in _growth) _desktopMenuItem(context, location, item),
+      const PopupMenuItem(
+        enabled: false,
+        child: Text('ACCOUNT', style: TextStyle(fontWeight: FontWeight.bold)),
+      ),
+      for (final item in _account) _desktopMenuItem(context, location, item),
+    ],
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.menu, size: 19, color: TransmutePalette.of(context).ink),
+          const SizedBox(width: 7),
+          Text(
+            'Menu',
+            style: TextStyle(
+              color: TransmutePalette.of(context).ink,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  PopupMenuItem<String> _desktopMenuItem(
+    BuildContext context,
+    String location,
+    _ShellDestination item,
+  ) => PopupMenuItem(
+    value: item.route,
+    child: Text(
+      item.label,
+      style: TextStyle(
+        fontWeight: _isSelected(location, item.route)
+            ? FontWeight.w800
+            : FontWeight.w400,
+        decoration: _isSelected(location, item.route)
+            ? TextDecoration.underline
+            : null,
+      ),
+    ),
   );
 }
 

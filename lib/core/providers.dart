@@ -188,6 +188,7 @@ class ArcanaController extends AsyncNotifier<ArcanaData> {
     return next;
   }
 }
+
 final friendsRepositoryProvider = Provider<FriendsRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockFriendsRepository(ref.watch(mockStoreProvider))
@@ -227,8 +228,10 @@ final themeOverrideProvider =
     );
 
 final effectiveThemePreferenceProvider = Provider<ThemePreference>((ref) {
+  final savedPreference = ref.watch(preferencesProvider).asData?.value.theme;
   return ref.watch(themeOverrideProvider) ??
       ref.watch(themePreferenceProvider).asData?.value ??
+      savedPreference ??
       defaultThemePreference;
 });
 

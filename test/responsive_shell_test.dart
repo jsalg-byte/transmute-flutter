@@ -68,11 +68,13 @@ void main() {
   testWidgets('1440dp uses the full desktop header navigation', (tester) async {
     await pumpShell(tester, 1440);
     expect(find.text('TRANSMUTE'), findsOneWidget);
+    for (final label in ['Dashboard', 'Workout Plans', 'Workout', 'Sessions']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(find.text('Menu'), findsOneWidget);
+    await tester.tap(find.text('Menu'));
+    await tester.pumpAndSettle();
     for (final label in [
-      'Dashboard',
-      'Workout Plans',
-      'Workout',
-      'Sessions',
       'Exercise library',
       'Nutrition',
       'Progress',
