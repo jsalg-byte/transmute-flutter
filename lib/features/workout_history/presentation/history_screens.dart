@@ -29,11 +29,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         children: [
           const Text(
             'Workout history',
-            style: TextStyle(
-              fontFamily: 'Georgia',
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 16),
           Expanded(
@@ -246,11 +242,7 @@ class _CompletedDetail extends ConsumerWidget {
         ),
         Text(
           session.planName,
-          style: const TextStyle(
-            fontFamily: 'Georgia',
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         Text(

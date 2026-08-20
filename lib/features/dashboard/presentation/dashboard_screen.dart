@@ -579,7 +579,6 @@ class _Eyebrow extends StatelessWidget {
       label,
       style: TextStyle(
         color: color ?? palette.steel,
-        fontFamily: 'monospace',
         fontSize: 11,
         fontWeight: FontWeight.w800,
         letterSpacing: 1.6,
@@ -615,7 +614,6 @@ class _DashboardText {
       TextStyle(color: palette.muted, fontSize: 16, height: 1.45);
   static TextStyle timing(TransmutePalette palette) => TextStyle(
     color: palette.steel,
-    fontFamily: 'monospace',
     fontSize: 11,
     fontWeight: FontWeight.w800,
     letterSpacing: .6,

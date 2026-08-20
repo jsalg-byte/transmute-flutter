@@ -57,7 +57,6 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                       const Text(
                         'TRANSMUTE',
                         style: TextStyle(
-                          fontFamily: 'Georgia',
                           fontWeight: FontWeight.bold,
                           fontSize: 22,
                         ),

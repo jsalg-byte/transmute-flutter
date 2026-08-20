@@ -36,11 +36,7 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
               const Expanded(
                 child: Text(
                   'Exercise library',
-                  style: TextStyle(
-                    fontFamily: 'Georgia',
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                 ),
               ),
               ElevatedButton.icon(

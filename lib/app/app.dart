@@ -8,6 +8,7 @@ import '../features/active_session/presentation/active_session_screen.dart';
 import '../features/account/presentation/account_screens.dart';
 import '../features/arcana/presentation/arcana_screen.dart';
 import '../features/authentication/presentation/login_screen.dart';
+import '../features/authentication/presentation/pre_login_onboarding_screen.dart';
 import '../features/authentication/presentation/welcome_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/exercise_library/presentation/exercise_library_screen.dart';
@@ -43,18 +44,24 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
       redirect: (context, state) {
         final loggedIn = _auth.status == AuthStatus.signedIn;
         final loading = _auth.status == AuthStatus.loading;
-        if (loading) return state.matchedLocation == '/login' ? null : '/login';
-        if (!loggedIn && state.matchedLocation != '/login') return '/login';
-        if (loggedIn && state.matchedLocation == '/login') {
+        final publicRoute =
+            state.matchedLocation == '/' || state.matchedLocation == '/login';
+        if (loading) return publicRoute ? null : '/';
+        if (!loggedIn && !publicRoute) return '/';
+        if (loggedIn && publicRoute) {
           return _auth.freshRegistration ? '/welcome' : '/dashboard';
         }
-        if (state.matchedLocation == '/')
-          return loggedIn ? '/dashboard' : '/login';
         return null;
       },
       routes: [
-        GoRoute(path: '/', builder: (_, _) => const SizedBox()),
-        GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+        GoRoute(path: '/', builder: (_, _) => const PreLoginOnboardingScreen()),
+        GoRoute(
+          path: '/login',
+          builder: (_, state) => LoginScreen(
+            initiallyRegistering:
+                state.uri.queryParameters['mode'] == 'register',
+          ),
+        ),
         GoRoute(path: '/welcome', builder: (_, _) => const WelcomeScreen()),
         GoRoute(path: '/dashboard', builder: (_, _) => const DashboardScreen()),
         GoRoute(
@@ -157,6 +164,7 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
     return MaterialApp.router(
       title: 'Transmute',
       theme: ThemeData(
+        fontFamily: 'CastoroTitling',
         colorScheme: colors,
         scaffoldBackgroundColor: colors.surface,
         useMaterial3: true,
@@ -181,11 +189,7 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
           ),
         ),
         textTheme: const TextTheme(
-          displaySmall: TextStyle(
-            fontFamily: 'Georgia',
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-          ),
+          displaySmall: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
           titleLarge: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),

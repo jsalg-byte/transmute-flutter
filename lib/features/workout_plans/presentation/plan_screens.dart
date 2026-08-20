@@ -25,11 +25,7 @@ class PlanListScreen extends ConsumerWidget {
               const Expanded(
                 child: Text(
                   'Workout plans',
-                  style: TextStyle(
-                    fontFamily: 'Georgia',
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                 ),
               ),
               ElevatedButton.icon(
@@ -395,7 +391,6 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
                     child: Text(
                       value.name,
                       style: const TextStyle(
-                        fontFamily: 'Georgia',
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
                       ),

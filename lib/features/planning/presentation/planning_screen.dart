@@ -19,11 +19,7 @@ class PlanningScreen extends ConsumerWidget {
             const Expanded(
               child: Text(
                 'Planning',
-                style: TextStyle(
-                  fontFamily: 'Georgia',
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
               ),
             ),
             ElevatedButton(

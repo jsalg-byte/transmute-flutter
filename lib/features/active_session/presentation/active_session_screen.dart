@@ -100,11 +100,7 @@ class _SessionBody extends ConsumerWidget {
         children: [
           Text(
             session.planName,
-            style: const TextStyle(
-              fontFamily: 'Georgia',
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
@@ -783,11 +779,7 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
             const SizedBox(height: 8),
             Text(
               label,
-              style: const TextStyle(
-                fontFamily: 'Georgia',
-                fontSize: 38,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 38, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Wrap(
