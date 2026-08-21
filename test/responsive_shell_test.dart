@@ -30,7 +30,14 @@ void main() {
     await pumpShell(tester, 375);
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
-    expect(find.text('Plans'), findsWidgets);
+    for (final label in ['Home', 'Nutrition', 'Workout', 'More']) {
+      expect(find.text(label), findsOneWidget);
+    }
+
+    await tester.tap(find.text('More'));
+    await tester.pumpAndSettle();
+    expect(find.text('Workout plans'), findsOneWidget);
+    expect(find.text('Sessions'), findsOneWidget);
   });
 
   testWidgets('secondary navigation exposes the full record inventory', (
@@ -54,7 +61,9 @@ void main() {
     ]) {
       expect(
         find.text(label),
-        label == 'Workout' ? findsWidgets : findsOneWidget,
+        label == 'Workout' || label == 'Nutrition'
+            ? findsWidgets
+            : findsOneWidget,
       );
     }
   });
@@ -68,13 +77,11 @@ void main() {
   testWidgets('1440dp uses the full desktop header navigation', (tester) async {
     await pumpShell(tester, 1440);
     expect(find.text('TRANSMUTE'), findsOneWidget);
-    for (final label in ['Dashboard', 'Workout Plans', 'Workout', 'Sessions']) {
-      expect(find.text(label), findsOneWidget);
-    }
-    expect(find.text('Menu'), findsOneWidget);
-    await tester.tap(find.text('Menu'));
-    await tester.pumpAndSettle();
     for (final label in [
+      'Dashboard',
+      'Workout Plans',
+      'Workout',
+      'Sessions',
       'Exercise library',
       'Nutrition',
       'Progress',
@@ -87,6 +94,8 @@ void main() {
     ]) {
       expect(find.text(label), findsOneWidget);
     }
+    expect(find.text('Menu'), findsNothing);
+    expect(find.byType(PopupMenuButton<String>), findsNothing);
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
   });

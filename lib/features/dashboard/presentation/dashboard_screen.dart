@@ -42,7 +42,11 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 38),
               Divider(color: palette.ink, height: 1),
               const SizedBox(height: 28),
-              _SessionPrescription(active: data.activeSession, next: next),
+              _SessionPrescription(
+                active: data.activeSession,
+                next: next,
+                plans: data.plans,
+              ),
               const SizedBox(height: 24),
               recommendation.when(
                 loading: () => const _InlineLoading(),
@@ -201,13 +205,18 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-class _SessionPrescription extends StatelessWidget {
-  const _SessionPrescription({required this.active, required this.next});
+class _SessionPrescription extends ConsumerWidget {
+  const _SessionPrescription({
+    required this.active,
+    required this.next,
+    required this.plans,
+  });
   final WorkoutSession? active;
   final ({WorkoutPlan plan, WorkoutPlanDay day})? next;
+  final List<WorkoutPlan> plans;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = TransmutePalette.of(context);
     final label = active != null ? 'ACTIVE WORK' : 'YOUR NEXT SESSION';
     final title = active != null
@@ -246,17 +255,86 @@ class _SessionPrescription extends StatelessWidget {
         const SizedBox(height: 26),
         _InkButton(
           label: action,
-          onPressed: () => context.go(
-            active != null
-                ? '/session'
-                : next == null
-                ? '/plans'
-                : '/plans/${next!.plan.id}',
-          ),
+          onPressed: () {
+            if (active != null) {
+              context.go('/session');
+            } else if (next == null) {
+              context.go('/plans');
+            } else {
+              _chooseDayAndStart(context, ref);
+            }
+          },
         ),
       ],
     );
   }
+
+  Future<void> _chooseDayAndStart(BuildContext context, WidgetRef ref) async {
+    final choices = [
+      for (final plan in plans)
+        for (final day in plan.days) _TrainingDayChoice(plan: plan, day: day),
+    ];
+    final pickerHeight = (choices.length * 72.0)
+        .clamp(72.0, MediaQuery.sizeOf(context).height * .55)
+        .toDouble();
+    final selected = await showDialog<_TrainingDayChoice>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('What are you training today?'),
+        content: SizedBox(
+          width: 360,
+          height: pickerHeight,
+          child: ListView.separated(
+            itemCount: choices.length,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (_, index) {
+              final choice = choices[index];
+              final exerciseCount = choice.day.exercises.length;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(choice.day.name),
+                subtitle: Text(
+                  '${choice.plan.name} · $exerciseCount ${exerciseCount == 1 ? 'exercise' : 'exercises'}',
+                ),
+                trailing: const Icon(Icons.arrow_forward),
+                onTap: () => Navigator.pop(dialog, choice),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+    if (selected == null || !context.mounted) return;
+
+    try {
+      await ref
+          .read(activeSessionProvider.notifier)
+          .start(selected.plan.id, selected.day.id);
+      if (context.mounted) context.go('/session');
+    } on AppFailure catch (error) {
+      if (!context.mounted) return;
+      if (error.code == 'active_session_exists') {
+        await ref.read(activeSessionProvider.notifier).refresh();
+        if (context.mounted) context.go('/session');
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+}
+
+class _TrainingDayChoice {
+  const _TrainingDayChoice({required this.plan, required this.day});
+  final WorkoutPlan plan;
+  final WorkoutPlanDay day;
 }
 
 class _DailyPrompt extends StatelessWidget {

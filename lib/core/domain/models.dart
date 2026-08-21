@@ -596,11 +596,13 @@ class PreviousPerformance {
     required this.completedAt,
     required this.weightKg,
     required this.reps,
+    this.setOrder = 1,
   });
   final String sessionId;
   final DateTime completedAt;
   final double weightKg;
   final int reps;
+  final int setOrder;
 }
 
 class PlanExercise {
@@ -822,6 +824,7 @@ class SessionExercise {
     this.demoSourceName,
     this.targetWeightKg,
     this.previousPerformance,
+    this.previousPerformances = const [],
   });
   final String id;
   final String exerciseId;
@@ -834,6 +837,7 @@ class SessionExercise {
   final int targetReps;
   final double? targetWeightKg;
   final PreviousPerformance? previousPerformance;
+  final List<PreviousPerformance> previousPerformances;
   final List<LoggedSet> sets;
 
   SessionExercise copyWith({List<LoggedSet>? sets}) => SessionExercise(
@@ -848,6 +852,7 @@ class SessionExercise {
     targetReps: targetReps,
     targetWeightKg: targetWeightKg,
     previousPerformance: previousPerformance,
+    previousPerformances: previousPerformances,
     sets: sets ?? this.sets,
   );
 }
@@ -939,8 +944,16 @@ class CompletedSessionSummary {
 
 String displayWeight(double kg, WeightUnit unit) {
   final value = unit == WeightUnit.lb ? kg * 2.2046226218 : kg;
-  return '${value.toStringAsFixed(value == value.roundToDouble() ? 0 : 1)} ${unit.name}';
+  final nearestWhole = value.roundToDouble();
+  final decimals = (value - nearestWhole).abs() < 0.01 ? 0 : 1;
+  return '${value.toStringAsFixed(decimals)} ${unit.name}';
 }
 
 double toKg(double value, WeightUnit unit) =>
     unit == WeightUnit.lb ? value / 2.2046226218 : value;
+
+/// Expo's workout API stores values in the session's declared display unit.
+/// Flutter converts exactly once at that boundary and keeps the domain model
+/// canonical in kilograms.
+double fromKg(double value, WeightUnit unit) =>
+    unit == WeightUnit.lb ? value * 2.2046226218 : value;

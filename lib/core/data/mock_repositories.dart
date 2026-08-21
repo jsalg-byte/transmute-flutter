@@ -2036,6 +2036,9 @@ class MockSessionRepository implements SessionRepository {
               targetReps: row.targetReps,
               targetWeightKg: row.targetWeightKg,
               previousPerformance: row.previousPerformance,
+              previousPerformances: row.previousPerformance == null
+                  ? const []
+                  : [row.previousPerformance!],
               sets: const [],
             ),
           )

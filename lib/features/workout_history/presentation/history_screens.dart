@@ -22,6 +22,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final history = ref.watch(historyProvider);
+    final unit =
+        ref.watch(authControllerProvider).user?.weightUnit ?? WeightUnit.kg;
     return AppShell(
       title: 'Workout history',
       child: Column(
@@ -82,6 +84,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       sessions: sessions,
                       sets: sets,
                       volume: volume,
+                      unit: unit,
                     ),
                     const SizedBox(height: 16),
                     if (displayed.isEmpty)
@@ -108,7 +111,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         ...entry.value.map(
                           (item) => Padding(
                             padding: const EdgeInsets.only(bottom: 8),
-                            child: _HistoryItem(item: item),
+                            child: _HistoryItem(item: item, unit: unit),
                           ),
                         ),
                       ],
@@ -143,10 +146,12 @@ class _HistorySummary extends StatelessWidget {
     required this.sessions,
     required this.sets,
     required this.volume,
+    required this.unit,
   });
   final int sessions;
   final int sets;
   final double volume;
+  final WeightUnit unit;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
@@ -159,7 +164,7 @@ class _HistorySummary extends StatelessWidget {
             [
                   ('Sessions', '$sessions'),
                   ('Working sets', '$sets'),
-                  ('Total volume', '${volume.toStringAsFixed(0)} kg'),
+                  ('Total volume', displayWeight(volume, unit)),
                 ]
                 .map(
                   (stat) => SizedBox(
@@ -189,14 +194,15 @@ class _HistorySummary extends StatelessWidget {
 }
 
 class _HistoryItem extends StatelessWidget {
-  const _HistoryItem({required this.item});
+  const _HistoryItem({required this.item, required this.unit});
   final CompletedSessionSummary item;
+  final WeightUnit unit;
   @override
   Widget build(BuildContext context) => Card(
     child: ListTile(
       title: Text(item.planName, style: Theme.of(context).textTheme.titleLarge),
       subtitle: Text(
-        '${_date(item.completedAt)} · ${item.durationSeconds ~/ 60} min · ${item.workingSetCount} working sets\n${item.totalVolumeKg.toStringAsFixed(0)} kg total volume',
+        '${_date(item.completedAt)} · ${item.durationSeconds ~/ 60} min · ${item.workingSetCount} working sets\n${displayWeight(item.totalVolumeKg, unit)} total volume',
       ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.go('/history/${item.id}'),
@@ -253,7 +259,7 @@ class _CompletedDetail extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              '${session.totalVolumeKg.toStringAsFixed(0)} kg total volume',
+              '${displayWeight(session.totalVolumeKg, unit)} total volume',
               style: Theme.of(context).textTheme.titleLarge,
             ),
           ),

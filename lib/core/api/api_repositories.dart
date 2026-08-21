@@ -33,6 +33,81 @@ class SecureSessionStore {
   Future<void> clear() => _storage.deleteAll();
 }
 
+/// The Expo client renews a short-lived access token once when an authenticated
+/// request receives a 401.  Set sync has the same requirement: without this,
+/// a workout that outlives its access token is incorrectly left in the local
+/// queue and can never be completed until the user starts over.
+void configureAccessTokenRefresh(Dio dio, SecureSessionStore store) {
+  dio.interceptors.add(_AccessTokenRefreshInterceptor(dio, store));
+}
+
+class _AccessTokenRefreshInterceptor extends QueuedInterceptor {
+  _AccessTokenRefreshInterceptor(this._dio, this._store);
+
+  static const _retried = 'transmute.access-token-refreshed';
+  final Dio _dio;
+  final SecureSessionStore _store;
+  Future<AuthSession?>? _refreshing;
+
+  bool _canRefresh(RequestOptions request) =>
+      request.extra[_retried] != true &&
+      request.path != '/v1/auth/login' &&
+      request.path != '/v1/auth/register' &&
+      request.path != '/v1/auth/refresh' &&
+      request.path != '/v1/auth/logout';
+
+  @override
+  void onError(DioException error, ErrorInterceptorHandler handler) async {
+    if (error.response?.statusCode != 401 ||
+        !_canRefresh(error.requestOptions)) {
+      handler.next(error);
+      return;
+    }
+
+    try {
+      final session = await _refresh();
+      if (session == null) {
+        handler.next(error);
+        return;
+      }
+      final request = error.requestOptions;
+      request.headers['Authorization'] = 'Bearer ${session.accessToken}';
+      request.extra[_retried] = true;
+      handler.resolve(await _dio.fetch<dynamic>(request));
+    } on DioException catch (retryError) {
+      handler.next(retryError);
+    } catch (_) {
+      handler.next(error);
+    }
+  }
+
+  Future<AuthSession?> _refresh() {
+    final existing = _refreshing;
+    if (existing != null) return existing;
+    final task = _performRefresh();
+    _refreshing = task;
+    return task.whenComplete(() => _refreshing = null);
+  }
+
+  Future<AuthSession?> _performRefresh() async {
+    final stored = await _store.read();
+    if (stored == null) return null;
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/v1/auth/refresh',
+        data: {'refreshToken': stored.refresh},
+        options: Options(extra: {_retried: true}),
+      );
+      final session = _auth(response.data!);
+      await _store.save(session);
+      _dio.options.headers['Authorization'] = 'Bearer ${session.accessToken}';
+      return session;
+    } on DioException {
+      return null;
+    }
+  }
+}
+
 class RestTimerStore {
   const RestTimerStore(this._storage);
   final FlutterSecureStorage _storage;
@@ -182,16 +257,24 @@ class ApiPlanRepository implements PlanRepository {
     () => _dio.get<Map<String, dynamic>>('/v1/record'),
   )).data!;
   @override
-  Future<List<WorkoutPlan>> listPlans() async => _plans(await _record());
+  Future<List<WorkoutPlan>> listPlans() async {
+    final record = await _record();
+    return _plans(record, _recordWeightUnit(record));
+  }
+
   @override
-  Future<WorkoutPlan> getPlan(String planId) async =>
-      _plans(
-        await _record(),
-      ).where((plan) => plan.id == planId).cast<WorkoutPlan?>().firstOrNull ??
-      (throw const AppFailure(
-        'plan_not_found',
-        'That workout plan is unavailable.',
-      ));
+  Future<WorkoutPlan> getPlan(String planId) async {
+    final record = await _record();
+    return _plans(
+          record,
+          _recordWeightUnit(record),
+        ).where((plan) => plan.id == planId).cast<WorkoutPlan?>().firstOrNull ??
+        (throw const AppFailure(
+          'plan_not_found',
+          'That workout plan is unavailable.',
+        ));
+  }
+
   @override
   Future<WorkoutPlan> createPlan(String name, {String? description}) async {
     await _request(
@@ -319,13 +402,16 @@ class ApiPlanRepository implements PlanRepository {
     required int targetReps,
     double? targetWeightKg,
   }) async {
+    final unit = _recordWeightUnit(await _record());
     await _request(
       () => _dio.patch<Map<String, dynamic>>(
         '/v1/plan-day-exercises/$planExerciseId',
         data: {
           'targetSets': targetSets,
           'targetReps': targetReps,
-          'targetWeight': targetWeightKg,
+          'targetWeight': targetWeightKg == null
+              ? null
+              : fromKg(targetWeightKg, unit),
         },
       ),
     );
@@ -409,6 +495,7 @@ class ApiPlanRepository implements PlanRepository {
     int? targetReps,
     double? targetWeightKg,
   }) async {
+    final unit = _recordWeightUnit(await _record());
     await _request(
       () => _dio.post<Map<String, dynamic>>(
         '/v1/plan-days/$dayId/calistree-exercises',
@@ -420,7 +507,9 @@ class ApiPlanRepository implements PlanRepository {
               : <String, dynamic>{'targetReps': targetReps}),
           ...?(targetWeightKg == null
               ? null
-              : <String, dynamic>{'targetWeight': targetWeightKg}),
+              : <String, dynamic>{
+                  'targetWeight': fromKg(targetWeightKg, unit),
+                }),
         },
       ),
     );
@@ -449,6 +538,7 @@ class ApiSessionRepository implements SessionRepository {
   final RestTimerStore _restStore;
   final _rest = <String, DateTime?>{};
   final _setExercise = <String, String>{};
+  final _sessionWeightUnits = <String, WeightUnit>{};
   bool? _offlineSetSyncSupported;
   Future<Map<String, dynamic>> _record() async => (await _request(
     () => _dio.get<Map<String, dynamic>>('/v1/record'),
@@ -461,13 +551,17 @@ class ApiSessionRepository implements SessionRepository {
     final body = await _request(
       () => _dio.get<Map<String, dynamic>>('/v1/sessions/$id'),
     );
-    return _session(
+    final weightUnit = _expoSessionWeightUnit(body.data!);
+    final session = _session(
       body.data!,
       planId: planId,
       planDayId: planDayId,
       restEndsAt: _rest[id] ?? await _restStore.read(id),
       setExercise: _setExercise,
+      weightUnit: weightUnit,
     );
+    _sessionWeightUnits[session.id] = weightUnit;
+    return session;
   }
 
   @override
@@ -579,12 +673,19 @@ class ApiSessionRepository implements SessionRepository {
     String? clientOperationId,
   }) async {
     final sessionId = await _activeId();
+    final weightUnit = _sessionWeightUnits[sessionId];
+    if (weightUnit == null) {
+      throw const AppFailure(
+        'session_weight_unit_missing',
+        'Reload the workout before logging a set.',
+      );
+    }
     final body = await _request(
       () => _dio.post<Map<String, dynamic>>(
         '/v1/sessions/$sessionId/sets',
         data: {
           'exerciseId': sessionExerciseId,
-          'weight': weightKg,
+          'weight': fromKg(weightKg, weightUnit),
           'reps': reps,
           'isWarmup': isWarmup,
           'clientOperationId': ?clientOperationId,
@@ -595,8 +696,10 @@ class ApiSessionRepository implements SessionRepository {
     _setExercise[set['id'] as String] = sessionExerciseId;
     final record = body.data!['personalRecord'] as Map<String, dynamic>?;
     return SetLogResult(
-      set: _set(set),
-      personalRecord: record == null ? null : _personalRecord(record),
+      set: _set(set, weightUnit),
+      personalRecord: record == null
+          ? null
+          : _personalRecord(record, weightUnit),
     );
   }
 
@@ -613,18 +716,25 @@ class ApiSessionRepository implements SessionRepository {
         'set_context_missing',
         'Reload the workout before editing this set.',
       );
+    final sessionId = await _activeId();
+    final weightUnit = _sessionWeightUnits[sessionId];
+    if (weightUnit == null) {
+      throw const AppFailure(
+        'session_weight_unit_missing',
+        'Reload the workout before editing this set.',
+      );
+    }
     await _request(
       () => _dio.patch<Map<String, dynamic>>(
         '/v1/sets/$id',
         data: {
           'exerciseId': exerciseId,
-          'weight': weightKg,
+          'weight': fromKg(weightKg, weightUnit),
           'reps': reps,
           'isWarmup': isWarmup,
         },
       ),
     );
-    final sessionId = await _activeId();
     return (await _detail(
       sessionId,
     )).exercises.expand((row) => row.sets).where((set) => set.id == id).first;
@@ -832,7 +942,13 @@ Map<String, dynamic> _aiWorkoutDraftBody(AiWorkoutPlanDraft draft) => {
       )
       .toList(),
 };
-List<WorkoutPlan> _plans(Map<String, dynamic> record) =>
+WeightUnit _recordWeightUnit(Map<String, dynamic> record) =>
+    ((record['settings'] as Map<String, dynamic>)['weight_unit'] as String) ==
+        'kg'
+    ? WeightUnit.kg
+    : WeightUnit.lb;
+
+List<WorkoutPlan> _plans(Map<String, dynamic> record, WeightUnit weightUnit) =>
     (record['workoutPlans'] as List<dynamic>).map((value) {
       final plan = value as Map<String, dynamic>;
       return WorkoutPlan(
@@ -861,9 +977,9 @@ List<WorkoutPlan> _plans(Map<String, dynamic> record) =>
                 sortOrder: entry['sortOrder'] as int,
                 targetSets: (entry['targetSets'] as num?)?.toInt() ?? 3,
                 targetReps: (entry['targetReps'] as num?)?.toInt() ?? 10,
-                targetWeightKg: double.tryParse(
-                  '${entry['targetWeight'] ?? ''}',
-                ),
+                targetWeightKg: entry['targetWeight'] == null
+                    ? null
+                    : toKg(_number(entry['targetWeight']), weightUnit),
               );
             }).toList(),
           );
@@ -876,20 +992,33 @@ WorkoutSession _session(
   required String planDayId,
   DateTime? restEndsAt,
   required Map<String, String> setExercise,
+  required WeightUnit weightUnit,
 }) {
   final info = body['session'] as Map<String, dynamic>;
-  final previous = <String, PreviousPerformance>{};
+  final previous = <String, List<PreviousPerformance>>{};
   for (final value in (body['previousPerformances'] as List<dynamic>)) {
     final row = value as Map<String, dynamic>;
-    previous[row['exerciseId'] as String] = PreviousPerformance(
-      sessionId: 'previous',
-      completedAt: DateTime.parse(row['startedAt'] as String),
-      weightKg: double.tryParse('${row['weight'] ?? ''}') ?? 0,
-      reps: row['reps'] as int,
-    );
+    final exerciseId = row['exerciseId'] as String;
+    previous
+        .putIfAbsent(exerciseId, () => [])
+        .add(
+          PreviousPerformance(
+            sessionId: 'previous',
+            completedAt: DateTime.parse(row['startedAt'] as String),
+            weightKg: toKg(
+              double.tryParse('${row['weight'] ?? ''}') ?? 0,
+              weightUnit,
+            ),
+            reps: row['reps'] as int,
+            setOrder: (row['order'] as num?)?.toInt() ?? 1,
+          ),
+        );
+  }
+  for (final performances in previous.values) {
+    performances.sort((left, right) => left.setOrder.compareTo(right.setOrder));
   }
   final sets = (body['sets'] as List<dynamic>)
-      .map((value) => _set(value as Map<String, dynamic>))
+      .map((value) => _set(value as Map<String, dynamic>, weightUnit))
       .toList();
   for (final set in sets) {
     setExercise[set.id] = set.sessionExerciseId;
@@ -910,6 +1039,7 @@ WorkoutSession _session(
     exercises: (body['exercises'] as List<dynamic>).map((value) {
       final row = value as Map<String, dynamic>;
       final id = row['id'] as String;
+      final sessionPrevious = previous[id] ?? const <PreviousPerformance>[];
       return SessionExercise(
         id: id,
         exerciseId: id,
@@ -920,8 +1050,13 @@ WorkoutSession _session(
         sortOrder: 0,
         targetSets: (row['targetSets'] as num?)?.toInt() ?? 3,
         targetReps: (row['targetReps'] as num?)?.toInt() ?? 10,
-        targetWeightKg: double.tryParse('${row['targetWeight'] ?? ''}'),
-        previousPerformance: previous[id],
+        targetWeightKg: row['targetWeight'] == null
+            ? null
+            : toKg(_number(row['targetWeight']), weightUnit),
+        previousPerformance: sessionPrevious.isEmpty
+            ? null
+            : sessionPrevious.last,
+        previousPerformances: sessionPrevious,
         sets: sets.where((set) => set.sessionExerciseId == id).toList(),
       );
     }).toList(),
@@ -1910,16 +2045,26 @@ ArcanaMilestone _arcanaMilestone(Map<String, dynamic> map) => ArcanaMilestone(
   target: map['target'] as int,
 );
 
-LoggedSet _set(Map<String, dynamic> map) => LoggedSet(
+WeightUnit _expoSessionWeightUnit(Map<String, dynamic> body) =>
+    (body['session'] as Map<String, dynamic>)['weightUnit'] == 'kg'
+    ? WeightUnit.kg
+    : WeightUnit.lb;
+
+LoggedSet _set(Map<String, dynamic> map, WeightUnit weightUnit) => LoggedSet(
   id: map['id'] as String,
   sessionExerciseId: map['exerciseId'] as String,
   setOrder: map['setOrder'] as int,
-  weightKg: double.tryParse('${map['weight'] ?? ''}') ?? 0,
+  weightKg: map['weight'] == null
+      ? 0
+      : toKg(_number(map['weight']), weightUnit),
   reps: map['reps'] as int,
   completedAt: DateTime.parse(map['createdAt'] as String),
   isWarmup: map['isWarmup'] == true,
 );
-PersonalRecord _personalRecord(Map<String, dynamic> map) {
+PersonalRecord _personalRecord(
+  Map<String, dynamic> map,
+  WeightUnit weightUnit,
+) {
   final current = map['current'] as Map<String, dynamic>;
   final previous = map['previous'] as Map<String, dynamic>;
   return PersonalRecord(
@@ -1928,9 +2073,13 @@ PersonalRecord _personalRecord(Map<String, dynamic> map) {
         ? PersonalRecordKind.estimatedOneRepMax
         : PersonalRecordKind.reps,
     currentReps: current['reps'] as int,
-    currentWeightKg: double.tryParse('${current['weight'] ?? ''}') ?? 0,
+    currentWeightKg: current['weight'] == null
+        ? 0
+        : toKg(_number(current['weight']), weightUnit),
     previousReps: previous['reps'] as int,
-    previousWeightKg: double.tryParse('${previous['weight'] ?? ''}') ?? 0,
+    previousWeightKg: previous['weight'] == null
+        ? 0
+        : toKg(_number(previous['weight']), weightUnit),
   );
 }
 

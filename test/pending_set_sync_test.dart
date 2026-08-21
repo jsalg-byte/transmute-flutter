@@ -83,6 +83,34 @@ void main() {
       expect((await store.read('user-1')).single.blocked, isTrue);
     },
   );
+
+  test('an explicit sync retries a set that was previously blocked', () async {
+    final store = PendingSetStore(_MemoryPersistence());
+    final sessions = _ReplaySessionRepository()
+      ..failure = const AppFailure('unauthorized', 'Sign in again.');
+    final service = PendingSetSyncService(store, sessions);
+    final log = PendingSetLog(
+      operationId: '123e4567-e89b-42d3-a456-426614174002',
+      sessionId: 'session-1',
+      sessionExerciseId: 'exercise-1',
+      weightKg: 20,
+      reps: 10,
+      isWarmup: false,
+      createdAt: DateTime.utc(2026, 8, 13),
+    );
+    await store.enqueue('user-1', log);
+
+    await service.sync('user-1', 'session-1');
+    expect((await store.read('user-1')).single.blocked, isTrue);
+
+    sessions
+      ..failure = null
+      ..online = true;
+    final retry = await service.sync('user-1', 'session-1', retryBlocked: true);
+
+    expect(retry.synced, hasLength(1));
+    expect(await store.read('user-1'), isEmpty);
+  });
 }
 
 class _MemoryPersistence implements PendingSetPersistence {

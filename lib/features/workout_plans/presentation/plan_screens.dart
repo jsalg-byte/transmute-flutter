@@ -709,43 +709,52 @@ class _PrescriptionCard extends ConsumerWidget {
   final bool editing;
   final VoidCallback refresh;
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Card(
-    child: ListTile(
-      onTap: () =>
-          _showExerciseDetail(context, ref, entry.exercise, onSaved: refresh),
-      title: Text(entry.exercise.name),
-      subtitle: Text(
-        '${entry.exercise.muscleGroup ?? entry.exercise.category} · ${entry.targetSets} × ${entry.targetReps}${entry.targetWeightKg == null ? '' : ' at ${displayWeight(entry.targetWeightKg!, WeightUnit.lb)}'}${entry.previousPerformance == null ? '' : '\nPrevious: ${displayWeight(entry.previousPerformance!.weightKg, WeightUnit.lb)} × ${entry.previousPerformance!.reps}'}',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unit =
+        ref.watch(authControllerProvider).user?.weightUnit ?? WeightUnit.kg;
+    return Card(
+      child: ListTile(
+        onTap: () =>
+            _showExerciseDetail(context, ref, entry.exercise, onSaved: refresh),
+        title: Text(entry.exercise.name),
+        subtitle: Text(
+          '${entry.exercise.muscleGroup ?? entry.exercise.category} · ${entry.targetSets} × ${entry.targetReps}${entry.targetWeightKg == null ? '' : ' at ${displayWeight(entry.targetWeightKg!, unit)}'}${entry.previousPerformance == null ? '' : '\nPrevious: ${displayWeight(entry.previousPerformance!.weightKg, unit)} × ${entry.previousPerformance!.reps}'}',
+        ),
+        trailing: editing
+            ? Wrap(
+                children: [
+                  IconButton(
+                    tooltip: 'Edit prescription',
+                    icon: const Icon(Icons.tune),
+                    onPressed: () => _edit(context, ref, unit),
+                  ),
+                  IconButton(
+                    tooltip: 'Remove from day',
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: () async {
+                      try {
+                        await ref
+                            .read(planRepositoryProvider)
+                            .removeExerciseFromDay(plan.id, day.id, entry.id);
+                        refresh();
+                      } on AppFailure catch (error) {
+                        if (context.mounted) _notice(context, error.message);
+                      }
+                    },
+                  ),
+                ],
+              )
+            : const Icon(Icons.info_outline),
       ),
-      trailing: editing
-          ? Wrap(
-              children: [
-                IconButton(
-                  tooltip: 'Edit prescription',
-                  icon: const Icon(Icons.tune),
-                  onPressed: () => _edit(context, ref),
-                ),
-                IconButton(
-                  tooltip: 'Remove from day',
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: () async {
-                    try {
-                      await ref
-                          .read(planRepositoryProvider)
-                          .removeExerciseFromDay(plan.id, day.id, entry.id);
-                      refresh();
-                    } on AppFailure catch (error) {
-                      if (context.mounted) _notice(context, error.message);
-                    }
-                  },
-                ),
-              ],
-            )
-          : const Icon(Icons.info_outline),
-    ),
-  );
-  Future<void> _edit(BuildContext context, WidgetRef ref) async {
-    final result = await _prescriptionDialog(context, entry);
+    );
+  }
+
+  Future<void> _edit(
+    BuildContext context,
+    WidgetRef ref,
+    WeightUnit unit,
+  ) async {
+    final result = await _prescriptionDialog(context, entry, unit);
     if (result == null) return;
     try {
       await ref
@@ -756,7 +765,9 @@ class _PrescriptionCard extends ConsumerWidget {
             entry.id,
             targetSets: result.sets,
             targetReps: result.reps,
-            targetWeightKg: result.weight,
+            targetWeightKg: result.weight == null
+                ? null
+                : toKg(result.weight!, unit),
           );
       refresh();
     } on AppFailure catch (error) {
@@ -1129,11 +1140,17 @@ void _notice(BuildContext context, String message) => ScaffoldMessenger.of(
 Future<({int sets, int reps, double? weight})?> _prescriptionDialog(
   BuildContext context,
   PlanExercise entry,
+  WeightUnit unit,
 ) async {
   final sets = TextEditingController(text: '${entry.targetSets}');
   final reps = TextEditingController(text: '${entry.targetReps}');
   final weight = TextEditingController(
-    text: entry.targetWeightKg?.toString() ?? '',
+    text: entry.targetWeightKg == null
+        ? ''
+        : (unit == WeightUnit.lb
+                  ? entry.targetWeightKg! * 2.2046226218
+                  : entry.targetWeightKg!)
+              .toStringAsFixed(1),
   );
   final result = await showDialog<({int sets, int reps, double? weight})>(
     context: context,
@@ -1155,8 +1172,8 @@ Future<({int sets, int reps, double? weight})?> _prescriptionDialog(
           TextField(
             controller: weight,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Target weight (kg, optional)',
+            decoration: InputDecoration(
+              labelText: 'Target weight (${unit.name}, optional)',
             ),
           ),
         ],

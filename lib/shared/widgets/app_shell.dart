@@ -25,10 +25,9 @@ class AppShell extends ConsumerWidget {
   ];
 
   static const _compact = <_ShellDestination>[
-    _ShellDestination('Today', '/dashboard', Icons.home_outlined),
-    _ShellDestination('Plans', '/plans', Icons.format_list_bulleted),
+    _ShellDestination('Home', '/dashboard', Icons.home_outlined),
+    _ShellDestination('Nutrition', '/nutrition', Icons.restaurant_outlined),
     _ShellDestination('Workout', '/session', Icons.fitness_center),
-    _ShellDestination('History', '/history', Icons.history),
   ];
 
   static const _record = <_ShellDestination>[
@@ -47,6 +46,13 @@ class AppShell extends ConsumerWidget {
 
   static const _account = <_ShellDestination>[
     _ShellDestination('Settings', '/settings'),
+  ];
+
+  static const _desktopDestinations = <_ShellDestination>[
+    ..._primary,
+    ..._record,
+    ..._growth,
+    ..._account,
   ];
 
   @override
@@ -94,18 +100,21 @@ class AppShell extends ConsumerWidget {
                   ),
                 ),
                 Divider(height: 1, color: palette.divider),
-                SizedBox(
-                  height: 70,
-                  child: Row(
-                    children: [
-                      for (final destination in _primary)
-                        _DesktopNavItem(
-                          destination: destination,
-                          selected: _isSelected(location, destination.route),
-                        ),
-                      const Spacer(),
-                      _desktopDestinationMenu(context, location),
-                    ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 24,
+                      runSpacing: 16,
+                      children: [
+                        for (final destination in _desktopDestinations)
+                          _DesktopNavItem(
+                            destination: destination,
+                            selected: _isSelected(location, destination.route),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 Divider(height: 1, color: palette.divider),
@@ -135,9 +144,10 @@ class AppShell extends ConsumerWidget {
     String location,
     double width,
   ) {
-    final selectedIndex = _compact.indexWhere(
+    final compactIndex = _compact.indexWhere(
       (item) => _isSelected(location, item.route),
     );
+    final selectedIndex = compactIndex >= 0 ? compactIndex : _compact.length;
     final content = SafeArea(
       child: Padding(
         padding: EdgeInsets.all(width < 600 ? 16 : 24),
@@ -152,11 +162,21 @@ class AppShell extends ConsumerWidget {
         ),
         body: content,
         bottomNavigationBar: NavigationBar(
-          selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
-          onDestinationSelected: (index) => context.go(_compact[index].route),
+          selectedIndex: selectedIndex,
+          onDestinationSelected: (index) {
+            if (index == _compact.length) {
+              _showMoreSheet(context, ref);
+              return;
+            }
+            context.go(_compact[index].route);
+          },
           destinations: [
             for (final item in _compact)
               NavigationDestination(icon: Icon(item.icon), label: item.label),
+            const NavigationDestination(
+              icon: Icon(Icons.more_horiz),
+              label: 'More',
+            ),
           ],
         ),
       );
@@ -165,7 +185,7 @@ class AppShell extends ConsumerWidget {
       body: Row(
         children: [
           NavigationRail(
-            selectedIndex: selectedIndex < 0 ? 0 : selectedIndex,
+            selectedIndex: compactIndex < 0 ? 0 : compactIndex,
             onDestinationSelected: (index) => context.go(_compact[index].route),
             labelType: NavigationRailLabelType.all,
             leading: const Padding(
@@ -243,67 +263,63 @@ class AppShell extends ConsumerWidget {
     ],
   );
 
-  Widget _desktopDestinationMenu(
-    BuildContext context,
-    String location,
-  ) => PopupMenuButton<String>(
-    tooltip: 'Open all navigation',
-    onSelected: context.go,
-    itemBuilder: (_) => [
-      const PopupMenuItem(
-        enabled: false,
-        child: Text('RECORD', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      for (final item in _record) _desktopMenuItem(context, location, item),
-      const PopupMenuItem(
-        enabled: false,
-        child: Text('GROWTH', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      for (final item in _growth) _desktopMenuItem(context, location, item),
-      const PopupMenuItem(
-        enabled: false,
-        child: Text('ACCOUNT', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      for (final item in _account) _desktopMenuItem(context, location, item),
-    ],
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.menu, size: 19, color: TransmutePalette.of(context).ink),
-          const SizedBox(width: 7),
-          Text(
-            'Menu',
-            style: TextStyle(
-              color: TransmutePalette.of(context).ink,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-            ),
+  void _showMoreSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        Widget item(_ShellDestination destination) => ListTile(
+          leading: Icon(destination.icon ?? Icons.arrow_forward_outlined),
+          title: Text(destination.label),
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            context.go(destination.route);
+          },
+        );
+        Widget section(String label, List<_ShellDestination> destinations) =>
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                for (final destination in destinations) item(destination),
+              ],
+            );
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              section('WORKOUT', const [
+                _ShellDestination('Workout plans', '/plans'),
+                _ShellDestination('Sessions', '/history'),
+              ]),
+              section('RECORD', _record),
+              section('GROWTH', _growth),
+              section('ACCOUNT', _account),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: const Text('Sign out'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  ref.read(authControllerProvider.notifier).logout();
+                },
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
-
-  PopupMenuItem<String> _desktopMenuItem(
-    BuildContext context,
-    String location,
-    _ShellDestination item,
-  ) => PopupMenuItem(
-    value: item.route,
-    child: Text(
-      item.label,
-      style: TextStyle(
-        fontWeight: _isSelected(location, item.route)
-            ? FontWeight.w800
-            : FontWeight.w400,
-        decoration: _isSelected(location, item.route)
-            ? TextDecoration.underline
-            : null,
-      ),
-    ),
-  );
+        );
+      },
+    );
+  }
 }
 
 class _ShellDestination {
@@ -322,7 +338,7 @@ class _DesktopNavItem extends StatelessWidget {
   Widget build(BuildContext context) => InkWell(
     onTap: () => context.go(destination.route),
     child: Padding(
-      padding: const EdgeInsets.only(right: 20),
+      padding: EdgeInsets.zero,
       child: Text(
         destination.label,
         style: TextStyle(

@@ -53,7 +53,7 @@ class RepositoryModeController extends Notifier<RepositoryMode> {
 final apiLoginAvailableProvider = Provider<bool>(
   (_) => const String.fromEnvironment('TRANSMUTE_API_BASE_URL').isNotEmpty,
 );
-final dioProvider = Provider<Dio>((_) {
+final dioProvider = Provider<Dio>((ref) {
   final configuredBaseUrl = const String.fromEnvironment(
     'TRANSMUTE_API_BASE_URL',
   );
@@ -66,12 +66,14 @@ final dioProvider = Provider<Dio>((_) {
   final baseUrl = configuredBaseUrl == '/'
       ? Uri.base.origin
       : configuredBaseUrl;
-  return Dio(
+  final dio = Dio(
     BaseOptions(
       baseUrl: baseUrl,
       headers: const {'Accept': 'application/json'},
     ),
   );
+  configureAccessTokenRefresh(dio, ref.watch(secureStoreProvider));
+  return dio;
 });
 final mockStoreProvider = Provider<MockStore>((_) => MockStore());
 final secureStoreProvider = Provider<SecureSessionStore>(
@@ -278,7 +280,10 @@ class AuthController extends Notifier<AuthState> {
       final session = await ref.read(authRepositoryProvider).restore();
       state = session == null
           ? const AuthState(AuthStatus.signedOut)
-          : AuthState(AuthStatus.signedIn, session.user);
+          : AuthState(
+              AuthStatus.signedIn,
+              await _withSavedWeightUnit(session.user),
+            );
     } catch (_) {
       state = const AuthState(AuthStatus.signedOut);
     }
@@ -290,7 +295,10 @@ class AuthController extends Notifier<AuthState> {
       final session = await ref
           .read(authRepositoryProvider)
           .login(username, password);
-      state = AuthState(AuthStatus.signedIn, session.user);
+      state = AuthState(
+        AuthStatus.signedIn,
+        await _withSavedWeightUnit(session.user),
+      );
     } on AppFailure catch (error) {
       state = AuthState(AuthStatus.signedOut, null, error.message);
     }
@@ -306,7 +314,12 @@ class AuthController extends Notifier<AuthState> {
       final session = await ref
           .read(authRepositoryProvider)
           .register(username, password, displayName: displayName);
-      state = AuthState(AuthStatus.signedIn, session.user, null, true);
+      state = AuthState(
+        AuthStatus.signedIn,
+        await _withSavedWeightUnit(session.user),
+        null,
+        true,
+      );
     } on AppFailure catch (error) {
       state = AuthState(AuthStatus.signedOut, null, error.message);
     }
@@ -331,6 +344,22 @@ class AuthController extends Notifier<AuthState> {
         weightUnit: unit,
       ),
     );
+  }
+
+  Future<User> _withSavedWeightUnit(User user) async {
+    try {
+      final preferences = await ref.read(preferencesRepositoryProvider).read();
+      return User(
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        weightUnit: preferences.weightUnit,
+      );
+    } catch (_) {
+      // The session response has no weight-unit field. Keep its documented
+      // fallback if preferences cannot be read, rather than blocking sign-in.
+      return user;
+    }
   }
 
   void finishWelcome() {
@@ -515,6 +544,11 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     });
   }
 
+  void _stopSync() {
+    _syncTimer?.cancel();
+    _syncTimer = null;
+  }
+
   Future<WorkoutSession> _withPending(WorkoutSession session) async {
     final userId = _userId;
     if (userId == null) return session;
@@ -658,7 +692,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     );
   }
 
-  Future<PendingSetSyncReport> syncPending() async {
+  Future<PendingSetSyncReport> syncPending({bool retryBlocked = false}) async {
     final current = state.value;
     final userId = _userId;
     if (!_offlineSyncAvailable || current == null || userId == null) {
@@ -666,7 +700,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     }
     final running = _syncing;
     if (running != null) return running;
-    final task = _syncPending(current, userId);
+    final task = _syncPending(current, userId, retryBlocked: retryBlocked);
     _syncing = task;
     try {
       return await task;
@@ -677,9 +711,14 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
 
   Future<PendingSetSyncReport> _syncPending(
     WorkoutSession current,
-    String userId,
-  ) async {
-    final report = await _pendingSync.sync(userId, current.id);
+    String userId, {
+    bool retryBlocked = false,
+  }) async {
+    final report = await _pendingSync.sync(
+      userId,
+      current.id,
+      retryBlocked: retryBlocked,
+    );
     if (report.synced.isEmpty) return report;
     try {
       final remote = await ref
@@ -731,6 +770,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     final result = await ref
         .read(sessionRepositoryProvider)
         .complete(current.id);
+    _stopSync();
     state = const AsyncData(null);
     ref.invalidate(historyProvider);
     return result;
@@ -743,6 +783,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     if (userId != null) {
       await ref.read(pendingSetStoreProvider).removeSession(userId, current.id);
     }
+    _stopSync();
     state = const AsyncData(null);
   }
 }

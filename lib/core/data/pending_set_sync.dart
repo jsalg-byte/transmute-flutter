@@ -60,7 +60,11 @@ class PendingSetSyncService {
   final PendingSetStore _store;
   final SessionRepository _sessions;
 
-  Future<PendingSetSyncReport> sync(String userId, String sessionId) async {
+  Future<PendingSetSyncReport> sync(
+    String userId,
+    String sessionId, {
+    bool retryBlocked = false,
+  }) async {
     final current = await _store.read(userId);
     final forSession = current
         .where((item) => item.sessionId == sessionId)
@@ -74,7 +78,7 @@ class PendingSetSyncService {
     final deferred = <PendingSetLog>[];
     final blocked = <PendingSetLog>[];
     for (final log in forSession) {
-      if (log.blocked) {
+      if (log.blocked && !retryBlocked) {
         blocked.add(log);
         continue;
       }

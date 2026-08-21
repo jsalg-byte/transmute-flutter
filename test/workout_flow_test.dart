@@ -16,6 +16,10 @@ void main() {
     expect(await sessions.activeSession(), isNull);
     expect(history.first.id, completed.id);
     expect(history.first.totalVolumeKg, closeTo(489.88, 0.01));
+    expect(
+      displayWeight(history.first.totalVolumeKg, WeightUnit.lb),
+      '1080 lb',
+    );
     final plan = await MockPlanRepository(store).getPlan('upper-a');
     expect(plan.exercises.first.previousPerformance!.sessionId, completed.id);
   });
