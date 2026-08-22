@@ -223,101 +223,50 @@ class AppShell extends ConsumerWidget {
     return location == route || location.startsWith('$route/');
   }
 
-  Widget _destinationMenu(
-    BuildContext context,
-    WidgetRef ref,
-  ) => PopupMenuButton<String>(
+  Widget _destinationMenu(BuildContext context, WidgetRef ref) => IconButton(
     tooltip: 'Open navigation',
     icon: const Icon(Icons.menu),
-    onSelected: (route) {
-      if (route == '/logout') {
-        ref.read(authControllerProvider.notifier).logout();
-      } else {
-        context.go(route);
-      }
-    },
-    itemBuilder: (_) => [
-      for (final item in _primary)
-        PopupMenuItem(value: item.route, child: Text(item.label)),
-      const PopupMenuDivider(),
-      const PopupMenuItem(
-        enabled: false,
-        child: Text('RECORD', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      for (final item in _record)
-        PopupMenuItem(value: item.route, child: Text(item.label)),
-      const PopupMenuItem(
-        enabled: false,
-        child: Text('GROWTH', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      for (final item in _growth)
-        PopupMenuItem(value: item.route, child: Text(item.label)),
-      const PopupMenuItem(
-        enabled: false,
-        child: Text('ACCOUNT', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      for (final item in _account)
-        PopupMenuItem(value: item.route, child: Text(item.label)),
-      const PopupMenuDivider(),
-      const PopupMenuItem(value: '/logout', child: Text('Sign out')),
-    ],
+    onPressed: () => _showNavigationSheet(context, ref),
   );
 
   void _showMoreSheet(BuildContext context, WidgetRef ref) {
+    _showNavigationSheet(context, ref, includePrimary: false);
+  }
+
+  void _showNavigationSheet(
+    BuildContext context,
+    WidgetRef ref, {
+    bool includePrimary = true,
+  }) {
+    final record = includePrimary
+        ? _record
+        : _record.where((item) => item.route != '/nutrition').toList();
+    final workout = includePrimary
+        ? _primary
+        : const [
+            _ShellDestination('Workout plans', '/plans'),
+            _ShellDestination('Sessions', '/history'),
+          ];
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) {
-        Widget item(_ShellDestination destination) => ListTile(
-          leading: Icon(destination.icon ?? Icons.arrow_forward_outlined),
-          title: Text(destination.label),
-          onTap: () {
-            Navigator.of(sheetContext).pop();
-            context.go(destination.route);
-          },
-        );
-        Widget section(String label, List<_ShellDestination> destinations) =>
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-                for (final destination in destinations) item(destination),
-              ],
-            );
-        return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              section('WORKOUT', const [
-                _ShellDestination('Workout plans', '/plans'),
-                _ShellDestination('Sessions', '/history'),
-              ]),
-              section('RECORD', _record),
-              section('GROWTH', _growth),
-              section('ACCOUNT', _account),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: const Text('Sign out'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  ref.read(authControllerProvider.notifier).logout();
-                },
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (sheetContext) => _CompactNavigationMenu(
+        sections: [
+          _MenuSection('WORKOUT', workout),
+          _MenuSection('RECORD', record),
+          _MenuSection('GROWTH', _growth),
+          _MenuSection('ACCOUNT', _account),
+        ],
+        onSelect: (route) {
+          Navigator.of(sheetContext).pop();
+          context.go(route);
+        },
+        onSignOut: () {
+          Navigator.of(sheetContext).pop();
+          ref.read(authControllerProvider.notifier).logout();
+        },
+      ),
     );
   }
 }
@@ -327,6 +276,130 @@ class _ShellDestination {
   final String label;
   final String route;
   final IconData? icon;
+}
+
+class _MenuSection {
+  const _MenuSection(this.label, this.destinations);
+  final String label;
+  final List<_ShellDestination> destinations;
+}
+
+class _CompactNavigationMenu extends ConsumerWidget {
+  const _CompactNavigationMenu({
+    required this.sections,
+    required this.onSelect,
+    required this.onSignOut,
+  });
+
+  final List<_MenuSection> sections;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final preference = ref.watch(effectiveThemePreferenceProvider);
+    final isDark = preference.brightness == PreferenceBrightness.dark;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth >= 600 ? 3 : 2;
+            final itemWidth =
+                (constraints.maxWidth - (columns - 1) * 8) / columns;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Menu',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const Spacer(),
+                    const Icon(Icons.light_mode_outlined, size: 18),
+                    Tooltip(
+                      message: isDark ? 'Use light mode' : 'Use dark mode',
+                      child: Switch(
+                        value: isDark,
+                        onChanged: (useDark) => _setThemePreference(
+                          context,
+                          ref,
+                          preference,
+                          useDark,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.dark_mode_outlined, size: 18),
+                    IconButton(
+                      tooltip: 'Close navigation',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const Divider(),
+                for (final section in sections) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 2),
+                    child: Text(
+                      section.label,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 2,
+                    children: [
+                      for (final destination in section.destinations)
+                        SizedBox(
+                          width: itemWidth,
+                          height: 44,
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              alignment: Alignment.centerLeft,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                            ),
+                            onPressed: () => onSelect(destination.route),
+                            child: Text(
+                              destination.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+                const Divider(height: 16),
+                SizedBox(
+                  height: 44,
+                  child: TextButton.icon(
+                    style: TextButton.styleFrom(
+                      alignment: Alignment.centerLeft,
+                    ),
+                    onPressed: onSignOut,
+                    icon: const Icon(Icons.logout),
+                    label: const Text('Sign out'),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 class _DesktopNavItem extends StatelessWidget {
@@ -400,40 +473,7 @@ class _ThemeSwitch extends ConsumerWidget {
       label: isDark ? 'Use light mode' : 'Use dark mode',
       child: OutlinedButton(
         onPressed: () async {
-          final next = ThemePreference(
-            palette: preference.palette,
-            brightness: isDark
-                ? PreferenceBrightness.light
-                : PreferenceBrightness.dark,
-          );
-          ref.read(themeOverrideProvider.notifier).set(next);
-          try {
-            final saved = await ref
-                .read(preferencesRepositoryProvider)
-                .setTheme(next);
-            ref.read(themeOverrideProvider.notifier).set(saved);
-            ref.invalidate(themePreferenceProvider);
-          } on AppFailure catch (error) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    '${error.message} Dark mode will remain on for this session.',
-                  ),
-                ),
-              );
-            }
-          } catch (_) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Theme preference could not be saved. Dark mode will remain on for this session.',
-                  ),
-                ),
-              );
-            }
-          }
+          await _setThemePreference(context, ref, preference, !isDark);
         },
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(96, 48),
@@ -467,5 +507,45 @@ class _ThemeSwitch extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _setThemePreference(
+  BuildContext context,
+  WidgetRef ref,
+  ThemePreference preference,
+  bool useDark,
+) async {
+  final next = ThemePreference(
+    palette: preference.palette,
+    brightness: useDark
+        ? PreferenceBrightness.dark
+        : PreferenceBrightness.light,
+  );
+  ref.read(themeOverrideProvider.notifier).set(next);
+  try {
+    final saved = await ref.read(preferencesRepositoryProvider).setTheme(next);
+    ref.read(themeOverrideProvider.notifier).set(saved);
+    ref.invalidate(themePreferenceProvider);
+  } on AppFailure catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${error.message} Theme preference will remain on for this session.',
+          ),
+        ),
+      );
+    }
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Theme preference could not be saved. It will remain on for this session.',
+          ),
+        ),
+      );
+    }
   }
 }

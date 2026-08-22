@@ -45,15 +45,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     ),
                   );
                 final displayed = _filter(items);
-                final sessions = displayed.length;
-                final sets = displayed.fold<int>(
-                  0,
-                  (total, item) => total + item.workingSetCount,
-                );
-                final volume = displayed.fold<double>(
-                  0,
-                  (total, item) => total + item.totalVolumeKg,
-                );
                 final grouped = <String, List<CompletedSessionSummary>>{};
                 for (final item in displayed) {
                   grouped
@@ -79,14 +70,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                           )
                           .toList(),
                     ),
-                    const SizedBox(height: 12),
-                    _HistorySummary(
-                      sessions: sessions,
-                      sets: sets,
-                      volume: volume,
-                      unit: unit,
-                    ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
                     if (displayed.isEmpty)
                       const Card(
                         child: ListTile(
@@ -139,58 +123,6 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final cutoff = DateTime.now().toUtc().subtract(Duration(days: days - 1));
     return items.where((item) => item.completedAt.isAfter(cutoff)).toList();
   }
-}
-
-class _HistorySummary extends StatelessWidget {
-  const _HistorySummary({
-    required this.sessions,
-    required this.sets,
-    required this.volume,
-    required this.unit,
-  });
-  final int sessions;
-  final int sets;
-  final double volume;
-  final WeightUnit unit;
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final columns = constraints.maxWidth >= 720 ? 3 : 1;
-      final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
-      return Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children:
-            [
-                  ('Sessions', '$sessions'),
-                  ('Working sets', '$sets'),
-                  ('Total volume', displayWeight(volume, unit)),
-                ]
-                .map(
-                  (stat) => SizedBox(
-                    width: width,
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(stat.$1),
-                            const SizedBox(height: 4),
-                            Text(
-                              stat.$2,
-                              style: Theme.of(context).textTheme.titleLarge,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-      );
-    },
-  );
 }
 
 class _HistoryItem extends StatelessWidget {

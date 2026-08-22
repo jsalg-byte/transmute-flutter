@@ -44,8 +44,9 @@ void main() {
     tester,
   ) async {
     await pumpShell(tester, 375);
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byTooltip('Open navigation'));
     await tester.pumpAndSettle();
+    expect(find.byType(Switch), findsOneWidget);
 
     for (final label in [
       'Workout',
@@ -95,7 +96,7 @@ void main() {
       expect(find.text(label), findsOneWidget);
     }
     expect(find.text('Menu'), findsNothing);
-    expect(find.byType(PopupMenuButton<String>), findsNothing);
+    expect(find.byTooltip('Open navigation'), findsNothing);
     expect(find.byType(NavigationRail), findsNothing);
     expect(find.byType(NavigationBar), findsNothing);
   });

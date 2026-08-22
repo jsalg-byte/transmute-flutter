@@ -35,9 +35,9 @@ void main() {
 
       expect(find.text('What are you training today?'), findsOneWidget);
       expect(find.text('Upper strength'), findsOneWidget);
-      expect(find.text('Lower strength'), findsOneWidget);
+      expect(find.text('Lower strength'), findsNothing);
 
-      await tester.tap(find.text('Lower strength'));
+      await tester.tap(find.text('Upper strength'));
       await tester.pumpAndSettle();
 
       expect(find.text('Active workout destination'), findsOneWidget);

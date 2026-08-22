@@ -42,11 +42,7 @@ class DashboardScreen extends ConsumerWidget {
               const SizedBox(height: 38),
               Divider(color: palette.ink, height: 1),
               const SizedBox(height: 28),
-              _SessionPrescription(
-                active: data.activeSession,
-                next: next,
-                plans: data.plans,
-              ),
+              _SessionPrescription(active: data.activeSession, next: next),
               const SizedBox(height: 24),
               recommendation.when(
                 loading: () => const _InlineLoading(),
@@ -206,14 +202,9 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _SessionPrescription extends ConsumerWidget {
-  const _SessionPrescription({
-    required this.active,
-    required this.next,
-    required this.plans,
-  });
+  const _SessionPrescription({required this.active, required this.next});
   final WorkoutSession? active;
   final ({WorkoutPlan plan, WorkoutPlanDay day})? next;
-  final List<WorkoutPlan> plans;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -270,44 +261,22 @@ class _SessionPrescription extends ConsumerWidget {
   }
 
   Future<void> _chooseDayAndStart(BuildContext context, WidgetRef ref) async {
+    final plan = next?.plan;
+    if (plan == null) return;
     final choices = [
-      for (final plan in plans)
-        for (final day in plan.days) _TrainingDayChoice(plan: plan, day: day),
+      for (final day in plan.days) _TrainingDayChoice(plan: plan, day: day),
     ];
-    final pickerHeight = (choices.length * 72.0)
-        .clamp(72.0, MediaQuery.sizeOf(context).height * .55)
-        .toDouble();
-    final selected = await showDialog<_TrainingDayChoice>(
+    final selected = await showModalBottomSheet<_TrainingDayChoice>(
       context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('What are you training today?'),
-        content: SizedBox(
-          width: 360,
-          height: pickerHeight,
-          child: ListView.separated(
-            itemCount: choices.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (_, index) {
-              final choice = choices[index];
-              final exerciseCount = choice.day.exercises.length;
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(choice.day.name),
-                subtitle: Text(
-                  '${choice.plan.name} · $exerciseCount ${exerciseCount == 1 ? 'exercise' : 'exercises'}',
-                ),
-                trailing: const Icon(Icons.arrow_forward),
-                onTap: () => Navigator.pop(dialog, choice),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog),
-            child: const Text('Cancel'),
-          ),
-        ],
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => _TrainingDayFlyover(
+        choices: choices,
+        onSelect: (choice) => Navigator.of(sheetContext).pop(choice),
+        onBrowsePlans: () {
+          Navigator.of(sheetContext).pop();
+          context.go('/plans');
+        },
       ),
     );
     if (selected == null || !context.mounted) return;
@@ -335,6 +304,115 @@ class _TrainingDayChoice {
   const _TrainingDayChoice({required this.plan, required this.day});
   final WorkoutPlan plan;
   final WorkoutPlanDay day;
+}
+
+class _TrainingDayFlyover extends StatelessWidget {
+  const _TrainingDayFlyover({
+    required this.choices,
+    required this.onSelect,
+    required this.onBrowsePlans,
+  });
+
+  final List<_TrainingDayChoice> choices;
+  final ValueChanged<_TrainingDayChoice> onSelect;
+  final VoidCallback onBrowsePlans;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    return SafeArea(
+      child: Center(
+        widthFactor: 1,
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 600 ? 3 : 2;
+                final tileWidth =
+                    (constraints.maxWidth - (columns - 1) * 10) / columns;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'What are you training today?',
+                            style: TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close day picker',
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Choose a day to start logging.',
+                      style: TextStyle(color: palette.muted),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        for (final choice in choices)
+                          SizedBox(
+                            width: tileWidth,
+                            height: 52,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                alignment: Alignment.center,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                              ),
+                              onPressed: () => onSelect(choice),
+                              child: Text(
+                                choice.day.name,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: onBrowsePlans,
+                          child: const Text('Browse plans'),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _DailyPrompt extends StatelessWidget {

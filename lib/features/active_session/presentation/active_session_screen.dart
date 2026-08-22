@@ -66,12 +66,20 @@ class _SessionBody extends ConsumerStatefulWidget {
 }
 
 class _SessionBodyState extends ConsumerState<_SessionBody> {
-  var _movementIndex = 0;
+  late int _movementIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _movementIndex = _resumeMovementIndex(widget.session);
+  }
 
   @override
   void didUpdateWidget(covariant _SessionBody oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_movementIndex >= widget.session.exercises.length) {
+    if (oldWidget.session.id != widget.session.id) {
+      _movementIndex = _resumeMovementIndex(widget.session);
+    } else if (_movementIndex >= widget.session.exercises.length) {
       _movementIndex = widget.session.exercises.isEmpty
           ? 0
           : widget.session.exercises.length - 1;
@@ -88,21 +96,8 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     final selected = session.exercises.isEmpty
         ? null
         : session.exercises[_movementIndex];
-    final sidebar = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        OutlinedButton(
-          onPressed: () => _finish(context, ref, session),
-          child: const Text('Finish workout'),
-        ),
-        const SizedBox(height: 8),
-        TextButton(
-          style: TextButton.styleFrom(foregroundColor: const Color(0xffA33B36)),
-          onPressed: () => _discard(context, ref, session),
-          child: const Text('Discard workout'),
-        ),
-      ],
-    );
+    final isFinalMovement =
+        selected != null && _movementIndex == session.exercises.length - 1;
     final movement = selected == null
         ? _EmptyMovementState(
             onAdd: () => _chooseExercise(context, ref, session),
@@ -121,12 +116,23 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                     ? null
                     : () => setState(() => _movementIndex += 1),
                 onAdd: () => _chooseExercise(context, ref, session),
-                onRemove: selected.sets.isEmpty
-                    ? () => _removeExercise(context, selected)
-                    : null,
               ),
               const SizedBox(height: 8),
               _ExerciseCard(exercise: selected, showIdentity: false),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: isFinalMovement
+                    ? () => _finish(context, ref, session)
+                    : () => setState(() => _movementIndex += 1),
+                icon: Icon(
+                  isFinalMovement
+                      ? Icons.check_circle_outline
+                      : Icons.arrow_forward,
+                ),
+                label: Text(
+                  isFinalMovement ? 'Finish Workout' : 'Next Movement',
+                ),
+              ),
             ],
           );
     return LayoutBuilder(
@@ -135,12 +141,32 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                session.planName,
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      session.planName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  if (pendingCount > 0)
+                    _PendingSyncIndicator(pendingCount: pendingCount),
+                  TextButton(
+                    onPressed: () => _finish(context, ref, session),
+                    child: const Text('Finish'),
+                  ),
+                  IconButton(
+                    tooltip: 'Discard Workout',
+                    onPressed: () => _discard(context, ref, session),
+                    color: const Color(0xffA33B36),
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                ],
               ),
               const SizedBox(height: 4),
               Text(
@@ -148,33 +174,11 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
               ),
               const SizedBox(height: 8),
               if (box.maxWidth >= 1024)
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: SingleChildScrollView(child: movement)),
-                      const SizedBox(width: 24),
-                      SizedBox(
-                        width: 300,
-                        child: SingleChildScrollView(child: sidebar),
-                      ),
-                    ],
-                  ),
-                )
+                Expanded(child: SingleChildScrollView(child: movement))
               else
-                Expanded(
-                  child: ListView(
-                    children: [movement, const SizedBox(height: 16), sidebar],
-                  ),
-                ),
+                Expanded(child: ListView(children: [movement])),
             ],
           ),
-          if (pendingCount > 0)
-            Positioned(
-              top: 0,
-              right: 0,
-              child: _PendingSyncIndicator(pendingCount: pendingCount),
-            ),
           Positioned(right: 0, bottom: 16, child: _RestTimer(session: session)),
         ],
       ),
@@ -231,7 +235,7 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(dialog, true),
-              child: const Text('Finish workout'),
+              child: const Text('Finish Workout'),
             ),
           ],
         ),
@@ -258,7 +262,7 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     final yes = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
-        title: const Text('Discard workout?'),
+        title: const Text('Discard Workout?'),
         content: const Text(
           'Logged work will be removed and cannot be restored.',
         ),
@@ -272,7 +276,7 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
               backgroundColor: const Color(0xffA33B36),
             ),
             onPressed: () => Navigator.pop(dialog, true),
-            child: const Text('Discard workout'),
+            child: const Text('Discard Workout'),
           ),
         ],
       ),
@@ -282,23 +286,27 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
       if (context.mounted) context.go('/plans');
     }
   }
+}
 
-  Future<void> _removeExercise(
-    BuildContext context,
-    SessionExercise exercise,
-  ) async {
-    try {
-      await ref
-          .read(activeSessionProvider.notifier)
-          .removeExercise(exercise.id);
-    } on AppFailure catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+int _resumeMovementIndex(WorkoutSession session) {
+  var resumeIndex = 0;
+  DateTime? lastLoggedAt;
+  for (
+    var exerciseIndex = 0;
+    exerciseIndex < session.exercises.length;
+    exerciseIndex += 1
+  ) {
+    for (final set in session.exercises[exerciseIndex].sets) {
+      if (lastLoggedAt == null ||
+          set.completedAt.isAfter(lastLoggedAt) ||
+          (set.completedAt.isAtSameMomentAs(lastLoggedAt) &&
+              exerciseIndex >= resumeIndex)) {
+        lastLoggedAt = set.completedAt;
+        resumeIndex = exerciseIndex;
       }
     }
   }
+  return resumeIndex;
 }
 
 class _EmptyMovementState extends StatelessWidget {
@@ -317,7 +325,7 @@ class _EmptyMovementState extends StatelessWidget {
           ElevatedButton.icon(
             onPressed: onAdd,
             icon: const Icon(Icons.add),
-            label: const Text('Add movement'),
+            label: const Text('Add Movement'),
           ),
         ],
       ),
@@ -333,7 +341,6 @@ class _MovementStepper extends StatelessWidget {
     required this.onPrevious,
     required this.onNext,
     required this.onAdd,
-    required this.onRemove,
   });
 
   final SessionExercise exercise;
@@ -342,7 +349,6 @@ class _MovementStepper extends StatelessWidget {
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
   final VoidCallback onAdd;
-  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -360,26 +366,22 @@ class _MovementStepper extends StatelessWidget {
               icon: const Icon(Icons.chevron_left),
             ),
             Expanded(
-              child: Text(
-                exercise.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontSize: compact ? 24 : null,
-                  fontWeight: FontWeight.w800,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Text(
+                  exercise.name,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontSize: compact ? 24 : null,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
             ),
-            if (onRemove != null)
-              IconButton(
-                tooltip: 'Remove movement',
-                onPressed: onRemove,
-                visualDensity: compact ? VisualDensity.compact : null,
-                icon: const Icon(Icons.remove_circle_outline),
-              ),
             IconButton(
-              tooltip: 'Next movement',
+              tooltip: 'Next Movement',
               onPressed: onNext,
               visualDensity: compact ? VisualDensity.compact : null,
               icon: const Icon(Icons.chevron_right),
@@ -416,7 +418,7 @@ class _MovementStepper extends StatelessWidget {
               : null,
           onPressed: onAdd,
           icon: const Icon(Icons.add),
-          label: const Text('Add movement'),
+          label: const Text('Add Movement'),
         ),
       ],
     );
@@ -435,7 +437,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   final _drafts = <_SetDraft>[];
   var _nextDraftOrder = 0;
   String? _error;
-  bool _saving = false;
+  _SetDraft? _savingDraft;
+  Set<String>? _setIdsBeforeSave;
   bool _demoExpanded = false;
 
   @override
@@ -488,6 +491,11 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     final unit =
         ref.watch(authControllerProvider).user?.weightUnit ?? WeightUnit.kg;
     final exercise = widget.exercise;
+    final visibleSets = _setIdsBeforeSave == null
+        ? exercise.sets
+        : exercise.sets
+              .where((set) => _setIdsBeforeSave!.contains(set.id))
+              .toList();
     return Card(
       child: Padding(
         padding: EdgeInsets.all(compact ? 12 : 16),
@@ -532,17 +540,6 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                     icon: const Icon(Icons.remove_circle_outline),
                   ),
                 ],
-              )
-            else
-              Center(
-                child: Text(
-                  '${exercise.muscleGroup ?? 'Movement'} · target ${exercise.targetSets} × ${exercise.targetReps}',
-                  maxLines: compact ? 2 : null,
-                  overflow: compact ? TextOverflow.ellipsis : null,
-                  style: compact
-                      ? const TextStyle(fontSize: 15, height: 1.2)
-                      : null,
-                ),
               ),
             if (exercise.demoUrl != null) ...[
               SizedBox(height: compact ? 4 : 8),
@@ -564,7 +561,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
             ),
             SizedBox(height: compact ? 4 : 8),
             _SetLedgerHeader(unit: unit),
-            ...exercise.sets.map(
+            ...visibleSets.map(
               (set) => ListTile(
                 dense: compact,
                 visualDensity: compact
@@ -603,7 +600,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 draft: _drafts[index],
                 unit: unit,
                 previous: _previousFor(_drafts[index].order),
-                saving: _saving,
+                isSubmitting: identical(_savingDraft, _drafts[index]),
+                disabled: _savingDraft != null,
                 onLog: () => _add(index),
               ),
             if (_error != null) ...[
@@ -619,13 +617,13 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       )
                     : null,
-                onPressed: _saving
+                onPressed: _savingDraft != null
                     ? null
                     : () => setState(
                         () => _drafts.add(_SetDraft(_nextDraftOrder++)),
                       ),
                 icon: const Icon(Icons.add),
-                label: const Text('Add set'),
+                label: const Text('Add Set'),
               ),
             ),
           ],
@@ -635,6 +633,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   }
 
   Future<void> _add(int index) async {
+    if (_savingDraft != null) return;
     final draft = _drafts[index];
     final previous = _previousFor(draft.order);
     final weight = draft.weight.text.trim().isEmpty
@@ -652,7 +651,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
       return;
     }
     setState(() {
-      _saving = true;
+      _savingDraft = draft;
+      _setIdsBeforeSave = widget.exercise.sets.map((set) => set.id).toSet();
       _error = null;
     });
     try {
@@ -680,14 +680,22 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
       } else if (submission.personalRecord != null && mounted) {
         _showPersonalRecordCelebration(context, submission.personalRecord!);
       }
+      if (!mounted) return;
       setState(() {
         draft.dispose();
         _drafts.removeAt(index);
+        _savingDraft = null;
+        _setIdsBeforeSave = null;
       });
     } on AppFailure catch (error) {
       if (mounted) setState(() => _error = error.message);
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (mounted && identical(_savingDraft, draft)) {
+        setState(() {
+          _savingDraft = null;
+          _setIdsBeforeSave = null;
+        });
+      }
     }
   }
 
@@ -706,57 +714,13 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   }
 
   Future<void> _edit(LoggedSet set, WeightUnit unit) async {
-    final weight = TextEditingController(
-      text: (unit == WeightUnit.lb ? set.weightKg * 2.2046226218 : set.weightKg)
-          .toStringAsFixed(1),
-    );
-    final reps = TextEditingController(text: '${set.reps}');
-    final values = await showDialog<({double weight, int reps})>(
+    final values = await showModalBottomSheet<({double weight, int reps})>(
       context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text('Edit set ${set.setOrder}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: weight,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: InputDecoration(labelText: 'Weight (${unit.name})'),
-            ),
-            TextField(
-              controller: reps,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Reps'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final w = double.tryParse(weight.text);
-              final r = int.tryParse(reps.text);
-              if (w != null &&
-                  w >= 0 &&
-                  w <= 1000 &&
-                  r != null &&
-                  r >= 1 &&
-                  r <= 100)
-                Navigator.pop(dialog, (weight: w, reps: r));
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (_) => _EditSetSheet(set: set, unit: unit),
     );
-    weight.dispose();
-    reps.dispose();
-    if (values == null) return;
+    if (values == null || !mounted) return;
     try {
       await ref
           .read(activeSessionProvider.notifier)
@@ -769,6 +733,132 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     } on AppFailure catch (error) {
       if (mounted) setState(() => _error = error.message);
     }
+  }
+}
+
+class _EditSetSheet extends StatefulWidget {
+  const _EditSetSheet({required this.set, required this.unit});
+
+  final LoggedSet set;
+  final WeightUnit unit;
+
+  @override
+  State<_EditSetSheet> createState() => _EditSetSheetState();
+}
+
+class _EditSetSheetState extends State<_EditSetSheet> {
+  late final TextEditingController _weight;
+  late final TextEditingController _reps;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final value = widget.unit == WeightUnit.lb
+        ? widget.set.weightKg * 2.2046226218
+        : widget.set.weightKg;
+    _weight = TextEditingController(text: value.toStringAsFixed(1));
+    _reps = TextEditingController(text: '${widget.set.reps}');
+  }
+
+  @override
+  void dispose() {
+    _weight.dispose();
+    _reps.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final weight = double.tryParse(_weight.text);
+    final reps = int.tryParse(_reps.text);
+    if (weight == null || weight < 0 || weight > 1000) {
+      setState(() => _error = 'Enter a weight from 0 to 1,000.');
+      return;
+    }
+    if (reps == null || reps < 1 || reps > 100) {
+      setState(() => _error = 'Enter at least 1 rep.');
+      return;
+    }
+    Navigator.of(context).pop((weight: weight, reps: reps));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final unitLabel = widget.unit == WeightUnit.lb ? 'lb' : 'kg';
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        0,
+        20,
+        20 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Edit set ${widget.set.setOrder}',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Close set editor',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _weight,
+                  autofocus: true,
+                  textInputAction: TextInputAction.next,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(labelText: 'Weight ($unitLabel)'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _reps,
+                  textInputAction: TextInputAction.done,
+                  keyboardType: TextInputType.number,
+                  onSubmitted: (_) => _save(),
+                  decoration: const InputDecoration(labelText: 'Reps'),
+                ),
+              ),
+            ],
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+          const SizedBox(height: 18),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(onPressed: _save, child: const Text('Save')),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -819,7 +909,7 @@ class _PersonalRecordCelebrationState extends State<PersonalRecordCelebration>
         ? 'ESTIMATED 1RM PR'
         : 'REP PR';
     final foreground =
-        ThemeData.estimateBrightnessForColor(palette.gold) == Brightness.dark
+        ThemeData.estimateBrightnessForColor(palette.ready) == Brightness.dark
         ? Colors.white
         : palette.ink;
     return Semantics(
@@ -828,14 +918,10 @@ class _PersonalRecordCelebrationState extends State<PersonalRecordCelebration>
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 92),
+          constraints: const BoxConstraints(minHeight: 96),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [palette.gold, palette.ready, palette.oxide],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            border: Border.all(color: palette.gold, width: 2),
+            color: palette.ready,
+            border: Border.all(color: foreground.withValues(alpha: .26)),
           ),
           child: Stack(
             children: [
@@ -857,56 +943,66 @@ class _PersonalRecordCelebrationState extends State<PersonalRecordCelebration>
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 14,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: foreground.withValues(alpha: .16),
-                        shape: BoxShape.circle,
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: foreground.withValues(alpha: .16),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.emoji_events,
+                          color: foreground,
+                          size: 28,
+                        ),
                       ),
-                      child: Icon(
-                        Icons.emoji_events,
-                        color: foreground,
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            type,
-                            style: TextStyle(
-                              color: foreground,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.1,
-                            ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: SizedBox(
+                          height: 46,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                type,
+                                style: TextStyle(
+                                  color: foreground,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Expanded(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    widget.record.exerciseName,
+                                    maxLines: 1,
+                                    style: TextStyle(
+                                      color: foreground,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.record.exerciseName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: foreground,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                    Icon(Icons.auto_awesome, color: foreground),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -998,25 +1094,24 @@ class _SetDraftRow extends StatelessWidget {
     required this.draft,
     required this.unit,
     required this.previous,
-    required this.saving,
+    required this.isSubmitting,
+    required this.disabled,
     required this.onLog,
   });
   final int number;
   final _SetDraft draft;
   final WeightUnit unit;
   final PreviousPerformance? previous;
-  final bool saving;
+  final bool isSubmitting;
+  final bool disabled;
   final VoidCallback onLog;
 
   String? get _weightPlaceholder => previous == null
       ? null
-      : _number(
-          unit == WeightUnit.lb
-              ? previous!.weightKg * 2.2046226218
-              : previous!.weightKg,
-        );
+      : '${_number(unit == WeightUnit.lb ? previous!.weightKg * 2.2046226218 : previous!.weightKg)} ${unit.name}';
 
-  String? get _repsPlaceholder => previous == null ? null : '${previous!.reps}';
+  String? get _repsPlaceholder =>
+      previous == null ? null : '${previous!.reps} reps';
 
   @override
   Widget build(BuildContext context) {
@@ -1048,12 +1143,12 @@ class _SetDraftRow extends StatelessWidget {
     final logButton = SizedBox(
       width: compact ? 64 : 72,
       child: ElevatedButton(
-        onPressed: saving ? null : onLog,
+        onPressed: disabled ? null : onLog,
         style: ElevatedButton.styleFrom(
           minimumSize: Size(compact ? 64 : 72, compact ? 40 : 48),
           padding: EdgeInsets.zero,
         ),
-        child: saving
+        child: isSubmitting
             ? const SizedBox(
                 width: 18,
                 height: 18,
@@ -1172,14 +1267,17 @@ class _SessionExerciseDemo extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      TextButton.icon(
-        style: TextButton.styleFrom(
-          visualDensity: VisualDensity.compact,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      Align(
+        alignment: Alignment.center,
+        child: TextButton.icon(
+          style: TextButton.styleFrom(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: onToggle,
+          icon: Icon(expanded ? Icons.expand_less : Icons.play_circle_outline),
+          label: Text(expanded ? 'Hide Demo' : 'Watch Demo'),
         ),
-        onPressed: onToggle,
-        icon: Icon(expanded ? Icons.expand_less : Icons.play_circle_outline),
-        label: Text(expanded ? 'Hide demonstration' : 'Watch demonstration'),
       ),
       if (expanded)
         _directVideo
@@ -1187,11 +1285,11 @@ class _SessionExerciseDemo extends StatelessWidget {
             : Card(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 child: ListTile(
-                  title: const Text('Open exercise demonstration'),
+                  title: const Text('Open Demo'),
                   subtitle: Text(
                     sourceName?.trim().isNotEmpty == true
                         ? sourceName!
-                        : 'The source hosts this demonstration externally.',
+                        : 'The source hosts this demo externally.',
                   ),
                   trailing: const Icon(Icons.open_in_new),
                   onTap: () async {
@@ -1242,6 +1340,7 @@ class _DirectExerciseVideoState extends State<_DirectExerciseVideo> {
     try {
       await _controller.setLooping(true);
       await _controller.initialize();
+      await _controller.play();
       if (mounted) setState(() {});
     } catch (_) {
       if (mounted) {
@@ -1269,33 +1368,39 @@ class _DirectExerciseVideoState extends State<_DirectExerciseVideo> {
     }
     return Semantics(
       label: '${widget.name} movement demonstration',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: _controller.value.aspectRatio,
-            child: VideoPlayer(_controller),
-          ),
-          Row(
-            children: [
-              IconButton(
-                tooltip: _controller.value.isPlaying
-                    ? 'Pause demo'
-                    : 'Play demo',
-                icon: Icon(
-                  _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+      child: AspectRatio(
+        aspectRatio: _controller.value.aspectRatio,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            VideoPlayer(_controller),
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: ValueListenableBuilder<VideoPlayerValue>(
+                valueListenable: _controller,
+                builder: (context, value, _) => Material(
+                  color: Colors.black.withValues(alpha: .58),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    tooltip: value.isPlaying
+                        ? 'Pause demonstration'
+                        : 'Play demonstration',
+                    color: Colors.white,
+                    onPressed: () {
+                      value.isPlaying
+                          ? _controller.pause()
+                          : _controller.play();
+                    },
+                    icon: Icon(
+                      value.isPlaying ? Icons.pause : Icons.play_arrow,
+                    ),
+                  ),
                 ),
-                onPressed: () => setState(() {
-                  _controller.value.isPlaying
-                      ? _controller.pause()
-                      : _controller.play();
-                }),
               ),
-              if (widget.sourceName?.trim().isNotEmpty == true)
-                Expanded(child: Text(widget.sourceName!)),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1347,8 +1452,8 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOut,
-      width: _open ? 280 : 132,
-      padding: const EdgeInsets.all(8),
+      width: _open ? 224 : 112,
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: palette.ink,
         border: Border.all(color: palette.divider),
@@ -1372,7 +1477,7 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                         label,
                         style: TextStyle(
                           color: palette.raised,
-                          fontSize: 34,
+                          fontSize: 28,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -1380,7 +1485,12 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                     IconButton(
                       tooltip: 'Minimize rest timer',
                       onPressed: () => setState(() => _open = false),
-                      icon: Icon(Icons.close, color: palette.raised),
+                      constraints: const BoxConstraints.tightFor(
+                        width: 36,
+                        height: 36,
+                      ),
+                      padding: EdgeInsets.zero,
+                      icon: Icon(Icons.close, color: palette.raised, size: 20),
                     ),
                   ],
                 ),
@@ -1390,8 +1500,9 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                       Expanded(
                         child: TextButton(
                           style: TextButton.styleFrom(
-                            minimumSize: Size.zero,
+                            minimumSize: const Size(0, 36),
                             padding: const EdgeInsets.symmetric(horizontal: 2),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           onPressed: () => _start(duration),
                           child: Text(
@@ -1401,18 +1512,32 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                         ),
                       ),
                     SizedBox(
-                      width: 36,
+                      width: 32,
+                      height: 36,
                       child: IconButton(
                         padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 32,
+                          height: 36,
+                        ),
                         tooltip: 'Custom rest',
                         onPressed: _custom,
-                        icon: Icon(Icons.more_time, color: palette.gold),
+                        icon: Icon(
+                          Icons.more_time,
+                          size: 20,
+                          color: palette.gold,
+                        ),
                       ),
                     ),
                     SizedBox(
-                      width: 36,
+                      width: 32,
+                      height: 36,
                       child: IconButton(
                         padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 32,
+                          height: 36,
+                        ),
                         tooltip: 'Reset rest timer',
                         onPressed: deadline == null
                             ? null
@@ -1422,7 +1547,11 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                                     .setRest(null);
                                 if (mounted) setState(() => _open = false);
                               },
-                        icon: Icon(Icons.restart_alt, color: palette.gold),
+                        icon: Icon(
+                          Icons.restart_alt,
+                          size: 20,
+                          color: palette.gold,
+                        ),
                       ),
                     ),
                   ],
@@ -1456,36 +1585,54 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
   }
 
   Future<void> _custom() async {
-    final input = TextEditingController();
     final seconds = await showDialog<int>(
       context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('Custom rest'),
-        content: TextField(
-          controller: input,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Seconds (10–600)'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final value = int.tryParse(input.text);
-              if (value != null && value >= 10 && value <= 600)
-                Navigator.pop(dialog, value);
-            },
-            child: const Text('Start'),
-          ),
-        ],
-      ),
+      builder: (_) => const _CustomRestDialog(),
     );
-    input.dispose();
-    if (seconds != null) await _start(seconds);
+    if (seconds != null && mounted) await _start(seconds);
   }
+}
+
+class _CustomRestDialog extends StatefulWidget {
+  const _CustomRestDialog();
+
+  @override
+  State<_CustomRestDialog> createState() => _CustomRestDialogState();
+}
+
+class _CustomRestDialogState extends State<_CustomRestDialog> {
+  final _input = TextEditingController();
+
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
+  void _start() {
+    final seconds = int.tryParse(_input.text);
+    if (seconds == null || seconds < 10 || seconds > 600) return;
+    Navigator.of(context).pop(seconds);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Custom rest'),
+    content: TextField(
+      controller: _input,
+      autofocus: true,
+      keyboardType: TextInputType.number,
+      onSubmitted: (_) => _start(),
+      decoration: const InputDecoration(labelText: 'Seconds (10–600)'),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      ElevatedButton(onPressed: _start, child: const Text('Start')),
+    ],
+  );
 }
 
 class _ExerciseDialog extends ConsumerStatefulWidget {
