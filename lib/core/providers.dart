@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -134,6 +135,10 @@ final progressRepositoryProvider = Provider<ProgressRepository>(
       ? MockProgressRepository(ref.watch(mockStoreProvider))
       : ApiProgressRepository(ref.watch(dioProvider)),
 );
+final progressPhotoBytesProvider = FutureProvider.autoDispose
+    .family<Uint8List, String>(
+      (ref, id) => ref.watch(progressRepositoryProvider).readImageBytes(id),
+    );
 final progressRecordProvider = FutureProvider<ProgressRecord>(
   (ref) => ref.watch(progressRepositoryProvider).read(),
 );

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
@@ -1147,38 +1149,36 @@ class ApiProgressRepository implements ProgressRepository {
         'Choose an image smaller than 20 MB.',
       );
     }
-    final signed = await _request(
-      () => _dio.post<Map<String, dynamic>>(
-        '/v1/progress/presign',
-        data: {'fileName': upload.fileName, 'contentType': upload.mimeType},
-      ),
-    );
-    final url = signed.data!['url'] as String;
-    final key = signed.data!['key'] as String;
-    try {
-      await Dio().put<void>(
-        url,
-        data: upload.bytes,
-        options: Options(headers: {'content-type': upload.mimeType}),
-      );
-    } on DioException catch (_) {
-      throw const AppFailure(
-        'progress_upload_failed',
-        'The progress photo could not be uploaded.',
-      );
-    }
     await _request(
       () => _dio.post<Map<String, dynamic>>(
-        '/v1/progress',
-        data: {
-          'objectKey': key,
-          'mimeType': upload.mimeType,
-          'sizeBytes': upload.bytes.lengthInBytes,
+        '/v1/progress/upload',
+        queryParameters: {
+          'fileName': upload.fileName,
           'capturedAt': _date(upload.capturedAt),
-          'note': ?upload.note,
+          if (upload.note != null) 'note': upload.note,
         },
+        data: upload.bytes,
+        options: Options(contentType: upload.mimeType),
       ),
     );
+  }
+
+  @override
+  Future<Uint8List> readImageBytes(String id) async {
+    final response = await _request(
+      () => _dio.get<List<int>>(
+        '/v1/progress/$id/image',
+        options: Options(responseType: ResponseType.bytes),
+      ),
+    );
+    final bytes = response.data;
+    if (bytes == null || bytes.isEmpty) {
+      throw const AppFailure(
+        'progress_image_unavailable',
+        'That progress photo is unavailable.',
+      );
+    }
+    return Uint8List.fromList(bytes);
   }
 
   @override

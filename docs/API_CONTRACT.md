@@ -23,7 +23,7 @@ the retired endpoints described in the remainder of this document.
 | Rest timer | No corresponding Expo mutation | Kept as intentional device-local session state. |
 | Recovery check-ins | `GET /v1/recovery-checkins`; `PUT /v1/recovery-checkins/{YYYY-MM-DD}` | Scores are required integers 1–5; sleep is optional 0–24 hours and notes are capped at 500 characters. |
 | Fasting | `GET /v1/record` fasting aggregate; `POST /v1/fasting` start/end; `DELETE /v1/fasting/:id` | Start accepts optional 1–10,080 minute target and note; ending before five minutes returns `discarded` rather than a history entry. |
-| Progress record | `GET /v1/record` progress/sessions; `POST /v1/progress/presign`; signed storage `PUT`; `POST/PATCH/DELETE /v1/progress` | Only images up to 20MB may be uploaded. `capturedAt` is a date/ISO timestamp; signed read URLs can expire and must render an honest unavailable state. |
+| Progress record | `GET /v1/record` progress/sessions; Expo-compatible `POST /v1/progress/presign`, signed storage `PUT`, and `POST /v1/progress`; Flutter `POST /v1/progress/upload` and authenticated `GET /v1/progress/:id/image`; `PATCH/DELETE /v1/progress` | Only images up to 20MB may be uploaded. Flutter sends raw image bytes to its authenticated API route and reads image bytes from the authenticated API route so browser behavior never depends on the storage origin's CORS policy. `capturedAt` is a date/ISO timestamp. |
 | Food catalog and meals | `GET /v1/record` nutrition; `POST /v1/foods`; `POST/PATCH/DELETE /v1/meals` | Foods define the reference serving value/unit and macros per reference serving. The numeric meal API field is named `grams`, but the existing product treats it as an amount in that saved serving unit; Flutter preserves that behavior deliberately. |
 | Food media and capture | `POST /v1/meals/:id/photo/presign`, signed `PUT`, `POST /v1/meals/:id/photo`; `GET /v1/barcodes/:code`; `POST /v1/nutrition-label/parse` | Meal photos are images up to 20MB. Barcode candidates and label parses are review input only; the app must not create/log food until the user confirms the editable form. |
 | Arcana | `GET /v1/arcana`; `PUT /v1/arcana/pins`; `POST /v1/arcana/reconcile` | Stages and evidence remain server-owned. Reconciliation may advance a card but must never retract durable earned state; only revealed cards may be pinned. |
@@ -61,7 +61,9 @@ attention but are not retried automatically.
   `http://127.0.0.1:8081`. A new Flutter web origin must be added to the
   server-side `CORS_ORIGINS` allowlist; browser CORS cannot be bypassed in the
   client.
-- All request/response bodies are JSON. All timestamps are UTC ISO-8601.
+- Request/response bodies are JSON except the Flutter-only progress upload,
+  which posts raw image bytes with an `image/*` content type. All timestamps
+  are UTC ISO-8601.
 - Authenticated requests use `Authorization: Bearer <accessToken>`.
 - Successful mutation responses return the canonical server entity, not a
   client echo.

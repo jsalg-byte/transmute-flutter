@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'models.dart';
 
 class AppFailure implements Exception {
@@ -138,6 +140,7 @@ abstract class FastingRepository {
 abstract class ProgressRepository {
   Future<ProgressRecord> read();
   Future<void> create(ProgressPhotoUpload upload);
+  Future<Uint8List> readImageBytes(String id);
   Future<void> updateCapturedAt(String id, DateTime capturedAt);
   Future<void> delete(String id);
 }

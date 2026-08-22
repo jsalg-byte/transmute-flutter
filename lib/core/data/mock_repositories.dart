@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import '../api/api_repositories.dart';
 import '../domain/models.dart';
@@ -422,6 +423,20 @@ class MockProgressRepository implements ProgressRepository {
         localBytes: upload.bytes,
       ),
     );
+  }
+
+  @override
+  Future<Uint8List> readImageBytes(String id) async {
+    final photo = _store.progressPhotos
+        .where((item) => item.id == id)
+        .firstOrNull;
+    if (photo?.localBytes == null) {
+      throw const AppFailure(
+        'progress_not_found',
+        'That progress photo is unavailable.',
+      );
+    }
+    return photo!.localBytes!;
   }
 
   @override

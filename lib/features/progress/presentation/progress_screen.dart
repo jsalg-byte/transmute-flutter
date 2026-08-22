@@ -658,25 +658,32 @@ class _PhotoTile extends StatelessWidget {
   );
 }
 
-class _PhotoImage extends StatelessWidget {
+class _PhotoImage extends ConsumerWidget {
   const _PhotoImage({required this.photo, required this.fit});
   final ProgressPhoto photo;
   final BoxFit fit;
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (photo.localBytes != null)
       return Image.memory(
         photo.localBytes!,
         fit: fit,
         errorBuilder: (_, __, ___) => _unavailable(),
       );
-    if (photo.imageUrl != null)
-      return Image.network(
-        photo.imageUrl!,
-        fit: fit,
-        errorBuilder: (_, __, ___) => _unavailable(),
-      );
-    return _unavailable();
+    return ref
+        .watch(progressPhotoBytesProvider(photo.id))
+        .when(
+          data: (bytes) => Image.memory(
+            bytes,
+            fit: fit,
+            errorBuilder: (_, __, ___) => _unavailable(),
+          ),
+          loading: () => const ColoredBox(
+            color: Color(0xffDED4C6),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, __) => _unavailable(),
+        );
   }
 
   Widget _unavailable() => const ColoredBox(
