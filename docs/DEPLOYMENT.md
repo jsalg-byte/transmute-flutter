@@ -27,7 +27,7 @@ secret and is not a Coolify runtime variable. The script also versions the
 Flutter bootstrap and application URLs so browsers cannot reuse an old bundle
 after a deployment.
 
-The approved Flutter production origin is `https://transmute2.mzootfb.xyz`.
+The approved Flutter production origin is `https://transmute.mzootfb.xyz`.
 Configure the Fastify API's `CORS_ORIGINS` runtime variable to contain that
 exact value. Do not add wildcard origins and do not leave the temporary
 `trycloudflare.com` URL in production configuration.
@@ -41,11 +41,11 @@ exact value. Do not add wildcard origins and do not leave the temporary
 3. No Coolify environment variables are required; the committed release bundle
    is built with the public API URL before it is pushed.
 4. In the generated `Domains for transmute-flutter` field, set
-   `https://transmute2.mzootfb.xyz`. Coolify will route it to port 80 and
+   `https://transmute.mzootfb.xyz`. Coolify will route it to port 80 and
    manage HTTPS; do not manually enable editable container labels.
-5. Point the DNS `A`/`AAAA` record for `transmute2.mzootfb.xyz` at the Coolify
+5. Point the DNS `A`/`AAAA` record for `transmute.mzootfb.xyz` at the Coolify
    server, then wait for DNS propagation before deployment.
-6. Add `https://transmute2.mzootfb.xyz` to the API's `CORS_ORIGINS`, deploy the
+6. Add `https://transmute.mzootfb.xyz` to the API's `CORS_ORIGINS`, deploy the
    API setting, then deploy this app.
 
 The repository now contains every non-secret application setting. DNS records,
