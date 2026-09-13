@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import '../../../core/domain/models.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/widgets/app_shell.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -130,7 +131,8 @@ class _HistoryItem extends StatelessWidget {
   final CompletedSessionSummary item;
   final WeightUnit unit;
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => TransmutePanel(
+    padding: EdgeInsets.zero,
     child: ListTile(
       title: Text(item.planName, style: Theme.of(context).textTheme.titleLarge),
       subtitle: Text(

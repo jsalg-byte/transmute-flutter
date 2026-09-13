@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/domain/daily_transmutation.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/recovery.dart';
 import '../../../core/domain/repositories.dart';
@@ -17,7 +16,6 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final overview = ref.watch(dailyOverviewProvider);
-    final recommendation = ref.watch(dailyRecommendationProvider);
     final recent = ref.watch(recentRecordProvider);
     return AppShell(
       title: 'Dashboard',
@@ -43,27 +41,6 @@ class DashboardScreen extends ConsumerWidget {
               Divider(color: palette.ink, height: 1),
               const SizedBox(height: 28),
               _SessionPrescription(active: data.activeSession, next: next),
-              const SizedBox(height: 24),
-              recommendation.when(
-                loading: () => const _InlineLoading(),
-                error: (_, __) => _DailyPrompt(
-                  title: 'Daily Transmutation unavailable',
-                  copy:
-                      'Refresh the evidence record before drawing a conclusion.',
-                  action: 'Retry',
-                  onTap: () => ref.invalidate(dailyRecommendationProvider),
-                ),
-                data: (item) => _DailyPrompt(
-                  title: item.title,
-                  copy: item.explanation,
-                  action: item.action == DailyAction.recordCheckin
-                      ? 'Record check-in'
-                      : 'Open action',
-                  onTap: () => item.action == DailyAction.recordCheckin
-                      ? _recordCheckin(context, ref)
-                      : context.go(item.route),
-                ),
-              ),
               const SizedBox(height: 20),
               Divider(color: palette.ink, height: 1),
               const SizedBox(height: 28),
@@ -89,115 +66,6 @@ class DashboardScreen extends ConsumerWidget {
         },
       ),
     );
-  }
-
-  Future<void> _recordCheckin(BuildContext context, WidgetRef ref) async {
-    var recovery = 3.0;
-    var soreness = 3.0;
-    var stress = 3.0;
-    final sleep = TextEditingController();
-    final note = TextEditingController();
-    final entry = await showDialog<RecoveryCheckin>(
-      context: context,
-      builder: (dialog) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: const Text('Today’s recovery'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Recovery ${recovery.round()}/5'),
-                Slider(
-                  value: recovery,
-                  min: 1,
-                  max: 5,
-                  divisions: 4,
-                  onChanged: (value) => update(() => recovery = value),
-                ),
-                Text('Soreness ${soreness.round()}/5'),
-                Slider(
-                  value: soreness,
-                  min: 1,
-                  max: 5,
-                  divisions: 4,
-                  onChanged: (value) => update(() => soreness = value),
-                ),
-                Text('Stress ${stress.round()}/5'),
-                Slider(
-                  value: stress,
-                  min: 1,
-                  max: 5,
-                  divisions: 4,
-                  onChanged: (value) => update(() => stress = value),
-                ),
-                TextField(
-                  controller: sleep,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Sleep hours (optional)',
-                  ),
-                ),
-                TextField(
-                  controller: note,
-                  maxLength: 500,
-                  decoration: const InputDecoration(
-                    labelText: 'Note (optional)',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialog),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final hours = sleep.text.trim().isEmpty
-                    ? null
-                    : double.tryParse(sleep.text);
-                if (hours == null || (hours >= 0 && hours <= 24)) {
-                  Navigator.pop(
-                    dialog,
-                    RecoveryCheckin(
-                      date: DateTime.now(),
-                      recoveryScore: recovery.round(),
-                      sorenessScore: soreness.round(),
-                      stressScore: stress.round(),
-                      sleepHours: hours,
-                      note: note.text.trim().isEmpty ? null : note.text.trim(),
-                    ),
-                  );
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-    sleep.dispose();
-    note.dispose();
-    if (entry == null) return;
-    try {
-      await ref.read(recoveryRepositoryProvider).saveCheckin(entry);
-      ref.invalidate(recoveryCheckinsProvider);
-      ref.invalidate(dailyRecommendationProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Recovery check-in saved.')),
-        );
-      }
-    } on AppFailure catch (error) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
-      }
-    }
   }
 }
 

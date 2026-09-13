@@ -55,6 +55,18 @@ void main() {
 
       expect(find.text('Chest-supported row'), findsOneWidget);
       expect(find.text('Barbell bench press'), findsNothing);
+
+      await tester.tap(find.byTooltip('Go to step 3'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Shoulder press'), findsOneWidget);
+      expect(find.text('Chest-supported row'), findsNothing);
+
+      await tester.tap(find.byTooltip('Go to step 1'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Barbell bench press'), findsOneWidget);
+      expect(find.text('Shoulder press'), findsNothing);
       await container.read(activeSessionProvider.notifier).discard();
     },
   );
@@ -95,6 +107,38 @@ void main() {
       await container.read(activeSessionProvider.notifier).discard();
     },
   );
+
+  testWidgets('wide active workout uses the desktop content width', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await container
+        .read(activeSessionProvider.notifier)
+        .start('upper-a', 'upper-a-day-1');
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const ActiveSessionScreen()),
+        GoRoute(path: '/dashboard', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/plans', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/session', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/history', builder: (_, _) => const SizedBox()),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Barbell bench press'), findsOneWidget);
+    expect(tester.getTopRight(find.text('Log').first).dx, greaterThan(1000));
+    await container.read(activeSessionProvider.notifier).discard();
+  });
 
   testWidgets('editing a set with unchanged values safely saves', (
     tester,

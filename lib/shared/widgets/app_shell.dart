@@ -12,10 +12,16 @@ import '../theme/transmute_palette.dart';
 /// a quiet wordmark header and a full, textual navigation strip. Compact
 /// breakpoints retain Material navigation for touch-first use.
 class AppShell extends ConsumerWidget {
-  const AppShell({super.key, required this.title, required this.child});
+  const AppShell({
+    super.key,
+    required this.title,
+    required this.child,
+    this.desktopContentMaxWidth = 840,
+  });
 
   final String title;
   final Widget child;
+  final double? desktopContentMaxWidth;
 
   static const _primary = <_ShellDestination>[
     _ShellDestination('Dashboard', '/dashboard'),
@@ -123,10 +129,14 @@ class AppShell extends ConsumerWidget {
                     padding: const EdgeInsets.fromLTRB(0, 28, 0, 24),
                     child: Align(
                       alignment: Alignment.topLeft,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 840),
-                        child: child,
-                      ),
+                      child: desktopContentMaxWidth == null
+                          ? child
+                          : ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: desktopContentMaxWidth!,
+                              ),
+                              child: child,
+                            ),
                     ),
                   ),
                 ),
@@ -465,6 +475,9 @@ class _ThemeSwitch extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef _) {
+    final useCuteTheme =
+        ref.watch(cuteThemeEnabledProvider).asData?.value ?? false;
+    if (useCuteTheme) return const SizedBox.shrink();
     final palette = TransmutePalette.of(context);
     final preference = ref.watch(effectiveThemePreferenceProvider);
     final isDark = preference.brightness == PreferenceBrightness.dark;

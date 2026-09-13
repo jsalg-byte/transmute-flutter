@@ -242,6 +242,42 @@ final effectiveThemePreferenceProvider = Provider<ThemePreference>((ref) {
       defaultThemePreference;
 });
 
+/// The alternate component system is intentionally a local device setting.
+/// The account theme API currently owns only the palette and light/dark mode,
+/// so this preserves that server contract without silently dropping a style.
+final cuteThemeEnabledProvider =
+    AsyncNotifierProvider<CuteThemePreferenceController, bool>(
+      CuteThemePreferenceController.new,
+    );
+
+class CuteThemePreferenceController extends AsyncNotifier<bool> {
+  static const _key = 'transmute.theme.cute-pastel';
+
+  @override
+  Future<bool> build() async {
+    try {
+      return await ref.read(secureStoreProvider).storage.read(key: _key) ==
+          'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    final previous = state.asData?.value ?? false;
+    state = AsyncData(enabled);
+    try {
+      await ref
+          .read(secureStoreProvider)
+          .storage
+          .write(key: _key, value: enabled.toString());
+    } catch (_) {
+      state = AsyncData(previous);
+      rethrow;
+    }
+  }
+}
+
 class ThemeOverrideController extends Notifier<ThemePreference?> {
   @override
   ThemePreference? build() => null;

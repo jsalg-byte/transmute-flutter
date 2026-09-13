@@ -10,6 +10,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/theme/transmute_palette.dart';
 import '../../../shared/widgets/app_shell.dart';
 
@@ -21,6 +22,7 @@ class ActiveSessionScreen extends ConsumerWidget {
     final session = ref.watch(activeSessionProvider);
     return AppShell(
       title: 'Workout',
+      desktopContentMaxWidth: null,
       child: session.when(
         data: (value) {
           if (value != null) return _SessionBody(session: value);
@@ -93,19 +95,31 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
         .expand((exercise) => exercise.sets)
         .where((set) => set.pending)
         .length;
-    final selected = session.exercises.isEmpty
-        ? null
-        : session.exercises[_movementIndex];
-    final isFinalMovement =
-        selected != null && _movementIndex == session.exercises.length - 1;
-    final movement = selected == null
-        ? _EmptyMovementState(
-            onAdd: () => _chooseExercise(context, ref, session),
-          )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _MovementStepper(
+    return LayoutBuilder(
+      builder: (context, box) {
+        final wide = box.maxWidth >= 1024;
+        final selected = session.exercises.isEmpty
+            ? null
+            : session.exercises[_movementIndex];
+        final isFinalMovement =
+            selected != null && _movementIndex == session.exercises.length - 1;
+        final action = selected == null
+            ? null
+            : TransmuteButton(
+                onPressed: isFinalMovement
+                    ? () => _finish(context, ref, session)
+                    : () => setState(() => _movementIndex += 1),
+                icon: isFinalMovement
+                    ? Icons.check_circle_outline
+                    : Icons.arrow_forward,
+                label: isFinalMovement ? 'Finish Workout' : 'Next Movement',
+              );
+        final movement = selected == null
+            ? _EmptyMovementState(
+                onAdd: () => _chooseExercise(context, ref, session),
+              )
+            : wide
+            ? _WideMovementLayout(
                 exercise: selected,
                 currentIndex: _movementIndex,
                 movementCount: session.exercises.length,
@@ -115,73 +129,86 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                 onNext: _movementIndex == session.exercises.length - 1
                     ? null
                     : () => setState(() => _movementIndex += 1),
+                onStepSelected: (index) => setState(() {
+                  _movementIndex = index;
+                }),
                 onAdd: () => _chooseExercise(context, ref, session),
-              ),
-              const SizedBox(height: 8),
-              _ExerciseCard(exercise: selected, showIdentity: false),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: isFinalMovement
-                    ? () => _finish(context, ref, session)
+                action: action!,
+              )
+            : _CompactMovementLayout(
+                exercise: selected,
+                currentIndex: _movementIndex,
+                movementCount: session.exercises.length,
+                onPrevious: _movementIndex == 0
+                    ? null
+                    : () => setState(() => _movementIndex -= 1),
+                onNext: _movementIndex == session.exercises.length - 1
+                    ? null
                     : () => setState(() => _movementIndex += 1),
-                icon: Icon(
-                  isFinalMovement
-                      ? Icons.check_circle_outline
-                      : Icons.arrow_forward,
-                ),
-                label: Text(
-                  isFinalMovement ? 'Finish Workout' : 'Next Movement',
-                ),
-              ),
-            ],
-          );
-    return LayoutBuilder(
-      builder: (context, box) => Stack(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      session.planName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
+                onStepSelected: (index) => setState(() {
+                  _movementIndex = index;
+                }),
+                onAdd: () => _chooseExercise(context, ref, session),
+                action: action!,
+              );
+        return Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        session.planName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-                  if (pendingCount > 0)
-                    _PendingSyncIndicator(pendingCount: pendingCount),
-                  TextButton(
-                    onPressed: () => _finish(context, ref, session),
-                    child: const Text('Finish'),
-                  ),
-                  IconButton(
-                    tooltip: 'Discard Workout',
-                    onPressed: () => _discard(context, ref, session),
-                    color: const Color(0xffA33B36),
-                    icon: const Icon(Icons.delete_outline),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Started ${_time(session.startedAt)} · ${session.workingSetCount} working sets',
-              ),
-              const SizedBox(height: 8),
-              if (box.maxWidth >= 1024)
-                Expanded(child: SingleChildScrollView(child: movement))
-              else
-                Expanded(child: ListView(children: [movement])),
-            ],
-          ),
-          Positioned(right: 0, bottom: 16, child: _RestTimer(session: session)),
-        ],
-      ),
+                    if (pendingCount > 0)
+                      _PendingSyncIndicator(pendingCount: pendingCount),
+                    TextButton(
+                      onPressed: () => _finish(context, ref, session),
+                      child: const Text('Finish'),
+                    ),
+                    IconButton(
+                      tooltip: 'Discard Workout',
+                      onPressed: () => _discard(context, ref, session),
+                      color: const Color(0xffA33B36),
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Started ${_time(session.startedAt)} · ${session.workingSetCount} working sets',
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: wide
+                      ? SingleChildScrollView(
+                          padding: const EdgeInsets.only(bottom: 112),
+                          child: movement,
+                        )
+                      : ListView(
+                          padding: const EdgeInsets.only(bottom: 112),
+                          children: [movement],
+                        ),
+                ),
+              ],
+            ),
+            Positioned(
+              right: 0,
+              bottom: 16,
+              child: _RestTimer(session: session),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -309,6 +336,117 @@ int _resumeMovementIndex(WorkoutSession session) {
   return resumeIndex;
 }
 
+class _CompactMovementLayout extends StatelessWidget {
+  const _CompactMovementLayout({
+    required this.exercise,
+    required this.currentIndex,
+    required this.movementCount,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onStepSelected,
+    required this.onAdd,
+    required this.action,
+  });
+
+  final SessionExercise exercise;
+  final int currentIndex;
+  final int movementCount;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+  final ValueChanged<int> onStepSelected;
+  final VoidCallback onAdd;
+  final Widget action;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      _MovementStepper(
+        exercise: exercise,
+        currentIndex: currentIndex,
+        movementCount: movementCount,
+        onPrevious: onPrevious,
+        onNext: onNext,
+        onStepSelected: onStepSelected,
+        onAdd: onAdd,
+      ),
+      const SizedBox(height: 8),
+      _ExerciseCard(exercise: exercise, showIdentity: false),
+      const SizedBox(height: 16),
+      action,
+    ],
+  );
+}
+
+class _WideMovementLayout extends StatelessWidget {
+  const _WideMovementLayout({
+    required this.exercise,
+    required this.currentIndex,
+    required this.movementCount,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onStepSelected,
+    required this.onAdd,
+    required this.action,
+  });
+
+  final SessionExercise exercise;
+  final int currentIndex;
+  final int movementCount;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
+  final ValueChanged<int> onStepSelected;
+  final VoidCallback onAdd;
+  final Widget action;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasDemo = exercise.demoUrl != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _MovementStepper(
+          exercise: exercise,
+          currentIndex: currentIndex,
+          movementCount: movementCount,
+          onPrevious: onPrevious,
+          onNext: onNext,
+          onStepSelected: onStepSelected,
+          onAdd: onAdd,
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 7,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ExerciseCard(
+                    exercise: exercise,
+                    showIdentity: false,
+                    showDemo: false,
+                  ),
+                  const SizedBox(height: 14),
+                  action,
+                ],
+              ),
+            ),
+            if (hasDemo) ...[
+              const SizedBox(width: 20),
+              SizedBox(
+                width: 360,
+                child: _ExerciseDemoRail(exercise: exercise),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _EmptyMovementState extends StatelessWidget {
   const _EmptyMovementState({required this.onAdd});
   final VoidCallback onAdd;
@@ -340,6 +478,7 @@ class _MovementStepper extends StatelessWidget {
     required this.movementCount,
     required this.onPrevious,
     required this.onNext,
+    required this.onStepSelected,
     required this.onAdd,
   });
 
@@ -348,87 +487,46 @@ class _MovementStepper extends StatelessWidget {
   final int movementCount;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
+  final ValueChanged<int> onStepSelected;
   final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
-    final accent = Theme.of(context).colorScheme.primary;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            IconButton(
-              tooltip: 'Previous movement',
-              onPressed: onPrevious,
-              visualDensity: compact ? VisualDensity.compact : null,
-              icon: const Icon(Icons.chevron_left),
-            ),
-            Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.center,
-                child: Text(
-                  exercise.name,
-                  maxLines: 1,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontSize: compact ? 24 : null,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: 'Next Movement',
-              onPressed: onNext,
-              visualDensity: compact ? VisualDensity.compact : null,
-              icon: const Icon(Icons.chevron_right),
-            ),
-          ],
-        ),
-        SizedBox(height: compact ? 6 : 12),
-        Row(
-          children: [
-            for (var index = 0; index < movementCount; index += 1) ...[
-              if (index > 0) SizedBox(width: compact ? 6 : 8),
-              Expanded(
-                child: Container(
-                  height: compact ? 4 : 6,
-                  color: index == currentIndex
-                      ? accent
-                      : Theme.of(context).dividerColor,
-                ),
-              ),
-            ],
-          ],
-        ),
-        SizedBox(height: compact ? 4 : 12),
-        TextButton.icon(
-          style: compact
-              ? TextButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                )
-              : null,
-          onPressed: onAdd,
-          icon: const Icon(Icons.add),
-          label: const Text('Add Movement'),
-        ),
-      ],
+    return TransmuteStepper(
+      title: exercise.name,
+      currentIndex: currentIndex,
+      stepCount: movementCount,
+      onPrevious: onPrevious,
+      onNext: onNext,
+      onStepSelected: onStepSelected,
+      previousLabel: 'Previous movement',
+      nextLabel: 'Next Movement',
+      footer: TextButton.icon(
+        style: compact
+            ? TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              )
+            : null,
+        onPressed: onAdd,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Movement'),
+      ),
     );
   }
 }
 
 class _ExerciseCard extends ConsumerStatefulWidget {
-  const _ExerciseCard({required this.exercise, this.showIdentity = true});
+  const _ExerciseCard({
+    required this.exercise,
+    this.showIdentity = true,
+    this.showDemo = true,
+  });
   final SessionExercise exercise;
   final bool showIdentity;
+  final bool showDemo;
   @override
   ConsumerState<_ExerciseCard> createState() => _ExerciseCardState();
 }
@@ -541,7 +639,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                   ),
                 ],
               ),
-            if (exercise.demoUrl != null) ...[
+            if (widget.showDemo && exercise.demoUrl != null) ...[
               SizedBox(height: compact ? 4 : 8),
               _SessionExerciseDemo(
                 name: exercise.name,
@@ -1116,29 +1214,19 @@ class _SetDraftRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compact = MediaQuery.sizeOf(context).width < 600;
-    Widget weightInput() => TextField(
+    Widget weightInput() => TransmuteTextField(
       controller: draft.weight,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        hintText: _weightPlaceholder,
-        border: const UnderlineInputBorder(),
-        isDense: compact,
-        contentPadding: compact
-            ? const EdgeInsets.symmetric(vertical: 7)
-            : null,
-      ),
+      hint: _weightPlaceholder,
+      kind: TransmuteFieldKind.ledger,
+      semanticLabel: 'Set $number, Weight (${unit.name})',
     );
-    Widget repsInput() => TextField(
+    Widget repsInput() => TransmuteTextField(
       controller: draft.reps,
       keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        hintText: _repsPlaceholder,
-        border: const UnderlineInputBorder(),
-        isDense: compact,
-        contentPadding: compact
-            ? const EdgeInsets.symmetric(vertical: 7)
-            : null,
-      ),
+      hint: _repsPlaceholder,
+      kind: TransmuteFieldKind.ledger,
+      semanticLabel: 'Set $number, Reps',
     );
     final logButton = SizedBox(
       width: compact ? 64 : 72,
@@ -1242,18 +1330,52 @@ class _PendingSyncIndicator extends ConsumerWidget {
   }
 }
 
+class _ExerciseDemoRail extends StatefulWidget {
+  const _ExerciseDemoRail({required this.exercise});
+  final SessionExercise exercise;
+
+  @override
+  State<_ExerciseDemoRail> createState() => _ExerciseDemoRailState();
+}
+
+class _ExerciseDemoRailState extends State<_ExerciseDemoRail> {
+  var _expanded = false;
+
+  @override
+  void didUpdateWidget(covariant _ExerciseDemoRail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.exercise.id != widget.exercise.id) {
+      _expanded = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => TransmutePanel(
+    child: _SessionExerciseDemo(
+      name: widget.exercise.name,
+      url: widget.exercise.demoUrl!,
+      sourceName: widget.exercise.demoSourceName,
+      expanded: _expanded,
+      maxVideoHeight: 360,
+      onToggle: () => setState(() => _expanded = !_expanded),
+    ),
+  );
+}
+
 class _SessionExerciseDemo extends StatelessWidget {
   const _SessionExerciseDemo({
     required this.name,
     required this.url,
     required this.expanded,
     required this.onToggle,
+    this.maxVideoHeight,
     this.sourceName,
   });
   final String name;
   final String url;
   final String? sourceName;
   final bool expanded;
+  final double? maxVideoHeight;
   final VoidCallback onToggle;
 
   bool get _directVideo {
@@ -1281,7 +1403,16 @@ class _SessionExerciseDemo extends StatelessWidget {
       ),
       if (expanded)
         _directVideo
-            ? _DirectExerciseVideo(name: name, url: url, sourceName: sourceName)
+            ? ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: maxVideoHeight ?? double.infinity,
+                ),
+                child: _DirectExerciseVideo(
+                  name: name,
+                  url: url,
+                  sourceName: sourceName,
+                ),
+              )
             : Card(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 child: ListTile(

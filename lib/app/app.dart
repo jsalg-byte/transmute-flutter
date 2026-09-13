@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/providers.dart';
-import '../core/domain/models.dart';
 import '../features/active_session/presentation/active_session_screen.dart';
 import '../features/account/presentation/account_screens.dart';
 import '../features/arcana/presentation/arcana_screen.dart';
@@ -20,7 +20,8 @@ import '../features/planning/presentation/planning_screen.dart';
 import '../features/progress/presentation/progress_screen.dart';
 import '../features/workout_history/presentation/history_screens.dart';
 import '../features/workout_plans/presentation/plan_screens.dart';
-import '../shared/theme/transmute_palette.dart';
+import '../shared/design_system/design_system.dart';
+import '../features/design_library/presentation/design_library_screen.dart';
 
 class TransmuteApp extends ConsumerStatefulWidget {
   const TransmuteApp({super.key});
@@ -43,6 +44,8 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
       initialLocation: '/',
       refreshListenable: _routerRefresh,
       redirect: (context, state) {
+        if (kDebugMode && state.matchedLocation == '/design-library')
+          return null;
         final loggedIn = _auth.status == AuthStatus.signedIn;
         final loading = _auth.status == AuthStatus.loading;
         final publicRoute =
@@ -55,6 +58,11 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
         return null;
       },
       routes: [
+        if (kDebugMode)
+          GoRoute(
+            path: '/design-library',
+            builder: (_, _) => const DesignLibraryScreen(),
+          ),
         GoRoute(path: '/', builder: (_, _) => const PreLoginOnboardingScreen()),
         GoRoute(
           path: '/login',
@@ -146,79 +154,11 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
   @override
   Widget build(BuildContext context) {
     final preference = ref.watch(effectiveThemePreferenceProvider);
-    final brightness = preference.brightness;
-    final isDark = brightness == PreferenceBrightness.dark;
-    final tokens = TransmutePalette.forPreference(preference);
-    final colors = ColorScheme.fromSeed(
-      seedColor: tokens.oxide,
-      brightness: isDark ? Brightness.dark : Brightness.light,
-      surface: tokens.surface,
-      onSurface: tokens.ink,
-      onSurfaceVariant: tokens.muted,
-      outline: tokens.divider,
-      primary: tokens.oxide,
-      secondary: tokens.gold,
-      error: tokens.rest,
-    );
+    final useCuteTheme =
+        ref.watch(cuteThemeEnabledProvider).asData?.value ?? false;
     return MaterialApp.router(
       title: 'Transmute',
-      theme: ThemeData(
-        colorScheme: colors,
-        scaffoldBackgroundColor: colors.surface,
-        useMaterial3: true,
-        extensions: [tokens],
-        cardTheme: CardThemeData(
-          color: tokens.raised,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.zero,
-            side: BorderSide(color: tokens.divider),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: tokens.raised,
-          border: OutlineInputBorder(borderRadius: BorderRadius.zero),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.zero,
-            ),
-            minimumSize: const Size(44, 44),
-          ),
-        ),
-        textTheme: const TextTheme(
-          displayLarge: TextStyle(
-            fontFamily: 'Spectral',
-            fontWeight: FontWeight.bold,
-          ),
-          displayMedium: TextStyle(
-            fontFamily: 'Spectral',
-            fontWeight: FontWeight.bold,
-          ),
-          displaySmall: TextStyle(
-            fontFamily: 'Spectral',
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-          ),
-          headlineLarge: TextStyle(
-            fontFamily: 'Spectral',
-            fontWeight: FontWeight.bold,
-          ),
-          headlineMedium: TextStyle(
-            fontFamily: 'Spectral',
-            fontWeight: FontWeight.bold,
-          ),
-          headlineSmall: TextStyle(
-            fontFamily: 'Spectral',
-            fontWeight: FontWeight.bold,
-          ),
-          titleLarge: TextStyle(
-            fontFamily: 'Spectral',
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+      theme: useCuteTheme ? cuteTheme : buildTransmuteTheme(preference),
       routerConfig: _router,
     );
   }

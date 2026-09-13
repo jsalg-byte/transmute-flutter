@@ -29,6 +29,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.text('Record today’s recovery'), findsNothing);
+      expect(find.text('DAILY TRANSMUTATION'), findsNothing);
+
       final beginSession = find.text('Begin session');
       await tester.tap(beginSession);
       await tester.pumpAndSettle();

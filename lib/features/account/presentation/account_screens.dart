@@ -390,77 +390,98 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   );
   Widget _themeCard(UserPreferences _) {
     final selected = ref.watch(effectiveThemePreferenceProvider);
+    final cuteTheme = ref.watch(cuteThemeEnabledProvider);
+    final useCuteTheme = cuteTheme.asData?.value ?? false;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Color theme', style: Theme.of(context).textTheme.titleLarge),
+            Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 6),
             const Text(
-              'Choose a palette and light or dark mode. Both are saved to your account.',
+              'Choose the visual system and color treatment for this device.',
             ),
             const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 720
-                    ? 3
-                    : constraints.maxWidth >= 450
-                    ? 2
-                    : 1;
-                final width =
-                    (constraints.maxWidth - 8 * (columns - 1)) / columns;
-                return Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: ThemePalette.values
-                      .map(
-                        (palette) => SizedBox(
-                          width: width,
-                          child: _PaletteChoice(
-                            palette: palette,
-                            brightness: selected.brightness,
-                            selected: selected.palette == palette,
-                            onTap: _saving
-                                ? null
-                                : () => _setTheme(
-                                    ThemePreference(
-                                      palette: palette,
-                                      brightness: selected.brightness,
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Cute Pastel'),
+              subtitle: Text(
+                useCuteTheme
+                    ? 'Soft rounded controls and cotton-candy colors are on.'
+                    : 'Use the soft rounded pastel design system.',
+              ),
+              value: useCuteTheme,
+              onChanged: _saving || cuteTheme.isLoading ? null : _setCuteTheme,
+            ),
+            if (useCuteTheme) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Cute Pastel is a light appearance. Turn it off to use your saved account palette and light/dark mode.',
+              ),
+            ] else ...[
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 720
+                      ? 3
+                      : constraints.maxWidth >= 450
+                      ? 2
+                      : 1;
+                  final width =
+                      (constraints.maxWidth - 8 * (columns - 1)) / columns;
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: ThemePalette.values
+                        .map(
+                          (palette) => SizedBox(
+                            width: width,
+                            child: _PaletteChoice(
+                              palette: palette,
+                              brightness: selected.brightness,
+                              selected: selected.palette == palette,
+                              onTap: _saving
+                                  ? null
+                                  : () => _setTheme(
+                                      ThemePreference(
+                                        palette: palette,
+                                        brightness: selected.brightness,
+                                      ),
                                     ),
-                                  ),
+                            ),
                           ),
+                        )
+                        .toList(),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              SegmentedButton<PreferenceBrightness>(
+                segments: const [
+                  ButtonSegment(
+                    value: PreferenceBrightness.light,
+                    icon: Icon(Icons.light_mode_outlined),
+                    label: Text('Light'),
+                  ),
+                  ButtonSegment(
+                    value: PreferenceBrightness.dark,
+                    icon: Icon(Icons.dark_mode_outlined),
+                    label: Text('Dark'),
+                  ),
+                ],
+                selected: {selected.brightness},
+                onSelectionChanged: _saving
+                    ? null
+                    : (value) => _setTheme(
+                        ThemePreference(
+                          palette: selected.palette,
+                          brightness: value.first,
                         ),
-                      )
-                      .toList(),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            SegmentedButton<PreferenceBrightness>(
-              segments: const [
-                ButtonSegment(
-                  value: PreferenceBrightness.light,
-                  icon: Icon(Icons.light_mode_outlined),
-                  label: Text('Light'),
-                ),
-                ButtonSegment(
-                  value: PreferenceBrightness.dark,
-                  icon: Icon(Icons.dark_mode_outlined),
-                  label: Text('Dark'),
-                ),
-              ],
-              selected: {selected.brightness},
-              onSelectionChanged: _saving
-                  ? null
-                  : (value) => _setTheme(
-                      ThemePreference(
-                        palette: selected.palette,
-                        brightness: value.first,
                       ),
-                    ),
-            ),
+              ),
+            ],
           ],
         ),
       ),
@@ -487,6 +508,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     }, 'Theme preference saved.');
   }
+
+  Future<void> _setCuteTheme(bool enabled) => _run(
+    () async {
+      await ref.read(cuteThemeEnabledProvider.notifier).setEnabled(enabled);
+    },
+    enabled ? 'Cute Pastel enabled on this device.' : 'Cute Pastel turned off.',
+  );
 
   Future<void> _run(Future<void> Function() operation, String success) async {
     setState(() => _saving = true);
