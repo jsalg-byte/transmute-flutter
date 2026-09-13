@@ -31,4 +31,34 @@ void main() {
       expect((await repository.read()).photos, isEmpty);
     },
   );
+
+  test(
+    'mock progress accepts multiple photos for one dated check-in',
+    () async {
+      final repository = MockProgressRepository(MockStore());
+      final capturedAt = DateTime.utc(2026, 9, 12);
+      for (final fileName in ['front.jpg', 'side.jpg', 'back.jpg']) {
+        await repository.create(
+          ProgressPhotoUpload(
+            fileName: fileName,
+            mimeType: 'image/jpeg',
+            bytes: Uint8List.fromList([1, 2, 3]),
+            capturedAt: capturedAt,
+            note: 'Monthly check-in',
+          ),
+        );
+      }
+
+      final saved = await repository.read();
+      expect(saved.photos, hasLength(3));
+      expect(
+        saved.photos.map((photo) => photo.capturedAt),
+        everyElement(capturedAt),
+      );
+      expect(
+        saved.photos.map((photo) => photo.note),
+        everyElement('Monthly check-in'),
+      );
+    },
+  );
 }

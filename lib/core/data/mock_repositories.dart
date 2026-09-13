@@ -2319,6 +2319,7 @@ class MockSessionRepository implements SessionRepository {
             (session) => CompletedSessionSummary(
               id: session.id,
               planName: session.planName,
+              planDayName: session.planDayName,
               startedAt: session.startedAt,
               completedAt: session.completedAt!,
               durationSeconds: session.duration.inSeconds,

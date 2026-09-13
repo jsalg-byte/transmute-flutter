@@ -927,6 +927,7 @@ class CompletedSessionSummary {
   const CompletedSessionSummary({
     required this.id,
     required this.planName,
+    required this.planDayName,
     required this.startedAt,
     required this.completedAt,
     required this.durationSeconds,
@@ -935,6 +936,7 @@ class CompletedSessionSummary {
   });
   final String id;
   final String planName;
+  final String planDayName;
   final DateTime startedAt;
   final DateTime completedAt;
   final int durationSeconds;

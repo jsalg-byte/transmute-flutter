@@ -131,15 +131,12 @@ class _SessionPrescription extends ConsumerWidget {
   Future<void> _chooseDayAndStart(BuildContext context, WidgetRef ref) async {
     final plan = next?.plan;
     if (plan == null) return;
-    final choices = [
-      for (final day in plan.days) _TrainingDayChoice(plan: plan, day: day),
-    ];
     final selected = await showModalBottomSheet<_TrainingDayChoice>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) => _TrainingDayFlyover(
-        choices: choices,
+        plan: plan,
         onSelect: (choice) => Navigator.of(sheetContext).pop(choice),
         onBrowsePlans: () {
           Navigator.of(sheetContext).pop();
@@ -169,25 +166,48 @@ class _SessionPrescription extends ConsumerWidget {
 }
 
 class _TrainingDayChoice {
-  const _TrainingDayChoice({required this.plan, required this.day});
+  const _TrainingDayChoice({
+    required this.plan,
+    required this.day,
+    this.lastPerformedAt,
+    this.historyStatus,
+  });
   final WorkoutPlan plan;
   final WorkoutPlanDay day;
+  final DateTime? lastPerformedAt;
+  final String? historyStatus;
 }
 
-class _TrainingDayFlyover extends StatelessWidget {
+class _TrainingDayFlyover extends ConsumerWidget {
   const _TrainingDayFlyover({
-    required this.choices,
+    required this.plan,
     required this.onSelect,
     required this.onBrowsePlans,
   });
 
-  final List<_TrainingDayChoice> choices;
+  final WorkoutPlan plan;
   final ValueChanged<_TrainingDayChoice> onSelect;
   final VoidCallback onBrowsePlans;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = TransmutePalette.of(context);
+    final history = ref.watch(lastPerformedPlanDayProvider);
+    final performedDays = history.asData?.value;
+    final historyStatus = switch (history) {
+      AsyncLoading() => 'Checking history…',
+      AsyncError() => 'Training history unavailable',
+      _ => null,
+    };
+    final choices = [
+      for (final day in plan.days)
+        _TrainingDayChoice(
+          plan: plan,
+          day: day,
+          lastPerformedAt: performedDays?[planDayHistoryKey(plan.id, day.id)],
+          historyStatus: historyStatus,
+        ),
+    ];
     return SafeArea(
       child: Center(
         widthFactor: 1,
@@ -236,7 +256,7 @@ class _TrainingDayFlyover extends StatelessWidget {
                         for (final choice in choices)
                           SizedBox(
                             width: tileWidth,
-                            height: 52,
+                            height: 70,
                             child: OutlinedButton(
                               style: OutlinedButton.styleFrom(
                                 alignment: Alignment.center,
@@ -245,14 +265,35 @@ class _TrainingDayFlyover extends StatelessWidget {
                                 ),
                               ),
                               onPressed: () => onSelect(choice),
-                              child: Text(
-                                choice.day.name,
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    choice.day.name,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _lastPerformedLabel(
+                                      choice.lastPerformedAt,
+                                      DateTime.now(),
+                                      unavailableLabel: choice.historyStatus,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: palette.muted,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -281,6 +322,37 @@ class _TrainingDayFlyover extends StatelessWidget {
       ),
     );
   }
+}
+
+String _lastPerformedLabel(
+  DateTime? completedAt,
+  DateTime now, {
+  String? unavailableLabel,
+}) {
+  if (completedAt == null) return unavailableLabel ?? 'Not performed yet';
+  final date = completedAt.toLocal();
+  final today = DateTime(now.year, now.month, now.day);
+  final completedDay = DateTime(date.year, date.month, date.day);
+  final daysAgo = today.difference(completedDay).inDays;
+  if (daysAgo <= 0) return 'Last performed today';
+  if (daysAgo < 7) {
+    return 'Last performed $daysAgo ${daysAgo == 1 ? 'day' : 'days'} ago';
+  }
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return 'Last performed ${monthNames[date.month - 1]} ${date.day}, ${date.year}';
 }
 
 class _DailyPrompt extends StatelessWidget {

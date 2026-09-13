@@ -392,6 +392,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final selected = ref.watch(effectiveThemePreferenceProvider);
     final cuteTheme = ref.watch(cuteThemeEnabledProvider);
     final useCuteTheme = cuteTheme.asData?.value ?? false;
+    final cuteColorBlindMode = ref.watch(cuteColorBlindModeProvider);
+    final useCuteColorBlindMode = cuteColorBlindMode.asData?.value ?? false;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -417,6 +419,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             if (useCuteTheme) ...[
               const SizedBox(height: 8),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Red-green color-blind mode'),
+                subtitle: const Text(
+                  'Uses a violet pastel palette with blue and amber status cues instead of red and green.',
+                ),
+                value: useCuteColorBlindMode,
+                onChanged: _saving || cuteColorBlindMode.isLoading
+                    ? null
+                    : _setCuteColorBlindMode,
+              ),
               const Text(
                 'Cute Pastel is a light appearance. Turn it off to use your saved account palette and light/dark mode.',
               ),
@@ -514,6 +527,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref.read(cuteThemeEnabledProvider.notifier).setEnabled(enabled);
     },
     enabled ? 'Cute Pastel enabled on this device.' : 'Cute Pastel turned off.',
+  );
+
+  Future<void> _setCuteColorBlindMode(bool enabled) => _run(
+    () async {
+      await ref.read(cuteColorBlindModeProvider.notifier).setEnabled(enabled);
+    },
+    enabled
+        ? 'Red-green color-blind mode enabled for Cute Pastel.'
+        : 'Red-green color-blind mode turned off.',
   );
 
   Future<void> _run(Future<void> Function() operation, String success) async {

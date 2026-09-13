@@ -136,7 +136,7 @@ class _HistoryItem extends StatelessWidget {
     child: ListTile(
       title: Text(item.planName, style: Theme.of(context).textTheme.titleLarge),
       subtitle: Text(
-        '${_date(item.completedAt)} · ${item.durationSeconds ~/ 60} min · ${item.workingSetCount} working sets\n${displayWeight(item.totalVolumeKg, unit)} total volume',
+        '${item.planDayName} · ${_date(item.completedAt)} · ${item.durationSeconds ~/ 60} min · ${item.workingSetCount} working sets\n${displayWeight(item.totalVolumeKg, unit)} total volume',
       ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.go('/history/${item.id}'),

@@ -361,7 +361,6 @@ class PlanDetailScreen extends ConsumerStatefulWidget {
 
 class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
   String? _dayId;
-  bool _editing = false;
   @override
   Widget build(BuildContext context) {
     final plan = ref.watch(planProvider(widget.planId));
@@ -388,18 +387,42 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      value.name,
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            value.name,
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        Tooltip(
+                          message: 'Rename workout plan',
+                          child: TextButton.icon(
+                            onPressed: () => _renamePlan(value),
+                            icon: const Icon(Icons.edit_outlined),
+                            label: const Text('Edit'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Edit plan',
-                    onPressed: () => setState(() => _editing = !_editing),
-                    icon: Icon(_editing ? Icons.close : Icons.edit_outlined),
+                  PopupMenuButton<String>(
+                    tooltip: 'Workout plan options',
+                    onSelected: (action) async {
+                      if (action == 'delete') await _deletePlan(value);
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: ListTile(
+                          leading: Icon(Icons.delete_outline),
+                          title: Text('Delete workout plan'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -408,7 +431,6 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(value.description!),
                 ),
-              if (_editing) _PlanActions(plan: value, refresh: _refresh),
               const SizedBox(height: 12),
               if (value.days.isEmpty)
                 Expanded(
@@ -434,12 +456,11 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
                             onSelected: (_) => setState(() => _dayId = item.id),
                           ),
                         ),
-                      if (_editing)
-                        ActionChip(
-                          avatar: const Icon(Icons.add),
-                          label: const Text('Add day'),
-                          onPressed: () => _addDay(value),
-                        ),
+                      ActionChip(
+                        avatar: const Icon(Icons.add),
+                        label: const Text('Add day'),
+                        onPressed: () => _addDay(value),
+                      ),
                     ],
                   ),
                 ),
@@ -449,7 +470,6 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
                     child: _DayEditor(
                       plan: value,
                       day: day,
-                      editing: _editing,
                       active: active,
                       refresh: _refresh,
                       start: () => _start(value, day),
@@ -488,6 +508,39 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
     }
   }
 
+  Future<void> _renamePlan(WorkoutPlan plan) async {
+    final name = await _textDialog(
+      context,
+      title: 'Rename workout plan',
+      label: 'Workout plan name',
+      initial: plan.name,
+      action: 'Save',
+    );
+    if (name == null) return;
+    try {
+      await ref.read(planRepositoryProvider).renamePlan(plan.id, name);
+      _refresh();
+    } on AppFailure catch (error) {
+      if (mounted) _notice(context, error.message);
+    }
+  }
+
+  Future<void> _deletePlan(WorkoutPlan plan) async {
+    final yes = await _confirm(
+      context,
+      'Delete this workout plan?',
+      'Completed workout evidence stays intact. An active plan cannot be deleted.',
+    );
+    if (!yes) return;
+    try {
+      await ref.read(planRepositoryProvider).deletePlan(plan.id);
+      ref.invalidate(plansProvider);
+      if (mounted) context.go('/plans');
+    } on AppFailure catch (error) {
+      if (mounted) _notice(context, error.message);
+    }
+  }
+
   Future<void> _start(WorkoutPlan plan, WorkoutPlanDay day) async {
     try {
       await ref.read(activeSessionProvider.notifier).start(plan.id, day.id);
@@ -498,77 +551,16 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
   }
 }
 
-class _PlanActions extends ConsumerWidget {
-  const _PlanActions({required this.plan, required this.refresh});
-  final WorkoutPlan plan;
-  final VoidCallback refresh;
-  @override
-  Widget build(BuildContext context, WidgetRef ref) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          OutlinedButton.icon(
-            onPressed: () async {
-              final name = await _textDialog(
-                context,
-                title: 'Rename plan',
-                label: 'Plan name',
-                initial: plan.name,
-                action: 'Save',
-              );
-              if (name == null) return;
-              try {
-                await ref
-                    .read(planRepositoryProvider)
-                    .renamePlan(plan.id, name);
-                refresh();
-              } on AppFailure catch (error) {
-                if (context.mounted) _notice(context, error.message);
-              }
-            },
-            icon: const Icon(Icons.edit),
-            label: const Text('Rename'),
-          ),
-          OutlinedButton.icon(
-            onPressed: () async {
-              final yes = await _confirm(
-                context,
-                'Delete this plan?',
-                'Completed workout evidence stays intact. An active plan cannot be deleted.',
-              );
-              if (!yes) return;
-              try {
-                await ref.read(planRepositoryProvider).deletePlan(plan.id);
-                ref.invalidate(plansProvider);
-                if (context.mounted) context.go('/plans');
-              } on AppFailure catch (error) {
-                if (context.mounted) _notice(context, error.message);
-              }
-            },
-            icon: const Icon(Icons.delete_outline),
-            label: const Text('Delete'),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
 class _DayEditor extends ConsumerWidget {
   const _DayEditor({
     required this.plan,
     required this.day,
-    required this.editing,
     required this.active,
     required this.refresh,
     required this.start,
   });
   final WorkoutPlan plan;
   final WorkoutPlanDay day;
-  final bool editing;
   final WorkoutSession? active;
   final VoidCallback refresh;
   final Future<void> Function() start;
@@ -583,18 +575,26 @@ class _DayEditor extends ConsumerWidget {
               style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
-          if (editing)
-            IconButton(
-              tooltip: 'Rename day',
-              onPressed: () => _renameDay(context, ref),
-              icon: const Icon(Icons.edit_outlined),
-            ),
-          if (editing)
-            IconButton(
-              tooltip: 'Delete day',
-              onPressed: () => _deleteDay(context, ref),
-              icon: const Icon(Icons.delete_outline),
-            ),
+          IconButton(
+            tooltip: 'Rename training day',
+            onPressed: () => _renameDay(context, ref),
+            icon: const Icon(Icons.edit_outlined),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Training day options',
+            onSelected: (action) async {
+              if (action == 'delete') await _deleteDay(context, ref);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline),
+                  title: Text('Delete training day'),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       const SizedBox(height: 8),
@@ -612,19 +612,17 @@ class _DayEditor extends ConsumerWidget {
           plan: plan,
           day: day,
           entry: entry,
-          editing: editing,
           refresh: refresh,
         ),
       ),
-      if (editing)
-        Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: OutlinedButton.icon(
-            onPressed: () => _addExercise(context, ref),
-            icon: const Icon(Icons.add),
-            label: const Text('Add exercise from library'),
-          ),
+      Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: OutlinedButton.icon(
+          onPressed: () => _addExercise(context, ref),
+          icon: const Icon(Icons.add),
+          label: const Text('Add exercise from library'),
         ),
+      ),
       const SizedBox(height: 16),
       Align(
         alignment: Alignment.centerRight,
@@ -700,13 +698,11 @@ class _PrescriptionCard extends ConsumerWidget {
     required this.plan,
     required this.day,
     required this.entry,
-    required this.editing,
     required this.refresh,
   });
   final WorkoutPlan plan;
   final WorkoutPlanDay day;
   final PlanExercise entry;
-  final bool editing;
   final VoidCallback refresh;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -720,31 +716,29 @@ class _PrescriptionCard extends ConsumerWidget {
         subtitle: Text(
           '${entry.exercise.muscleGroup ?? entry.exercise.category} · ${entry.targetSets} × ${entry.targetReps}${entry.targetWeightKg == null ? '' : ' at ${displayWeight(entry.targetWeightKg!, unit)}'}${entry.previousPerformance == null ? '' : '\nPrevious: ${displayWeight(entry.previousPerformance!.weightKg, unit)} × ${entry.previousPerformance!.reps}'}',
         ),
-        trailing: editing
-            ? Wrap(
-                children: [
-                  IconButton(
-                    tooltip: 'Edit prescription',
-                    icon: const Icon(Icons.tune),
-                    onPressed: () => _edit(context, ref, unit),
-                  ),
-                  IconButton(
-                    tooltip: 'Remove from day',
-                    icon: const Icon(Icons.remove_circle_outline),
-                    onPressed: () async {
-                      try {
-                        await ref
-                            .read(planRepositoryProvider)
-                            .removeExerciseFromDay(plan.id, day.id, entry.id);
-                        refresh();
-                      } on AppFailure catch (error) {
-                        if (context.mounted) _notice(context, error.message);
-                      }
-                    },
-                  ),
-                ],
-              )
-            : const Icon(Icons.info_outline),
+        trailing: Wrap(
+          children: [
+            IconButton(
+              tooltip: 'Edit prescription',
+              icon: const Icon(Icons.tune),
+              onPressed: () => _edit(context, ref, unit),
+            ),
+            IconButton(
+              tooltip: 'Remove from day',
+              icon: const Icon(Icons.remove_circle_outline),
+              onPressed: () async {
+                try {
+                  await ref
+                      .read(planRepositoryProvider)
+                      .removeExerciseFromDay(plan.id, day.id, entry.id);
+                  refresh();
+                } on AppFailure catch (error) {
+                  if (context.mounted) _notice(context, error.message);
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

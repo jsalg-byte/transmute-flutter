@@ -62,6 +62,7 @@ void main() {
 
   test('cute custom style tokens retain the sampled pastel language', () {
     final styles = CuteCustomStyles.defaults();
+    final colorBlindStyles = CuteCustomStyles.defaults(colorBlindSafe: true);
 
     expect(cuteColorScheme.primary, CuteColors.primary);
     expect(cuteColorScheme.secondary, CuteColors.secondary);
@@ -72,6 +73,16 @@ void main() {
 
     final larger = styles.copyWith(extraLargeRadius: BorderRadius.circular(40));
     expect(styles.lerp(larger, .5).extraLargeRadius.topLeft.x, 36);
+    expect(cuteColorBlindColorScheme.primary, CuteColorBlindColors.primary);
+    expect(cuteColorBlindColorScheme.surface, CuteColorBlindColors.surface);
+    expect(
+      TransmutePalette.cutePastel(colorBlindSafe: true).rest,
+      isNot(TransmutePalette.cutePastel(colorBlindSafe: true).ready),
+    );
+    expect(
+      colorBlindStyles.accentGradient.colors.first,
+      CuteColorBlindColors.secondary,
+    );
   });
 
   test(
@@ -84,10 +95,14 @@ void main() {
 
       await first.read(cuteThemeEnabledProvider.notifier).setEnabled(true);
       expect(first.read(cuteThemeEnabledProvider).asData?.value, isTrue);
+      expect(await first.read(cuteColorBlindModeProvider.future), isFalse);
+      await first.read(cuteColorBlindModeProvider.notifier).setEnabled(true);
+      expect(first.read(cuteColorBlindModeProvider).asData?.value, isTrue);
 
       final restored = ProviderContainer();
       addTearDown(restored.dispose);
       expect(await restored.read(cuteThemeEnabledProvider.future), isTrue);
+      expect(await restored.read(cuteColorBlindModeProvider.future), isTrue);
     },
   );
 

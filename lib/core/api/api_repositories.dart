@@ -780,6 +780,7 @@ class ApiSessionRepository implements SessionRepository {
           (item) => CompletedSessionSummary(
             id: item.id,
             planName: item.planName,
+            planDayName: item.planDayName,
             startedAt: item.startedAt,
             completedAt: item.completedAt!,
             durationSeconds: item.duration.inSeconds,

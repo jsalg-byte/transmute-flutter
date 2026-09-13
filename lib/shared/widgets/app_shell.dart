@@ -43,13 +43,6 @@ class AppShell extends ConsumerWidget {
     _ShellDestination('Fasting', '/fasting'),
   ];
 
-  static const _growth = <_ShellDestination>[
-    _ShellDestination('Goals', '/goals'),
-    _ShellDestination('Planning', '/planning'),
-    _ShellDestination('Arcana', '/arcana'),
-    _ShellDestination('Friends', '/friends'),
-  ];
-
   static const _account = <_ShellDestination>[
     _ShellDestination('Settings', '/settings'),
   ];
@@ -57,7 +50,6 @@ class AppShell extends ConsumerWidget {
   static const _desktopDestinations = <_ShellDestination>[
     ..._primary,
     ..._record,
-    ..._growth,
     ..._account,
   ];
 
@@ -265,7 +257,6 @@ class AppShell extends ConsumerWidget {
         sections: [
           _MenuSection('WORKOUT', workout),
           _MenuSection('RECORD', record),
-          _MenuSection('GROWTH', _growth),
           _MenuSection('ACCOUNT', _account),
         ],
         onSelect: (route) {

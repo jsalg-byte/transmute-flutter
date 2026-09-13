@@ -19,6 +19,8 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
   DateTime _selected = DateTime.now();
   bool _timeline = false;
   bool _saving = false;
+  int _uploadTotal = 0;
+  int _uploadedCount = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +65,15 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
               ),
             ),
             ElevatedButton.icon(
-              onPressed: _saving ? null : _addPhoto,
+              onPressed: _saving ? null : _addPhotos,
               icon: const Icon(Icons.add_a_photo_outlined),
-              label: Text(_saving ? 'Uploading…' : 'Add photo'),
+              label: Text(
+                _saving && _uploadTotal > 1
+                    ? 'Uploading $_uploadedCount of $_uploadTotal…'
+                    : _saving
+                    ? 'Uploading…'
+                    : 'Add photos',
+              ),
             ),
           ],
         ),
@@ -142,7 +150,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     );
   }
 
-  Future<void> _addPhoto() async {
+  Future<void> _addPhotos() async {
     final date = TextEditingController(text: _apiDate(_selected));
     final note = TextEditingController();
     final details = await showDialog<({DateTime date, String? note})>(
@@ -198,7 +206,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
                     note: note.text.trim().isEmpty ? null : note.text.trim(),
                   ));
                 },
-                child: const Text('Choose photo'),
+                child: const Text('Choose photos'),
               ),
             ],
           ),
@@ -208,46 +216,81 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     date.dispose();
     note.dispose();
     if (details == null) return;
+    var uploadedCount = 0;
     try {
-      final selected = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
+      final selected = await ImagePicker().pickMultiImage(
         imageQuality: 90,
         maxWidth: 2400,
       );
-      if (selected == null) return;
-      final bytes = await selected.readAsBytes();
-      if (bytes.lengthInBytes > 20 * 1024 * 1024) {
+      if (selected.isEmpty) return;
+      for (final photo in selected) {
+        if (await photo.length() <= 20 * 1024 * 1024) continue;
         throw const AppFailure(
           'progress_photo_too_large',
-          'Choose an image smaller than 20 MB.',
+          'Each image must be smaller than 20 MB.',
         );
       }
-      setState(() => _saving = true);
-      await ref
-          .read(progressRepositoryProvider)
-          .create(
-            ProgressPhotoUpload(
-              fileName: selected.name,
-              mimeType: selected.mimeType ?? 'image/jpeg',
-              bytes: bytes,
-              capturedAt: details.date,
-              note: details.note,
+      setState(() {
+        _saving = true;
+        _uploadTotal = selected.length;
+        _uploadedCount = 0;
+      });
+      for (final photo in selected) {
+        final bytes = await photo.readAsBytes();
+        await ref
+            .read(progressRepositoryProvider)
+            .create(
+              ProgressPhotoUpload(
+                fileName: photo.name,
+                mimeType: photo.mimeType ?? 'image/jpeg',
+                bytes: bytes,
+                capturedAt: details.date,
+                note: details.note,
+              ),
+            );
+        uploadedCount++;
+        if (mounted) setState(() => _uploadedCount = uploadedCount);
+      }
+      if (mounted) {
+        setState(() => _selected = details.date);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${selected.length} ${selected.length == 1 ? 'photo' : 'photos'} added to progress.',
             ),
-          );
-      if (mounted) setState(() => _selected = details.date);
+          ),
+        );
+      }
       ref.invalidate(progressRecordProvider);
     } on AppFailure catch (error) {
-      _failure(context, error);
+      _failure(
+        context,
+        uploadedCount == 0
+            ? error
+            : AppFailure(
+                'progress_upload_partial',
+                'Uploaded $uploadedCount of $_uploadTotal photos. ${error.message}',
+              ),
+      );
     } catch (_) {
       _failure(
         context,
-        const AppFailure(
+        AppFailure(
           'progress_upload_failed',
-          'Unable to read or upload the selected progress photo.',
+          uploadedCount == 0
+              ? 'Unable to read or upload the selected progress photos.'
+              : 'Uploaded $uploadedCount of $_uploadTotal photos before the remaining upload failed.',
         ),
       );
     } finally {
-      if (mounted) setState(() => _saving = false);
+      if (uploadedCount > 0) ref.invalidate(progressRecordProvider);
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _uploadTotal = 0;
+          _uploadedCount = 0;
+        });
+      }
     }
   }
 

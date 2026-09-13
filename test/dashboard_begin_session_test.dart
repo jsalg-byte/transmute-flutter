@@ -38,6 +38,7 @@ void main() {
 
       expect(find.text('What are you training today?'), findsOneWidget);
       expect(find.text('Upper strength'), findsOneWidget);
+      expect(find.textContaining('Last performed'), findsOneWidget);
       expect(find.text('Lower strength'), findsNothing);
 
       await tester.tap(find.text('Upper strength'));

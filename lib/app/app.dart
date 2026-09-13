@@ -156,9 +156,13 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
     final preference = ref.watch(effectiveThemePreferenceProvider);
     final useCuteTheme =
         ref.watch(cuteThemeEnabledProvider).asData?.value ?? false;
+    final useCuteColorBlindMode =
+        ref.watch(cuteColorBlindModeProvider).asData?.value ?? false;
     return MaterialApp.router(
       title: 'Transmute',
-      theme: useCuteTheme ? cuteTheme : buildTransmuteTheme(preference),
+      theme: useCuteTheme
+          ? (useCuteColorBlindMode ? cuteColorBlindTheme : cuteTheme)
+          : buildTransmuteTheme(preference),
       routerConfig: _router,
     );
   }

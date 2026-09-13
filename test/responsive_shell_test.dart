@@ -54,10 +54,6 @@ void main() {
       'Nutrition',
       'Progress',
       'Fasting',
-      'Goals',
-      'Planning',
-      'Arcana',
-      'Friends',
       'Settings',
     ]) {
       expect(
@@ -87,10 +83,6 @@ void main() {
       'Nutrition',
       'Progress',
       'Fasting',
-      'Goals',
-      'Planning',
-      'Arcana',
-      'Friends',
       'Settings',
     ]) {
       expect(find.text(label), findsOneWidget);

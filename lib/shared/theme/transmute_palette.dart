@@ -43,6 +43,12 @@ class TransmutePalette extends ThemeExtension<TransmutePalette> {
   static TransmutePalette forPreference(ThemePreference preference) =>
       forPalette(preference.palette, preference.brightness);
 
+  /// Semantic tokens for the standalone Cute Pastel design system. Keeping
+  /// these here lets existing feature widgets use the alternate visual system
+  /// without falling back to the ledger palette.
+  static TransmutePalette cutePastel({bool colorBlindSafe = false}) =>
+      colorBlindSafe ? _cutePastelColorBlind : _cutePastel;
+
   static TransmutePalette forPalette(
     ThemePalette palette,
     PreferenceBrightness brightness,
@@ -92,6 +98,38 @@ class TransmutePalette extends ThemeExtension<TransmutePalette> {
     rest: Color(0xffE0756E),
     recovering: Color(0xffA3AAC4),
     ready: Color(0xff8B95B8),
+  );
+
+  static const _cutePastel = TransmutePalette._(
+    surface: Color(0xFFCCFBFA),
+    raised: Color(0xFFFFFAFB),
+    ink: Color(0xFF382D37),
+    body: Color(0xFF382D37),
+    muted: Color(0xFF705D69),
+    divider: Color(0xFF91CED0),
+    oxide: Color(0xFFF29191),
+    steel: Color(0xFF6D79A0),
+    gold: Color(0xFFD49A31),
+    rest: Color(0xFFC7566A),
+    recovering: Color(0xFF7356A2),
+    ready: Color(0xFF187D8A),
+  );
+
+  /// Uses violet, blue, and amber for status cues, avoiding a red-versus-
+  /// green distinction. Decorative greens remain part of the pastel palette.
+  static const _cutePastelColorBlind = TransmutePalette._(
+    surface: Color(0xFFE7F7D5),
+    raised: Color(0xFFF6D3E8),
+    ink: Color(0xFF302236),
+    body: Color(0xFF302236),
+    muted: Color(0xFF655764),
+    divider: Color(0xFFBBD4A6),
+    oxide: Color(0xFFB3589A),
+    steel: Color(0xFF734D87),
+    gold: Color(0xFFAD6900),
+    rest: Color(0xFF75456F),
+    recovering: Color(0xFF276FAE),
+    ready: Color(0xFFAD6900),
   );
 
   static const _flameLight = TransmutePalette._(

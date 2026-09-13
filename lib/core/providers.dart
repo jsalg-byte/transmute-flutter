@@ -278,6 +278,42 @@ class CuteThemePreferenceController extends AsyncNotifier<bool> {
   }
 }
 
+/// An accessibility preference that only changes the Cute Pastel system.
+/// It is kept local to the device, alongside the Cute Pastel opt-in, because
+/// the account theme API does not own design-system accessibility variants.
+final cuteColorBlindModeProvider =
+    AsyncNotifierProvider<CuteColorBlindModeController, bool>(
+      CuteColorBlindModeController.new,
+    );
+
+class CuteColorBlindModeController extends AsyncNotifier<bool> {
+  static const _key = 'transmute.theme.cute-pastel.red-green-safe';
+
+  @override
+  Future<bool> build() async {
+    try {
+      return await ref.read(secureStoreProvider).storage.read(key: _key) ==
+          'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> setEnabled(bool enabled) async {
+    final previous = state.asData?.value ?? false;
+    state = AsyncData(enabled);
+    try {
+      await ref
+          .read(secureStoreProvider)
+          .storage
+          .write(key: _key, value: enabled.toString());
+    } catch (_) {
+      state = AsyncData(previous);
+      rethrow;
+    }
+  }
+}
+
 class ThemeOverrideController extends Notifier<ThemePreference?> {
   @override
   ThemePreference? build() => null;
@@ -418,6 +454,37 @@ final planProvider = FutureProvider.family<WorkoutPlan, String>(
 final historyProvider = FutureProvider<List<CompletedSessionSummary>>(
   (ref) => ref.watch(sessionRepositoryProvider).completedHistory(),
 );
+
+/// Completed session summaries do not include a plan-day ID. The day picker
+/// needs that ID to show accurate last-performed dates, so resolve the
+/// existing detailed-session contract once and cache the newest completion for
+/// each plan-day pair.
+final lastPerformedPlanDayProvider = FutureProvider<Map<String, DateTime>>((
+  ref,
+) async {
+  final repository = ref.watch(sessionRepositoryProvider);
+  final summaries = await repository.completedHistory();
+  final sessions = await Future.wait(
+    summaries.map((summary) => repository.getSession(summary.id)),
+  );
+  final latest = <String, DateTime>{};
+  for (final session in sessions) {
+    final completedAt = session.completedAt;
+    if (session.status != SessionStatus.completed || completedAt == null) {
+      continue;
+    }
+    final key = planDayHistoryKey(session.planId, session.planDayId);
+    final prior = latest[key];
+    if (prior == null || completedAt.isAfter(prior)) {
+      latest[key] = completedAt;
+    }
+  }
+  return latest;
+});
+
+String planDayHistoryKey(String planId, String planDayId) =>
+    '$planId::$planDayId';
+
 final sessionDetailProvider = FutureProvider.family<WorkoutSession, String>(
   (ref, id) => ref.watch(sessionRepositoryProvider).getSession(id),
 );
@@ -461,7 +528,7 @@ final recentRecordProvider = FutureProvider<List<RecentRecordItem>>((
       (item) => RecentRecordItem(
         id: 'session-${item.id}',
         title: 'Session completed',
-        meta: item.planName,
+        meta: '${item.planName} · ${item.planDayName}',
         at: item.completedAt,
         route: '/history/${item.id}',
       ),
@@ -814,6 +881,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     _stopSync();
     state = const AsyncData(null);
     ref.invalidate(historyProvider);
+    ref.invalidate(lastPerformedPlanDayProvider);
     return result;
   }
 
