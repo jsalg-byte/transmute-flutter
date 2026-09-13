@@ -48,7 +48,10 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     final sessionsByDay = <String, List<ProgressSession>>{};
     for (final session in record.sessions) {
       sessionsByDay
-          .putIfAbsent(_dayKey(session.startedAt), () => [])
+          // Session timestamps are instants from the API. Group them by the
+          // device's local calendar day so a late-night workout does not land
+          // on the following/previous UTC date in Progress.
+          .putIfAbsent(_localDayKey(session.startedAt), () => [])
           .add(session);
     }
     final selectedKey = _dayKey(_selected);
@@ -737,6 +740,13 @@ class _PhotoImage extends ConsumerWidget {
 
 DateTime _monthStart(DateTime value) => DateTime(value.year, value.month);
 String _dayKey(DateTime value) => _apiDate(value);
+String _localDayKey(DateTime value) {
+  final local = value.toLocal();
+  return '${local.year.toString().padLeft(4, '0')}-'
+      '${local.month.toString().padLeft(2, '0')}-'
+      '${local.day.toString().padLeft(2, '0')}';
+}
+
 String _apiDate(DateTime value) => value.toIso8601String().substring(0, 10);
 String _date(DateTime value) => '${value.month}/${value.day}/${value.year}';
 DateTime? _validDate(String value) {
