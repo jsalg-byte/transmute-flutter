@@ -108,6 +108,7 @@ const cuteColorBlindColorScheme = ColorScheme(
 @immutable
 class CuteCustomStyles extends ThemeExtension<CuteCustomStyles> {
   const CuteCustomStyles({
+    required this.colorBlindSafe,
     required this.softShadow,
     required this.pressedShadow,
     required this.extraLargeRadius,
@@ -119,6 +120,7 @@ class CuteCustomStyles extends ThemeExtension<CuteCustomStyles> {
       colorBlindSafe ? _colorBlindDefaults : _defaults;
 
   static const _defaults = CuteCustomStyles(
+    colorBlindSafe: false,
     softShadow: [
       BoxShadow(
         color: Color(0x1FF29191),
@@ -143,6 +145,7 @@ class CuteCustomStyles extends ThemeExtension<CuteCustomStyles> {
   );
 
   static const _colorBlindDefaults = CuteCustomStyles(
+    colorBlindSafe: true,
     softShadow: [
       BoxShadow(
         color: Color(0x1FB3589A),
@@ -166,6 +169,8 @@ class CuteCustomStyles extends ThemeExtension<CuteCustomStyles> {
     ),
   );
 
+  /// Whether this theme uses the red-green-safe Cute Pastel variant.
+  final bool colorBlindSafe;
   final List<BoxShadow> softShadow;
   final List<BoxShadow> pressedShadow;
   final BorderRadius extraLargeRadius;
@@ -174,12 +179,14 @@ class CuteCustomStyles extends ThemeExtension<CuteCustomStyles> {
 
   @override
   CuteCustomStyles copyWith({
+    bool? colorBlindSafe,
     List<BoxShadow>? softShadow,
     List<BoxShadow>? pressedShadow,
     BorderRadius? extraLargeRadius,
     LinearGradient? containerGradient,
     LinearGradient? accentGradient,
   }) => CuteCustomStyles(
+    colorBlindSafe: colorBlindSafe ?? this.colorBlindSafe,
     softShadow: softShadow ?? this.softShadow,
     pressedShadow: pressedShadow ?? this.pressedShadow,
     extraLargeRadius: extraLargeRadius ?? this.extraLargeRadius,
@@ -191,6 +198,7 @@ class CuteCustomStyles extends ThemeExtension<CuteCustomStyles> {
   CuteCustomStyles lerp(covariant CuteCustomStyles? other, double t) {
     if (other == null) return this;
     return CuteCustomStyles(
+      colorBlindSafe: t < .5 ? colorBlindSafe : other.colorBlindSafe,
       softShadow: _lerpShadows(softShadow, other.softShadow, t),
       pressedShadow: _lerpShadows(pressedShadow, other.pressedShadow, t),
       extraLargeRadius: BorderRadius.lerp(
