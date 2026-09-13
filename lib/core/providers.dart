@@ -455,25 +455,16 @@ final historyProvider = FutureProvider<List<CompletedSessionSummary>>(
   (ref) => ref.watch(sessionRepositoryProvider).completedHistory(),
 );
 
-/// Completed session summaries do not include a plan-day ID. The day picker
-/// needs that ID to show accurate last-performed dates, so resolve the
-/// existing detailed-session contract once and cache the newest completion for
-/// each plan-day pair.
+/// The legacy API returns joined routine/day names, but no routine/day IDs.
+/// Match those exact names from the shared history instead of synthetic IDs.
 final lastPerformedPlanDayProvider = FutureProvider<Map<String, DateTime>>((
   ref,
 ) async {
-  final repository = ref.watch(sessionRepositoryProvider);
-  final summaries = await repository.completedHistory();
-  final sessions = await Future.wait(
-    summaries.map((summary) => repository.getSession(summary.id)),
-  );
+  final sessions = await ref.watch(historyProvider.future);
   final latest = <String, DateTime>{};
   for (final session in sessions) {
     final completedAt = session.completedAt;
-    if (session.status != SessionStatus.completed || completedAt == null) {
-      continue;
-    }
-    final key = planDayHistoryKey(session.planId, session.planDayId);
+    final key = planDayHistoryKey(session.planName, session.planDayName);
     final prior = latest[key];
     if (prior == null || completedAt.isAfter(prior)) {
       latest[key] = completedAt;
@@ -516,7 +507,7 @@ final recentRecordProvider = FutureProvider<List<RecentRecordItem>>((
   ref,
 ) async {
   final values = await Future.wait<Object>([
-    ref.watch(sessionRepositoryProvider).completedHistory(),
+    ref.watch(historyProvider.future),
     ref.watch(nutritionRepositoryProvider).read(),
     ref.watch(progressRepositoryProvider).read(),
   ]);
@@ -581,9 +572,7 @@ final dailyOverviewProvider = FutureProvider<DailyOverview>((ref) async {
           ...plans.where((plan) => plan.id != preferences.activePlanId),
         ];
   final active = await ref.watch(sessionRepositoryProvider).activeSession();
-  final summaries = await ref
-      .watch(sessionRepositoryProvider)
-      .completedHistory();
+  final summaries = await ref.watch(historyProvider.future);
   final sessions = await Future.wait(
     summaries
         .take(20)

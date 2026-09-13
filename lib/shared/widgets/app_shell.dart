@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,44 @@ import '../../core/domain/models.dart';
 import '../../core/domain/repositories.dart';
 import '../../core/providers.dart';
 import '../theme/transmute_palette.dart';
+
+/// Extends wheel scrolling to the shell's gutters and header. Descendant
+/// scrollables get first refusal through Flutter's pointer signal resolver.
+class _DesktopScrollSurface extends StatefulWidget {
+  const _DesktopScrollSurface({required this.child});
+  final Widget child;
+
+  @override
+  State<_DesktopScrollSurface> createState() => _DesktopScrollSurfaceState();
+}
+
+class _DesktopScrollSurfaceState extends State<_DesktopScrollSurface> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => PrimaryScrollController(
+    controller: _controller,
+    automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+    child: Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerSignal: (event) {
+        if (event is! PointerScrollEvent || !_controller.hasClients) return;
+        if (_controller.positions.length != 1) return;
+        GestureBinding.instance.pointerSignalResolver.register(event, (_) {
+          final position = _controller.position;
+          position.pointerScroll(event.scrollDelta.dy);
+        });
+      },
+      child: widget.child,
+    ),
+  );
+}
 
 /// The desktop shell intentionally follows the existing Transmute web client:
 /// a quiet wordmark header and a full, textual navigation strip. Compact
@@ -64,75 +103,81 @@ class AppShell extends ConsumerWidget {
   Widget _desktop(BuildContext context, WidgetRef ref, String location) {
     final palette = TransmutePalette.of(context);
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1180),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 14, 0, 18),
-                  child: Row(
-                    children: [
-                      InkWell(
-                        onTap: () => context.go('/dashboard'),
-                        child: const _Wordmark(),
-                      ),
-                      const Spacer(),
-                      _ThemeSwitch(ref: ref),
-                      const SizedBox(width: 16),
-                      TextButton(
-                        onPressed: () =>
-                            ref.read(authControllerProvider.notifier).logout(),
-                        style: TextButton.styleFrom(
-                          foregroundColor: palette.ink,
-                          textStyle: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                        child: const Text('Sign out'),
-                      ),
-                    ],
-                  ),
-                ),
-                Divider(height: 1, color: palette.divider),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Wrap(
-                      spacing: 24,
-                      runSpacing: 16,
+      body: _DesktopScrollSurface(
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1180),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 14, 0, 18),
+                    child: Row(
                       children: [
-                        for (final destination in _desktopDestinations)
-                          _DesktopNavItem(
-                            destination: destination,
-                            selected: _isSelected(location, destination.route),
+                        InkWell(
+                          onTap: () => context.go('/dashboard'),
+                          child: const _Wordmark(),
+                        ),
+                        const Spacer(),
+                        _ThemeSwitch(ref: ref),
+                        const SizedBox(width: 16),
+                        TextButton(
+                          onPressed: () => ref
+                              .read(authControllerProvider.notifier)
+                              .logout(),
+                          style: TextButton.styleFrom(
+                            foregroundColor: palette.ink,
+                            textStyle: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              decoration: TextDecoration.underline,
+                            ),
                           ),
+                          child: const Text('Sign out'),
+                        ),
                       ],
                     ),
                   ),
-                ),
-                Divider(height: 1, color: palette.divider),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 28, 0, 24),
+                  Divider(height: 1, color: palette.divider),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
                     child: Align(
-                      alignment: Alignment.topLeft,
-                      child: desktopContentMaxWidth == null
-                          ? child
-                          : ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: desktopContentMaxWidth!,
+                      alignment: Alignment.centerLeft,
+                      child: Wrap(
+                        spacing: 24,
+                        runSpacing: 16,
+                        children: [
+                          for (final destination in _desktopDestinations)
+                            _DesktopNavItem(
+                              destination: destination,
+                              selected: _isSelected(
+                                location,
+                                destination.route,
                               ),
-                              child: child,
                             ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  Divider(height: 1, color: palette.divider),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 28, 0, 24),
+                      child: Align(
+                        alignment: Alignment.topLeft,
+                        child: desktopContentMaxWidth == null
+                            ? child
+                            : ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: desktopContentMaxWidth!,
+                                ),
+                                child: child,
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

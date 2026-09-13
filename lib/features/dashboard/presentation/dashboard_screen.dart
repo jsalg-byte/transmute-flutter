@@ -17,6 +17,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final overview = ref.watch(dailyOverviewProvider);
     final recent = ref.watch(recentRecordProvider);
+    ref.watch(lastPerformedPlanDayProvider);
     return AppShell(
       title: 'Dashboard',
       child: overview.when(
@@ -204,7 +205,8 @@ class _TrainingDayFlyover extends ConsumerWidget {
         _TrainingDayChoice(
           plan: plan,
           day: day,
-          lastPerformedAt: performedDays?[planDayHistoryKey(plan.id, day.id)],
+          lastPerformedAt:
+              performedDays?[planDayHistoryKey(plan.name, day.name)],
           historyStatus: historyStatus,
         ),
     ];

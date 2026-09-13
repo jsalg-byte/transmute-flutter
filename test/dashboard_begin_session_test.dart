@@ -3,8 +3,38 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:transmute_flutter/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:transmute_flutter/core/providers.dart';
+import 'package:transmute_flutter/core/domain/models.dart';
 
 void main() {
+  test(
+    'last performed uses named history without detail IDs or requests',
+    () async {
+      final at = DateTime(2026, 9, 12);
+      final container = ProviderContainer(
+        overrides: [
+          historyProvider.overrideWith(
+            (ref) async => [
+              CompletedSessionSummary(
+                id: 'legacy-session',
+                planName: 'GAROU II',
+                planDayName: 'PUSH 1',
+                startedAt: at,
+                completedAt: at,
+                durationSeconds: 60,
+                workingSetCount: 3,
+                totalVolumeKg: 100,
+              ),
+            ],
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      expect(await container.read(lastPerformedPlanDayProvider.future), {
+        planDayHistoryKey('GAROU II', 'PUSH 1'): at,
+      });
+    },
+  );
   testWidgets(
     'Begin session selects a training day and opens the active workout',
     (tester) async {
