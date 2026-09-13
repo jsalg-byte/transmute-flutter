@@ -766,6 +766,9 @@ class ApiSessionRepository implements SessionRepository {
   }
 
   @override
+  Future<void> deleteCompletedSession(String id) => discard(id);
+
+  @override
   Future<List<CompletedSessionSummary>> completedHistory() async {
     final record = await _record();
     final raw = (record['sessions'] as List<dynamic>)

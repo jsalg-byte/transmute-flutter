@@ -2313,6 +2313,11 @@ class MockSessionRepository implements SessionRepository {
   }
 
   @override
+  Future<void> deleteCompletedSession(String id) async {
+    _store.completed.removeWhere((session) => session.id == id);
+  }
+
+  @override
   Future<List<CompletedSessionSummary>> completedHistory() async =>
       _store.completed
           .map(

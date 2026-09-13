@@ -138,9 +138,111 @@ class _HistoryItem extends StatelessWidget {
       subtitle: Text(
         '${item.planDayName} · ${_date(item.completedAt)} · ${item.durationSeconds ~/ 60} min · ${item.workingSetCount} working sets\n${displayWeight(item.totalVolumeKg, unit)} total volume',
       ),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _DeleteSessionButton(
+            id: item.id,
+            name: '${item.planName} — ${item.planDayName}',
+            date: item.completedAt,
+          ),
+          const Icon(Icons.chevron_right),
+        ],
+      ),
       onTap: () => context.go('/history/${item.id}'),
     ),
+  );
+}
+
+class _DeleteSessionButton extends ConsumerStatefulWidget {
+  const _DeleteSessionButton({
+    required this.id,
+    required this.name,
+    required this.date,
+  });
+  final String id;
+  final String name;
+  final DateTime date;
+
+  @override
+  ConsumerState<_DeleteSessionButton> createState() =>
+      _DeleteSessionButtonState();
+}
+
+class _DeleteSessionButtonState extends ConsumerState<_DeleteSessionButton> {
+  bool _busy = false;
+  bool _deleting = false;
+
+  Future<void> _delete() async {
+    setState(() => _busy = true);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Session?'),
+        content: Text(
+          'Delete ${widget.name} from ${_date(widget.date)} and all its logged sets? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(dialogContext).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete Session'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (confirmed != true) {
+      setState(() => _busy = false);
+      return;
+    }
+    setState(() => _deleting = true);
+    try {
+      await ref
+          .read(sessionRepositoryProvider)
+          .deleteCompletedSession(widget.id);
+      if (!mounted) return;
+      ref.invalidate(historyProvider);
+      ref.invalidate(sessionDetailProvider(widget.id));
+      ref.invalidate(progressRecordProvider);
+      ref.invalidate(dailyOverviewProvider);
+      ref.invalidate(recentRecordProvider);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Session deleted.')));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not delete the session. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted)
+        setState(() {
+          _busy = false;
+          _deleting = false;
+        });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: 'Delete Session',
+    onPressed: _busy ? null : _delete,
+    color: Theme.of(context).colorScheme.error,
+    icon: _deleting
+        ? const SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : const Icon(Icons.delete_outline),
   );
 }
 

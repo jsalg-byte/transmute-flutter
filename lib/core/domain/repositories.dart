@@ -120,6 +120,7 @@ abstract class SessionRepository {
   Future<void> deleteSet(String id);
   Future<WorkoutSession> complete(String id);
   Future<void> discard(String id);
+  Future<void> deleteCompletedSession(String id);
   Future<List<CompletedSessionSummary>> completedHistory();
 }
 
