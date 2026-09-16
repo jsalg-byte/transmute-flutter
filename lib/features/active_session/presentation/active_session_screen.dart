@@ -185,6 +185,14 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                 ),
                 const SizedBox(height: 4),
                 Text(
+                  session.planDayName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
                   'Started ${_time(session.startedAt)} · ${session.workingSetCount} working sets',
                 ),
                 const SizedBox(height: 8),
@@ -1003,23 +1011,28 @@ class _PersonalRecordCelebrationState extends State<PersonalRecordCelebration>
   @override
   Widget build(BuildContext context) {
     final palette = TransmutePalette.of(context);
+    final cuteStyles = Theme.of(context).extension<CuteCustomStyles>();
+    final isCute = cuteStyles != null;
     final type = widget.record.kind == PersonalRecordKind.estimatedOneRepMax
         ? 'ESTIMATED 1RM PR'
         : 'REP PR';
-    final foreground =
-        ThemeData.estimateBrightnessForColor(palette.ready) == Brightness.dark
+    final foreground = isCute
+        ? palette.ink
+        : ThemeData.estimateBrightnessForColor(palette.ready) == Brightness.dark
         ? Colors.white
         : palette.ink;
     return Semantics(
       liveRegion: true,
       label: '$type for ${widget.record.exerciseName}',
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: cuteStyles?.extraLargeRadius ?? BorderRadius.circular(16),
         child: Container(
           constraints: const BoxConstraints(minHeight: 96),
           decoration: BoxDecoration(
-            color: palette.ready,
+            color: isCute ? null : palette.ready,
+            gradient: cuteStyles?.accentGradient,
             border: Border.all(color: foreground.withValues(alpha: .26)),
+            boxShadow: cuteStyles?.softShadow,
           ),
           child: Stack(
             children: [
@@ -1547,13 +1560,24 @@ class _RestTimer extends ConsumerStatefulWidget {
 class _RestTimerState extends ConsumerState<_RestTimer> {
   Timer? _ticker;
   var _open = false;
+  var _clearingExpired = false;
   @override
   void initState() {
     super.initState();
-    _ticker = Timer.periodic(
-      const Duration(seconds: 1),
-      (_) => mounted ? setState(() {}) : null,
-    );
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  Future<void> _tick() async {
+    if (!mounted) return;
+    final deadline = widget.session.restEndsAt;
+    if (deadline != null && !deadline.isAfter(DateTime.now().toUtc())) {
+      if (_clearingExpired) return;
+      _clearingExpired = true;
+      setState(() => _open = false);
+      await ref.read(activeSessionProvider.notifier).setRest(null);
+      return;
+    }
+    setState(() {});
   }
 
   @override
@@ -1709,6 +1733,7 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
   }
 
   Future<void> _start(int seconds) async {
+    _clearingExpired = false;
     setState(() => _open = true);
     await ref
         .read(activeSessionProvider.notifier)

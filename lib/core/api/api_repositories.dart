@@ -1482,7 +1482,7 @@ class ApiPreferencesRepository implements PreferencesRepository {
   @override
   Future<UserPreferences> read() async {
     final body = await _request(
-      () => _dio.get<Map<String, dynamic>>('/v1/record'),
+      () => _dio.get<Map<String, dynamic>>('/v1/preferences'),
     );
     return _preferences(body.data!['settings'] as Map<String, dynamic>);
   }

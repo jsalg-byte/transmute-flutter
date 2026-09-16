@@ -34,6 +34,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Barbell bench press'), findsOneWidget);
+      expect(find.text('Upper strength'), findsOneWidget);
       expect(find.text('Chest-supported row'), findsNothing);
       expect(find.text('Next Movement'), findsOneWidget);
 

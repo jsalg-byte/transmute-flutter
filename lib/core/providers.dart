@@ -71,6 +71,9 @@ final dioProvider = Provider<Dio>((ref) {
     BaseOptions(
       baseUrl: baseUrl,
       headers: const {'Accept': 'application/json'},
+      connectTimeout: const Duration(seconds: 10),
+      sendTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 15),
     ),
   );
   configureAccessTokenRefresh(dio, ref.watch(secureStoreProvider));
@@ -636,7 +639,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
   );
 
   void _scheduleSync() {
-    _syncTimer ??= Timer.periodic(const Duration(seconds: 12), (_) {
+    _syncTimer ??= Timer.periodic(const Duration(seconds: 7), (_) {
       unawaited(syncPending());
     });
   }
