@@ -117,6 +117,11 @@ final sessionRepositoryProvider = Provider<SessionRepository>(
           RestTimerStore(ref.watch(secureStoreProvider).storage),
         ),
 );
+final quickAddRepositoryProvider = Provider<QuickAddRepository>(
+  (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
+      ? MockQuickAddRepository(ref.watch(mockStoreProvider))
+      : ApiQuickAddRepository(ref.watch(dioProvider)),
+);
 final recoveryRepositoryProvider = Provider<RecoveryRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockRecoveryRepository(ref.watch(mockStoreProvider))
@@ -381,6 +386,12 @@ class AuthController extends Notifier<AuthState> {
       );
     } on AppFailure catch (error) {
       state = AuthState(AuthStatus.signedOut, null, error.message);
+    } catch (_) {
+      state = const AuthState(
+        AuthStatus.signedOut,
+        null,
+        'Unable to sign in right now. Check your username, password, and connection, then try again.',
+      );
     }
   }
 
@@ -402,6 +413,12 @@ class AuthController extends Notifier<AuthState> {
       );
     } on AppFailure catch (error) {
       state = AuthState(AuthStatus.signedOut, null, error.message);
+    } catch (_) {
+      state = const AuthState(
+        AuthStatus.signedOut,
+        null,
+        'Unable to create the account right now. Check your connection and try again.',
+      );
     }
   }
 

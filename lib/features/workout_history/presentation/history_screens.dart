@@ -344,7 +344,9 @@ class _CompletedDetail extends ConsumerWidget {
                   const SizedBox(height: 8),
                   ...exercise.sets.map(
                     (set) => Text(
-                      'Set ${set.setOrder}: ${displayWeight(set.weightKg, unit)} × ${set.reps}',
+                      set.durationSeconds == null
+                          ? 'Set ${set.setOrder}: ${displayWeight(set.weightKg, unit)} × ${set.reps}'
+                          : 'Set ${set.setOrder}: ${_formatQuickAddDuration(set.durationSeconds!)}',
                     ),
                   ),
                 ],
@@ -355,6 +357,12 @@ class _CompletedDetail extends ConsumerWidget {
       ],
     );
   }
+}
+
+String _formatQuickAddDuration(int seconds) {
+  final minutes = seconds ~/ 60;
+  final remainder = seconds % 60;
+  return remainder == 0 ? '$minutes min' : '$minutes min $remainder sec';
 }
 
 class WorkoutShareScreen extends ConsumerWidget {
@@ -462,8 +470,9 @@ String _setSummary(SessionExercise exercise, WeightUnit unit) {
   if (exercise.sets.isEmpty) return 'No sets recorded';
   return exercise.sets
       .map(
-        (set) =>
-            '${set.reps} reps @ ${displayWeight(set.weightKg, unit)}${set.isWarmup ? ' warm-up' : ''}',
+        (set) => set.durationSeconds == null
+            ? '${set.reps} reps @ ${displayWeight(set.weightKg, unit)}${set.isWarmup ? ' warm-up' : ''}'
+            : _formatQuickAddDuration(set.durationSeconds!),
       )
       .join(' · ');
 }
@@ -487,6 +496,7 @@ String _workoutJson(WorkoutSession session) =>
                         'order': set.setOrder,
                         'reps': set.reps,
                         'weightKg': set.weightKg,
+                        'durationSeconds': set.durationSeconds,
                         'isWarmup': set.isWarmup,
                       },
                     )

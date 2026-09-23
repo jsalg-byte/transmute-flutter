@@ -669,6 +669,7 @@ class LoggedSet {
     required this.completedAt,
     this.isWarmup = false,
     this.pending = false,
+    this.durationSeconds,
   });
   final String id;
   final String sessionExerciseId;
@@ -678,6 +679,7 @@ class LoggedSet {
   final DateTime completedAt;
   final bool isWarmup;
   final bool pending;
+  final int? durationSeconds;
 
   LoggedSet copyWith({
     String? id,
@@ -687,6 +689,7 @@ class LoggedSet {
     DateTime? completedAt,
     bool? isWarmup,
     bool? pending,
+    int? durationSeconds,
   }) => LoggedSet(
     id: id ?? this.id,
     sessionExerciseId: sessionExerciseId,
@@ -696,6 +699,7 @@ class LoggedSet {
     completedAt: completedAt ?? this.completedAt,
     isWarmup: isWarmup ?? this.isWarmup,
     pending: pending ?? this.pending,
+    durationSeconds: durationSeconds ?? this.durationSeconds,
   );
 }
 

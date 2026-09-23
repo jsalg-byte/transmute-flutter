@@ -16,17 +16,8 @@ class NutritionScreen extends ConsumerStatefulWidget {
 }
 
 class _NutritionScreenState extends ConsumerState<NutritionScreen> {
-  final _query = TextEditingController();
-  final Map<String, double> _draft = {};
   DateTime _day = _dateOnly(DateTime.now());
-  MealType _type = MealType.breakfast;
   bool _saving = false;
-
-  @override
-  void dispose() {
-    _query.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,16 +39,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
 
   Widget _content(NutritionRecord record) {
     final meals = record.meals
-        .where((meal) => DateUtils.isSameDay(meal.consumedAt, _day))
-        .toList();
-    final draftFoods = record.foods
-        .where((food) => _draft.containsKey(food.id))
-        .toList();
-    final query = _query.text.trim().toLowerCase();
-    final foods = record.foods
-        .where(
-          (food) => query.isEmpty || food.name.toLowerCase().contains(query),
-        )
+        .where((meal) => DateUtils.isSameDay(meal.consumedAt.toLocal(), _day))
         .toList();
     final totals = _Totals.fromMeals(meals);
     return ListView(
@@ -72,12 +54,10 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
             ),
             PopupMenuButton<String>(
               onSelected: (value) {
-                if (value == 'create') _createFood();
                 if (value == 'barcode') _barcode();
                 if (value == 'label') _readLabel();
               },
               itemBuilder: (_) => const [
-                PopupMenuItem(value: 'create', child: Text('Create food')),
                 PopupMenuItem(
                   value: 'barcode',
                   child: Text('Scan or enter barcode'),
@@ -87,11 +67,8 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                   child: Text('Read nutrition label'),
                 ),
               ],
-              child: ElevatedButton.icon(
-                onPressed: _saving ? null : () => _createFood(),
-                icon: const Icon(Icons.add),
-                label: const Text('Add food'),
-              ),
+              tooltip: 'Nutrition tools',
+              child: const Icon(Icons.more_vert),
             ),
           ],
         ),
@@ -109,39 +86,13 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
               setState(() => _day = _day.add(const Duration(days: 1))),
         ),
         const SizedBox(height: 16),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final catalog = _Catalog(
-              query: _query,
-              foods: foods,
-              onChanged: () => setState(() {}),
-              onAdd: _addFood,
-            );
-            final composer = _MealComposer(
-              foods: draftFoods,
-              grams: _draft,
-              type: _type,
-              day: _day,
-              saving: _saving,
-              onTypeChanged: (type) => setState(() => _type = type),
-              onAmountChanged: (food, grams) =>
-                  setState(() => _draft[food.id] = grams),
-              onRemove: (food) => setState(() => _draft.remove(food.id)),
-              onSave: () => _saveMeal(draftFoods),
-            );
-            return constraints.maxWidth >= 960
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(flex: 3, child: catalog),
-                      const SizedBox(width: 16),
-                      Expanded(flex: 2, child: composer),
-                    ],
-                  )
-                : Column(
-                    children: [catalog, const SizedBox(height: 16), composer],
-                  );
-          },
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ElevatedButton.icon(
+            onPressed: _saving ? null : () => _openMealDialog(record),
+            icon: const Icon(Icons.add_circle_outline),
+            label: const Text('Log meal'),
+          ),
         ),
         const SizedBox(height: 24),
         Text(
@@ -154,50 +105,48 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                'No food logged on this date. Add foods to the meal composer above.',
+                'No food logged on this date. Tap Log meal to search your foods.',
               ),
             ),
           )
         else
-          ...meals.map(
-            (meal) => _MealTile(
-              meal: meal,
-              onEdit: () => _editMeal(meal),
-              onDelete: () => _deleteMeal(meal),
-              onPhoto: () => _uploadMealPhoto(meal),
-            ),
-          ),
+          ...MealType.values.expand((type) {
+            final group = meals.where((meal) => meal.mealType == type).toList();
+            if (group.isEmpty) return <Widget>[];
+            return <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(top: 12, bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(_mealIcon(type), size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      _mealLabel(type),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ],
+                ),
+              ),
+              ...group.map(
+                (meal) => _MealTile(
+                  meal: meal,
+                  onEdit: () => _editMeal(meal),
+                  onDelete: () => _deleteMeal(meal),
+                  onPhoto: () => _uploadMealPhoto(meal),
+                ),
+              ),
+            ];
+          }),
       ],
     );
   }
 
-  void _addFood(Food food) {
-    setState(() => _draft.putIfAbsent(food.id, () => _defaultGrams(food)));
-  }
-
-  Future<void> _saveMeal(List<Food> foods) async {
-    if (foods.isEmpty) return;
-    try {
-      setState(() => _saving = true);
-      await ref
-          .read(nutritionRepositoryProvider)
-          .createMeal(
-            _type,
-            foods
-                .map(
-                  (food) =>
-                      MealItemInput(foodId: food.id, grams: _draft[food.id]!),
-                )
-                .toList(),
-            consumedAt: _dayAtNow(_day),
-          );
-      setState(() => _draft.clear());
-      ref.invalidate(nutritionRecordProvider);
-    } on AppFailure catch (error) {
-      _failure(context, error);
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+  Future<void> _openMealDialog(NutritionRecord record) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _MealLogDialog(record: record, day: _day),
+    );
+    if (saved == true) ref.invalidate(nutritionRecordProvider);
   }
 
   Future<void> _createFood([Food? seed]) async {
@@ -237,7 +186,8 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
           ),
         );
       } else if (result.food!.id != 'draft') {
-        _addFood(result.food!);
+        final record = await ref.refresh(nutritionRecordProvider.future);
+        await _openMealDialog(record);
       } else {
         await _createFood(result.food);
       }
@@ -464,17 +414,198 @@ class _Macro extends StatelessWidget {
   );
 }
 
+class _MealLogDialog extends ConsumerStatefulWidget {
+  const _MealLogDialog({required this.record, required this.day});
+  final NutritionRecord record;
+  final DateTime day;
+
+  @override
+  ConsumerState<_MealLogDialog> createState() => _MealLogDialogState();
+}
+
+class _MealLogDialogState extends ConsumerState<_MealLogDialog> {
+  late final TextEditingController _query = TextEditingController();
+  late List<Food> _foods = [...widget.record.foods];
+  final Map<String, double> _draft = {};
+  MealType _type = MealType.breakfast;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final terms = _query.text
+        .trim()
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((term) => term.isNotEmpty)
+        .toList();
+    final foods =
+        _foods.where((food) {
+          final name = food.name.toLowerCase();
+          return terms.isNotEmpty && terms.every(name.contains);
+        }).toList()..sort((a, b) {
+          final query = _query.text.trim().toLowerCase();
+          final aStarts = a.name.toLowerCase().startsWith(query);
+          final bStarts = b.name.toLowerCase().startsWith(query);
+          return (bStarts ? 1 : 0).compareTo(aStarts ? 1 : 0);
+        });
+    final draftFoods = _foods
+        .where((food) => _draft.containsKey(food.id))
+        .toList();
+
+    return AlertDialog(
+      title: const Text('Log meal'),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Logging for ${_displayDate(widget.day)}'),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<MealType>(
+                initialValue: _type,
+                decoration: const InputDecoration(
+                  labelText: 'Meal type',
+                  prefixIcon: Icon(Icons.restaurant_outlined),
+                ),
+                items: MealType.values
+                    .map(
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(_mealLabel(value)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _type = value ?? _type),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _query,
+                onChanged: (_) => setState(() {}),
+                autofocus: true,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  labelText: 'Search saved foods',
+                  hintText: 'Try “chicken rice” or part of a name',
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (terms.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Search to find foods to add to this meal.'),
+                )
+              else
+                _Catalog(
+                  query: _query,
+                  foods: foods,
+                  onChanged: () => setState(() {}),
+                  onAdd: (food) => setState(
+                    () =>
+                        _draft.putIfAbsent(food.id, () => _defaultGrams(food)),
+                  ),
+                  hideUntilSearch: true,
+                  showSearch: false,
+                ),
+              if (draftFoods.isNotEmpty) ...[
+                const Divider(height: 24),
+                _MealComposer(
+                  foods: draftFoods,
+                  grams: _draft,
+                  type: _type,
+                  day: widget.day,
+                  saving: _saving,
+                  onTypeChanged: (type) => setState(() => _type = type),
+                  onAmountChanged: (food, grams) =>
+                      setState(() => _draft[food.id] = grams),
+                  onRemove: (food) => setState(() => _draft.remove(food.id)),
+                  onSave: _save,
+                ),
+              ],
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _saving ? null : _addNewFood,
+                icon: const Icon(Icons.add),
+                label: const Text('Add NEW food'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _addNewFood() async {
+    final food = await showDialog<Food>(
+      context: context,
+      builder: (_) => const _FoodDialog(),
+    );
+    if (food == null || !mounted) return;
+    try {
+      setState(() => _saving = true);
+      await ref.read(nutritionRepositoryProvider).createFood(food);
+      final updated = await ref.refresh(nutritionRecordProvider.future);
+      if (mounted) setState(() => _foods = [...updated.foods]);
+    } on AppFailure catch (error) {
+      _failure(context, error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _save() async {
+    if (_draft.isEmpty) return;
+    try {
+      setState(() => _saving = true);
+      await ref
+          .read(nutritionRepositoryProvider)
+          .createMeal(
+            _type,
+            _draft.entries
+                .map(
+                  (entry) =>
+                      MealItemInput(foodId: entry.key, grams: entry.value),
+                )
+                .toList(),
+            consumedAt: _dayAtNow(widget.day),
+          );
+      if (mounted) Navigator.pop(context, true);
+    } on AppFailure catch (error) {
+      _failure(context, error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+}
+
 class _Catalog extends StatelessWidget {
   const _Catalog({
     required this.query,
     required this.foods,
     required this.onChanged,
     required this.onAdd,
+    this.hideUntilSearch = false,
+    this.showSearch = true,
   });
   final TextEditingController query;
   final List<Food> foods;
   final VoidCallback onChanged;
   final ValueChanged<Food> onAdd;
+  final bool hideUntilSearch;
+  final bool showSearch;
   @override
   Widget build(BuildContext context) => Card(
     child: Padding(
@@ -484,16 +615,19 @@ class _Catalog extends StatelessWidget {
         children: [
           Text('Food catalog', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
-          TextField(
-            controller: query,
-            onChanged: (_) => onChanged(),
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              labelText: 'Search foods',
+          if (showSearch)
+            TextField(
+              controller: query,
+              onChanged: (_) => onChanged(),
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                labelText: 'Search foods',
+              ),
             ),
-          ),
           const SizedBox(height: 8),
-          if (foods.isEmpty)
+          if (hideUntilSearch && query.text.trim().isEmpty)
+            const SizedBox.shrink()
+          else if (foods.isEmpty)
             const Padding(
               padding: EdgeInsets.all(12),
               child: Text('No foods match. Create a food to add it.'),
@@ -1074,21 +1208,50 @@ class _Totals {
 }
 
 double _defaultGrams(Food food) => food.servingSizeValue ?? 100;
-DateTime _dateOnly(DateTime value) =>
-    DateTime(value.year, value.month, value.day);
+DateTime _dateOnly(DateTime value) {
+  final local = value.toLocal();
+  return DateTime(local.year, local.month, local.day);
+}
+
 DateTime _dayAtNow(DateTime day) {
   final now = DateTime.now();
   return DateTime(day.year, day.month, day.day, now.hour, now.minute);
 }
 
-String _apiDate(DateTime value) => value.toIso8601String().substring(0, 10);
+String _apiDate(DateTime value) {
+  final local = value.toLocal();
+  final month = local.month.toString().padLeft(2, '0');
+  final day = local.day.toString().padLeft(2, '0');
+  return '${local.year}-$month-$day';
+}
+
 DateTime? _validDate(String value) {
-  final parsed = DateTime.tryParse(value);
-  return parsed != null && _apiDate(parsed) == value ? parsed : null;
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value);
+  if (match == null) return null;
+  final parsed = DateTime(
+    int.parse(match.group(1)!),
+    int.parse(match.group(2)!),
+    int.parse(match.group(3)!),
+  );
+  return _apiDate(parsed) == value ? parsed : null;
 }
 
 String _displayDate(DateTime value) =>
-    '${value.month}/${value.day}/${value.year}';
+    '${value.toLocal().month}/${value.toLocal().day}/${value.toLocal().year}';
+
+String _mealLabel(MealType type) => switch (type) {
+  MealType.breakfast => 'Breakfast',
+  MealType.lunch => 'Lunch',
+  MealType.dinner => 'Dinner',
+  MealType.snack => 'Snack',
+};
+
+IconData _mealIcon(MealType type) => switch (type) {
+  MealType.breakfast => Icons.free_breakfast_outlined,
+  MealType.lunch => Icons.lunch_dining_outlined,
+  MealType.dinner => Icons.dinner_dining_outlined,
+  MealType.snack => Icons.restaurant_outlined,
+};
 void _failure(BuildContext context, AppFailure error) {
   if (context.mounted)
     ScaffoldMessenger.of(

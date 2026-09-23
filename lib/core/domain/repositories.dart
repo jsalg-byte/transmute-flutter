@@ -124,6 +124,16 @@ abstract class SessionRepository {
   Future<List<CompletedSessionSummary>> completedHistory();
 }
 
+abstract class QuickAddRepository {
+  Future<void> create({
+    required String exerciseId,
+    required WeightUnit weightUnit,
+    double? weightKg,
+    int? reps,
+    int? durationSeconds,
+  });
+}
+
 abstract class RecoveryRepository {
   Future<List<RecoveryCheckin>> listCheckins();
   Future<RecoveryCheckin> saveCheckin(RecoveryCheckin checkin);

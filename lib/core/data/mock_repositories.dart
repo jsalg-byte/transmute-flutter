@@ -1973,6 +1973,72 @@ PersonalRecord? _mockPersonalRecord(
   );
 }
 
+class MockQuickAddRepository implements QuickAddRepository {
+  MockQuickAddRepository(this._store);
+  final MockStore _store;
+
+  @override
+  Future<void> create({
+    required String exerciseId,
+    required WeightUnit weightUnit,
+    double? weightKg,
+    int? reps,
+    int? durationSeconds,
+  }) async {
+    final exercise = _store.catalog
+        .where((item) => item.id == exerciseId)
+        .firstOrNull;
+    if (exercise == null) {
+      throw const AppFailure(
+        'exercise_not_found',
+        'That exercise is unavailable.',
+      );
+    }
+    final now = DateTime.now().toUtc();
+    final startedAt = durationSeconds == null
+        ? now
+        : now.subtract(Duration(seconds: durationSeconds));
+    final sessionId = _store.next('quick-session');
+    final exerciseIdInSession = _store.next('quick-session-exercise');
+    _store.completed.insert(
+      0,
+      WorkoutSession(
+        id: sessionId,
+        planId: 'quick-add',
+        planName: 'Quick Add',
+        planDayId: 'quick-add',
+        planDayName: 'Quick Add',
+        status: SessionStatus.completed,
+        startedAt: startedAt,
+        completedAt: now,
+        updatedAt: now,
+        exercises: [
+          SessionExercise(
+            id: exerciseIdInSession,
+            exerciseId: exercise.id,
+            name: exercise.name,
+            muscleGroup: exercise.muscleGroup,
+            sortOrder: 0,
+            targetSets: 1,
+            targetReps: reps ?? 1,
+            sets: [
+              LoggedSet(
+                id: _store.next('quick-set'),
+                sessionExerciseId: exerciseIdInSession,
+                setOrder: 1,
+                weightKg: weightKg ?? 0,
+                reps: reps ?? 0,
+                durationSeconds: durationSeconds,
+                completedAt: now,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class MockSessionRepository implements SessionRepository {
   MockSessionRepository(this._store, {this.failFirstCreateSet = false});
   final MockStore _store;

@@ -534,6 +534,32 @@ class ApiPlanRepository implements PlanRepository {
   }
 }
 
+class ApiQuickAddRepository implements QuickAddRepository {
+  ApiQuickAddRepository(this._dio);
+  final Dio _dio;
+
+  @override
+  Future<void> create({
+    required String exerciseId,
+    required WeightUnit weightUnit,
+    double? weightKg,
+    int? reps,
+    int? durationSeconds,
+  }) async {
+    await _request(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/quick-add',
+        data: {
+          'exerciseId': exerciseId,
+          'weight': weightKg == null ? null : fromKg(weightKg, weightUnit),
+          'reps': reps,
+          'durationSeconds': durationSeconds,
+        },
+      ),
+    );
+  }
+}
+
 class ApiSessionRepository implements SessionRepository {
   ApiSessionRepository(this._dio, this._restStore);
   final Dio _dio;
@@ -1032,9 +1058,9 @@ WorkoutSession _session(
   return WorkoutSession(
     id: info['id'] as String,
     planId: planId,
-    planName: (info['routineName'] as String?) ?? 'Workout',
+    planName: (info['routineName'] as String?) ?? 'Quick Add',
     planDayId: planDayId,
-    planDayName: (info['dayName'] as String?) ?? 'Workout day',
+    planDayName: (info['dayName'] as String?) ?? 'Quick Add',
     status: SessionStatus.values.byName(info['status'] as String),
     startedAt: DateTime.parse(info['startedAt'] as String),
     completedAt: info['endedAt'] == null
@@ -1834,7 +1860,8 @@ NutritionMeal _nutritionMeal(Map<String, dynamic> map) => NutritionMeal(
   foodName: map['name'] as String,
   mealType: MealType.values.byName(map['meal_type'] as String),
   grams: _number(map['quantity']),
-  consumedAt: DateTime.parse(map['consumed_at'] as String),
+  // The API stores instants in UTC; nutrition day grouping is local to the user.
+  consumedAt: DateTime.parse(map['consumed_at'] as String).toLocal(),
   caloriesKcal: _number(map['calories_kcal']),
   proteinG: _number(map['protein_g']),
   carbsG: _number(map['carbs_g']),
@@ -2064,6 +2091,7 @@ LoggedSet _set(Map<String, dynamic> map, WeightUnit weightUnit) => LoggedSet(
   reps: map['reps'] as int,
   completedAt: DateTime.parse(map['createdAt'] as String),
   isWarmup: map['isWarmup'] == true,
+  durationSeconds: (map['durationSeconds'] as num?)?.toInt(),
 );
 PersonalRecord _personalRecord(
   Map<String, dynamic> map,
