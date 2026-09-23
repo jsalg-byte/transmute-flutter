@@ -381,18 +381,25 @@ class _DayHeader extends StatelessWidget {
             alignment: WrapAlignment.center,
             children: [
               _Macro(
-                label: 'Calories',
-                value: '${totals.calories.round()} kcal',
+                label: 'Cals',
+                value: '${totals.calories.round()} cals',
+                icon: Icons.monitor_weight_outlined,
               ),
               _Macro(
                 label: 'Protein',
                 value: '${totals.protein.toStringAsFixed(1)} g',
+                icon: Icons.fitness_center_outlined,
               ),
               _Macro(
                 label: 'Carbs',
                 value: '${totals.carbs.toStringAsFixed(1)} g',
+                icon: Icons.bakery_dining_outlined,
               ),
-              _Macro(label: 'Fat', value: '${totals.fat.toStringAsFixed(1)} g'),
+              _Macro(
+                label: 'Fat',
+                value: '${totals.fat.toStringAsFixed(1)} g',
+                icon: Icons.local_drink_outlined,
+              ),
             ],
           ),
         ],
@@ -402,14 +409,17 @@ class _DayHeader extends StatelessWidget {
 }
 
 class _Macro extends StatelessWidget {
-  const _Macro({required this.label, required this.value});
+  const _Macro({required this.label, required this.value, required this.icon});
   final String label;
   final String value;
+  final IconData icon;
   @override
   Widget build(BuildContext context) => Column(
     children: [
       Text(value, style: Theme.of(context).textTheme.titleMedium),
       Text(label),
+      const SizedBox(height: 4),
+      Icon(icon, size: 18),
     ],
   );
 }
@@ -831,7 +841,7 @@ class _MealTile extends StatelessWidget {
           : const Icon(Icons.restaurant_outlined),
       title: Text(meal.foodName),
       subtitle: Text(
-        '${meal.mealType.name} · ${meal.grams.toStringAsFixed(1)} ${meal.servingSizeUnit == null ? 'servings' : servingUnitLabel(meal.servingSizeUnit!)} · ${meal.caloriesKcal.round()} kcal\nP ${meal.proteinG.toStringAsFixed(1)} · C ${meal.carbsG.toStringAsFixed(1)} · F ${meal.fatG.toStringAsFixed(1)}',
+        '${meal.mealType.name} · ${meal.grams.toStringAsFixed(1)} ${meal.servingSizeUnit == null ? 'servings' : servingUnitLabel(meal.servingSizeUnit!)} · ${meal.caloriesKcal.round()} cals\nP ${meal.proteinG.toStringAsFixed(1)} · C ${meal.carbsG.toStringAsFixed(1)} · F ${meal.fatG.toStringAsFixed(1)}',
       ),
       isThreeLine: true,
       trailing: PopupMenuButton<String>(
