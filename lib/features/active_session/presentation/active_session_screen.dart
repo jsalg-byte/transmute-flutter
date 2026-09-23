@@ -772,9 +772,13 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
             reps,
             isWarmup: false,
           );
-      await ref
-          .read(activeSessionProvider.notifier)
-          .setRest(DateTime.now().toUtc().add(const Duration(seconds: 60)));
+      // Rest-timer persistence is secondary to logging the set. It must not
+      // hold the Log button in its loading state if the server is slow.
+      unawaited(
+        ref
+            .read(activeSessionProvider.notifier)
+            .setRest(DateTime.now().toUtc().add(const Duration(seconds: 60))),
+      );
       if (submission.queued && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

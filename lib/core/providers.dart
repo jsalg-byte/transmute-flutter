@@ -797,7 +797,14 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
             .toList(),
       ),
     );
-    final report = await syncPending();
+    // Do not keep the Log button spinning while a slow server or stalled
+    // refresh request completes. The durable queue and seven-second retry
+    // timer keep the command safe; the first sync attempt may finish in the
+    // background after the optimistic UI has returned.
+    final report = await syncPending().timeout(
+      const Duration(seconds: 8),
+      onTimeout: () => const PendingSetSyncReport(),
+    );
     final remains = (await ref.read(pendingSetStoreProvider).read(userId)).any(
       (item) => item.operationId == queued.operationId,
     );
