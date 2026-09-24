@@ -67,6 +67,24 @@ class _AccessTokenRefreshInterceptor extends QueuedInterceptor {
     }
 
     try {
+      // Several providers can start at once when a route opens (Settings is
+      // one example). If an earlier 401 already refreshed the shared Dio
+      // client, this request must reuse that token rather than attempting a
+      // second refresh with the rotated, now-invalid refresh token.
+      final failedAuthorization =
+          error.requestOptions.headers['Authorization'] as String?;
+      final currentAuthorization =
+          _dio.options.headers['Authorization'] as String?;
+      if (currentAuthorization != null &&
+          currentAuthorization.isNotEmpty &&
+          currentAuthorization != failedAuthorization) {
+        final request = error.requestOptions;
+        request.headers['Authorization'] = currentAuthorization;
+        request.extra[_retried] = true;
+        handler.resolve(await _dio.fetch<dynamic>(request));
+        return;
+      }
+
       final session = await _refresh();
       if (session == null) {
         handler.next(error);
