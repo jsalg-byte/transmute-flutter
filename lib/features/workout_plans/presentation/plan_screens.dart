@@ -429,10 +429,12 @@ class PlanDetailScreen extends ConsumerStatefulWidget {
 
 class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
   String? _dayId;
+  bool _settingActivePlan = false;
   @override
   Widget build(BuildContext context) {
     final plan = ref.watch(planProvider(widget.planId));
     final active = ref.watch(activeSessionProvider).value;
+    final preferences = ref.watch(preferencesProvider);
     return AppShell(
       title: 'Plan details',
       child: plan.when(
@@ -500,6 +502,29 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(value.description!),
                 ),
+              const SizedBox(height: 8),
+              if (preferences.asData?.value.activePlanId == value.id)
+                const Chip(
+                  avatar: Icon(Icons.check_circle_outline),
+                  label: Text('Active workout plan'),
+                )
+              else
+                OutlinedButton.icon(
+                  onPressed: _settingActivePlan
+                      ? null
+                      : () => _setActivePlan(value.id),
+                  icon: const Icon(Icons.playlist_add_check),
+                  label: Text(
+                    _settingActivePlan ? 'Saving…' : 'Set as active plan',
+                  ),
+                ),
+              if (preferences.hasError &&
+                  preferences.asData?.value.activePlanId != value.id)
+                TextButton.icon(
+                  onPressed: () => ref.invalidate(preferencesProvider),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry active plan status'),
+                ),
               const SizedBox(height: 12),
               if (value.days.isEmpty)
                 Expanded(
@@ -558,6 +583,25 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
   void _refresh() {
     ref.invalidate(plansProvider);
     ref.invalidate(planProvider(widget.planId));
+  }
+
+  Future<void> _setActivePlan(String planId) async {
+    setState(() => _settingActivePlan = true);
+    try {
+      await ref.read(preferencesRepositoryProvider).setActivePlan(planId);
+      ref.invalidate(preferencesProvider);
+      ref.invalidate(dailyOverviewProvider);
+      ref.invalidate(dailyRecommendationProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Active workout plan saved.')),
+        );
+      }
+    } on AppFailure catch (error) {
+      if (mounted) _notice(context, error.message);
+    } finally {
+      if (mounted) setState(() => _settingActivePlan = false);
+    }
   }
 
   Future<void> _addDay(WorkoutPlan plan) async {

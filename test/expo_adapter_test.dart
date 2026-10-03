@@ -188,6 +188,49 @@ void main() {
     expect((await store.read())!.access, 'fresh-token');
   });
 
+  test('concurrent unauthorized retries fail instead of hanging', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final store = SecureSessionStore(const FlutterSecureStorage());
+    await store.save(
+      AuthSession(
+        accessToken: 'expired-token',
+        refreshToken: 'refresh-token',
+        expiresAt: DateTime.utc(2026, 8, 20, 13),
+        user: const User(
+          id: 'user-1',
+          username: 'lifter',
+          weightUnit: WeightUnit.lb,
+        ),
+      ),
+    );
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'));
+    var refreshCount = 0;
+    dio.httpClientAdapter = _DynamicAdapter((options) {
+      if (options.path == '/v1/auth/refresh') {
+        refreshCount += 1;
+        return _jsonResponse({
+          'accessToken': 'fresh-token',
+          'refreshToken': 'next-refresh-token',
+          'accessTokenExpiresInSeconds': 3600,
+          'user': {'id': 'user-1', 'username': 'lifter', 'name': 'Lifter'},
+        });
+      }
+      return _jsonResponse({'error': 'Unauthorized'}, statusCode: 401);
+    });
+    configureAccessTokenRefresh(dio, store);
+    dio.options.headers['Authorization'] = 'Bearer expired-token';
+
+    await expectLater(
+      Future.wait([
+        dio.get<void>('/v1/preferences'),
+        dio.get<void>('/v1/plans/plan-1'),
+      ]).timeout(const Duration(seconds: 2)),
+      throwsA(isA<DioException>()),
+    );
+
+    expect(refreshCount, 1);
+  });
+
   test('Arcana adapter unwraps a legacy encoded stage-evidence map', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'));
     dio.httpClientAdapter = _StubAdapter((options) {

@@ -43,7 +43,7 @@ void configureAccessTokenRefresh(Dio dio, SecureSessionStore store) {
   dio.interceptors.add(_AccessTokenRefreshInterceptor(dio, store));
 }
 
-class _AccessTokenRefreshInterceptor extends QueuedInterceptor {
+class _AccessTokenRefreshInterceptor extends Interceptor {
   _AccessTokenRefreshInterceptor(this._dio, this._store);
 
   static const _retried = 'transmute.access-token-refreshed';
