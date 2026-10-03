@@ -1285,11 +1285,22 @@ void _notice(BuildContext context, String message) => ScaffoldMessenger.of(
 ).showSnackBar(SnackBar(content: Text(message)));
 String _formatPrescriptionDuration(int? seconds) => seconds == null
     ? 'time'
+    : seconds >= 3600 && seconds % 3600 == 0
+    ? '${seconds ~/ 3600} hr'
     : seconds >= 60 && seconds % 60 == 0
     ? '${seconds ~/ 60} min'
     : '${seconds}s';
 
-Future<({int sets, int reps, ExerciseTrackingMode mode, int? durationSeconds, double? weight})?> _prescriptionDialog(
+Future<
+  ({
+    int sets,
+    int reps,
+    ExerciseTrackingMode mode,
+    int? durationSeconds,
+    double? weight,
+  })?
+>
+_prescriptionDialog(
   BuildContext context,
   PlanExercise entry,
   WeightUnit unit,
@@ -1310,8 +1321,11 @@ class _PrescriptionDialog extends StatefulWidget {
 class _PrescriptionDialogState extends State<_PrescriptionDialog> {
   late final _sets = TextEditingController(text: '${widget.entry.targetSets}');
   late final _reps = TextEditingController(text: '${widget.entry.targetReps}');
+  late TimedDurationUnit _durationUnit = TimedDurationUnit.forSeconds(
+    widget.entry.targetDurationSeconds,
+  );
   late final _duration = TextEditingController(
-    text: '${widget.entry.targetDurationSeconds ?? 30}',
+    text: _durationValue(widget.entry.targetDurationSeconds ?? 30),
   );
   late final _weight = TextEditingController(
     text: widget.entry.targetWeightKg == null
@@ -1368,19 +1382,53 @@ class _PrescriptionDialogState extends State<_PrescriptionDialog> {
             ),
             TextField(
               controller: _weight,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: InputDecoration(
                 labelText: 'Target weight (${widget.unit.name}, optional)',
               ),
             ),
           ] else
-            TextField(
-              controller: _duration,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Target duration (seconds per set)',
-                suffixText: 'sec',
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _duration,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Target duration per set',
+                      suffixText: _durationUnit.label,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                DropdownButton<TimedDurationUnit>(
+                  value: _durationUnit,
+                  items: TimedDurationUnit.values
+                      .map(
+                        (unit) => DropdownMenuItem(
+                          value: unit,
+                          child: Text(unit.label),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (unit) {
+                    if (unit == null || unit == _durationUnit) return;
+                    final parsed = double.tryParse(_duration.text);
+                    final seconds = parsed == null
+                        ? null
+                        : _durationUnit.toSeconds(parsed);
+                    setState(() {
+                      _durationUnit = unit;
+                      if (seconds != null)
+                        _duration.text = _durationValue(seconds);
+                    });
+                  },
+                ),
+              ],
             ),
         ],
       ),
@@ -1397,25 +1445,35 @@ class _PrescriptionDialogState extends State<_PrescriptionDialog> {
   void _save() {
     final sets = int.tryParse(_sets.text);
     final reps = int.tryParse(_reps.text);
-    final duration = int.tryParse(_duration.text);
+    final durationValue = double.tryParse(_duration.text);
+    final duration = durationValue == null
+        ? null
+        : _durationUnit.toSeconds(durationValue);
     final weight = _weight.text.trim().isEmpty
         ? null
         : double.tryParse(_weight.text);
     if (sets == null || sets < 1 || sets > 20) return;
     if (_mode == ExerciseTrackingMode.reps &&
-        (reps == null || reps < 1 || reps > 50 || (weight != null && weight < 0))) return;
+        (reps == null ||
+            reps < 1 ||
+            reps > 50 ||
+            (weight != null && weight < 0)))
+      return;
     if (_mode == ExerciseTrackingMode.timed &&
-        (duration == null || duration < 1 || duration > 86400)) return;
-    Navigator.pop(
-      context,
-      (
-        sets: sets,
-        reps: reps ?? widget.entry.targetReps,
-        mode: _mode,
-        durationSeconds: _mode == ExerciseTrackingMode.timed ? duration : null,
-        weight: weight,
-      ),
-    );
+        (duration == null || duration < 1 || duration > 86400))
+      return;
+    Navigator.pop(context, (
+      sets: sets,
+      reps: reps ?? widget.entry.targetReps,
+      mode: _mode,
+      durationSeconds: _mode == ExerciseTrackingMode.timed ? duration : null,
+      weight: weight,
+    ));
+  }
+
+  String _durationValue(int seconds) {
+    final value = _durationUnit.fromSeconds(seconds);
+    return _durationUnit.formatValue(value);
   }
 }
 

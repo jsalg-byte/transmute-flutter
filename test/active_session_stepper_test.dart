@@ -60,7 +60,7 @@ void main() {
     await container.read(activeSessionProvider.notifier).discard();
   });
 
-  testWidgets('timed plan exercise logs and displays duration in seconds', (
+  testWidgets('timed plan exercise can log a duration in minutes', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(390, 844));
@@ -73,18 +73,22 @@ void main() {
       ],
     );
     addTearDown(container.dispose);
-    final plan = await container.read(planRepositoryProvider).getPlan('upper-a');
+    final plan = await container
+        .read(planRepositoryProvider)
+        .getPlan('upper-a');
     final day = plan.days.first;
     final entry = day.exercises.first;
-    await container.read(planRepositoryProvider).updatePrescription(
-      plan.id,
-      day.id,
-      entry.id,
-      targetSets: 1,
-      targetReps: entry.targetReps,
-      trackingMode: ExerciseTrackingMode.timed,
-      targetDurationSeconds: 45,
-    );
+    await container
+        .read(planRepositoryProvider)
+        .updatePrescription(
+          plan.id,
+          day.id,
+          entry.id,
+          targetSets: 1,
+          targetReps: entry.targetReps,
+          trackingMode: ExerciseTrackingMode.timed,
+          targetDurationSeconds: 45,
+        );
     final session = await container
         .read(activeSessionProvider.notifier)
         .start(plan.id, day.id);
@@ -110,17 +114,21 @@ void main() {
       tester.widget<TextField>(durationField).decoration?.suffixText,
       'sec',
     );
+    await tester.tap(find.byTooltip('Duration unit').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('min').last);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(durationField);
     await tester.tap(durationField);
-    await tester.enterText(durationField, '55');
+    await tester.enterText(durationField, '2');
     await tester.tap(find.text('Log').first);
     await tester.pumpAndSettle();
 
     final saved = await container
         .read(sessionRepositoryProvider)
         .getSession(session.id);
-    expect(saved.exercises.first.sets.single.durationSeconds, 55);
-    expect(find.text('55 sec'), findsOneWidget);
+    expect(saved.exercises.first.sets.single.durationSeconds, 120);
+    expect(find.text('2 min'), findsOneWidget);
     await container.read(activeSessionProvider.notifier).discard();
   });
 

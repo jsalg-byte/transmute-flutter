@@ -9,6 +9,7 @@ import '../../../core/domain/models.dart';
 import '../../../core/providers.dart';
 import '../../../shared/theme/transmute_palette.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/exercise_video_controller.dart';
 
 /// Body-led exercise discovery. The muscle groups are display groupings over
 /// the documented [Exercise.muscleGroup] metadata; no catalog fields or
@@ -623,9 +624,11 @@ class _ExerciseDemoState extends State<_ExerciseDemo> {
   String? _error;
 
   bool get _isDirectVideo {
+    if (widget.url.startsWith('asset://')) return true;
     final uri = Uri.tryParse(widget.url);
     return uri != null &&
         (uri.path.toLowerCase().endsWith('.mp4') ||
+            uri.path.toLowerCase().endsWith('.webm') ||
             uri.host.toLowerCase().endsWith('firebasestorage.googleapis.com'));
   }
 
@@ -636,7 +639,7 @@ class _ExerciseDemoState extends State<_ExerciseDemo> {
   }
 
   Future<void> _loadVideo() async {
-    final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    final controller = exerciseVideoController(widget.url);
     try {
       await controller.setLooping(true);
       await controller.initialize();

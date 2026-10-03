@@ -13,6 +13,7 @@ import '../../../core/providers.dart';
 import '../../../shared/design_system/design_system.dart';
 import '../../../shared/theme/transmute_palette.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/exercise_video_controller.dart';
 import '../../quick_add/presentation/quick_add_dialog.dart';
 
 class ActiveSessionScreen extends ConsumerWidget {
@@ -1028,7 +1029,12 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
 
   void _addDrafts(int count) {
     for (var index = 0; index < count; index += 1) {
-      _drafts.add(_SetDraft(_nextDraftOrder++));
+      _drafts.add(
+        _SetDraft(
+          _nextDraftOrder++,
+          targetDurationSeconds: widget.exercise.targetDurationSeconds,
+        ),
+      );
     }
   }
 
@@ -1157,6 +1163,19 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 unit: unit,
                 trackingMode: exercise.trackingMode,
                 targetDurationSeconds: exercise.targetDurationSeconds,
+                onDurationUnitChanged: (unit) => setState(() {
+                  final previousSeconds = double.tryParse(
+                    _drafts[index].duration.text.trim(),
+                  );
+                  final seconds = previousSeconds == null
+                      ? null
+                      : _drafts[index].durationUnit.toSeconds(previousSeconds);
+                  _drafts[index].durationUnit = unit;
+                  if (seconds != null) {
+                    final value = unit.fromSeconds(seconds);
+                    _drafts[index].duration.text = unit.formatValue(value);
+                  }
+                }),
                 previous: _previousFor(_drafts[index].order),
                 isSubmitting: identical(_savingDraft, _drafts[index]),
                 disabled: _savingDraft != null,
@@ -1175,7 +1194,13 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 onPressed: _savingDraft != null
                     ? null
                     : () => setState(
-                        () => _drafts.add(_SetDraft(_nextDraftOrder++)),
+                        () => _drafts.add(
+                          _SetDraft(
+                            _nextDraftOrder++,
+                            targetDurationSeconds:
+                                exercise.targetDurationSeconds,
+                          ),
+                        ),
                       ),
                 icon: const Icon(Icons.add),
                 label: const Text('Add Set'),
@@ -1192,12 +1217,14 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     final draft = _drafts[index];
     final previous = _previousFor(draft.order);
     final timed = widget.exercise.trackingMode == ExerciseTrackingMode.timed;
+    final durationValue = double.tryParse(draft.duration.text.trim());
     final duration = timed
-        ? int.tryParse(draft.duration.text.trim()) ??
-              widget.exercise.targetDurationSeconds
+        ? durationValue == null
+              ? widget.exercise.targetDurationSeconds
+              : draft.durationUnit.toSeconds(durationValue)
         : null;
     if (timed && (duration == null || duration < 1 || duration > 86400)) {
-      setState(() => _error = 'Enter a duration from 1 to 86,400 seconds.');
+      setState(() => _error = 'Enter a duration from 1 second to 24 hours.');
       return;
     }
     final weight = draft.weight.text.trim().isEmpty
@@ -1284,12 +1311,15 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   }
 
   Future<void> _edit(LoggedSet set, WeightUnit unit) async {
-    final values = await showModalBottomSheet<({double weight, int reps, int? durationSeconds})>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (_) => _EditSetSheet(set: set, unit: unit),
-    );
+    final values =
+        await showModalBottomSheet<
+          ({double weight, int reps, int? durationSeconds})
+        >(
+          context: context,
+          useSafeArea: true,
+          isScrollControlled: true,
+          builder: (_) => _EditSetSheet(set: set, unit: unit),
+        );
     if (values == null || !mounted) return;
     try {
       await ref
@@ -1321,6 +1351,7 @@ class _EditSetSheetState extends State<_EditSetSheet> {
   late final TextEditingController _weight;
   late final TextEditingController _reps;
   late final TextEditingController _duration;
+  late TimedDurationUnit _durationUnit;
   String? _error;
 
   @override
@@ -1331,8 +1362,14 @@ class _EditSetSheetState extends State<_EditSetSheet> {
         : widget.set.weightKg;
     _weight = TextEditingController(text: value.toStringAsFixed(1));
     _reps = TextEditingController(text: '${widget.set.reps}');
+    _durationUnit = TimedDurationUnit.forSeconds(widget.set.durationSeconds);
+    final durationValue = widget.set.durationSeconds == null
+        ? null
+        : _durationUnit.fromSeconds(widget.set.durationSeconds!);
     _duration = TextEditingController(
-      text: '${widget.set.durationSeconds ?? ''}',
+      text: durationValue == null
+          ? ''
+          : _durationUnit.formatValue(durationValue),
     );
   }
 
@@ -1346,11 +1383,14 @@ class _EditSetSheetState extends State<_EditSetSheet> {
 
   void _save() {
     final timed = widget.set.durationSeconds != null;
-    final duration = int.tryParse(_duration.text);
+    final durationValue = double.tryParse(_duration.text);
+    final duration = durationValue == null
+        ? null
+        : _durationUnit.toSeconds(durationValue);
     final weight = timed ? 0.0 : double.tryParse(_weight.text);
     final reps = timed ? 1 : int.tryParse(_reps.text);
     if (timed && (duration == null || duration < 1 || duration > 86400)) {
-      setState(() => _error = 'Enter a duration from 1 to 86,400 seconds.');
+      setState(() => _error = 'Enter a duration from 1 second to 24 hours.');
       return;
     }
     if (weight == null || weight < 0 || weight > 1000) {
@@ -1361,11 +1401,9 @@ class _EditSetSheetState extends State<_EditSetSheet> {
       setState(() => _error = 'Enter at least 1 rep.');
       return;
     }
-    Navigator.of(context).pop((
-      weight: weight,
-      reps: reps,
-      durationSeconds: duration,
-    ));
+    Navigator.of(
+      context,
+    ).pop((weight: weight, reps: reps, durationSeconds: duration));
   }
 
   @override
@@ -1383,33 +1421,68 @@ class _EditSetSheetState extends State<_EditSetSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (widget.set.durationSeconds != null)
-            TextField(
-              controller: _duration,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _save(),
-              decoration: const InputDecoration(
-                labelText: 'Duration',
-                suffixText: 'sec',
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _duration,
+                    autofocus: true,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _save(),
+                    decoration: InputDecoration(
+                      labelText: 'Duration',
+                      suffixText: _durationUnit.label,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                DropdownButton<TimedDurationUnit>(
+                  value: _durationUnit,
+                  items: TimedDurationUnit.values
+                      .map(
+                        (unit) => DropdownMenuItem(
+                          value: unit,
+                          child: Text(unit.label),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (unit) {
+                    if (unit == null || unit == _durationUnit) return;
+                    final parsed = double.tryParse(_duration.text);
+                    final seconds = parsed == null
+                        ? null
+                        : _durationUnit.toSeconds(parsed);
+                    setState(() {
+                      _durationUnit = unit;
+                      if (seconds != null) {
+                        _duration.text = _durationUnit.formatValue(
+                          _durationUnit.fromSeconds(seconds),
+                        );
+                      }
+                    });
+                  },
+                ),
+              ],
             )
           else
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Edit set ${widget.set.setOrder}',
-                  style: Theme.of(context).textTheme.headlineSmall,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Edit set ${widget.set.setOrder}',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Close set editor',
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close),
-              ),
-            ],
-          ),
+                IconButton(
+                  tooltip: 'Close set editor',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -1651,8 +1724,10 @@ class _ConfettiBurstPainter extends CustomPainter {
 }
 
 class _SetDraft {
-  _SetDraft(this.order);
+  _SetDraft(this.order, {int? targetDurationSeconds})
+    : durationUnit = TimedDurationUnit.forSeconds(targetDurationSeconds);
   final int order;
+  TimedDurationUnit durationUnit;
   final weight = TextEditingController();
   final reps = TextEditingController();
   final duration = TextEditingController();
@@ -1718,6 +1793,7 @@ class _SetDraftRow extends StatelessWidget {
     required this.unit,
     required this.trackingMode,
     required this.targetDurationSeconds,
+    required this.onDurationUnitChanged,
     required this.previous,
     required this.isSubmitting,
     required this.disabled,
@@ -1728,6 +1804,7 @@ class _SetDraftRow extends StatelessWidget {
   final WeightUnit unit;
   final ExerciseTrackingMode trackingMode;
   final int? targetDurationSeconds;
+  final ValueChanged<TimedDurationUnit> onDurationUnitChanged;
   final PreviousPerformance? previous;
   final bool isSubmitting;
   final bool disabled;
@@ -1744,16 +1821,35 @@ class _SetDraftRow extends StatelessWidget {
   String? get _repsPlaceholder =>
       previous == null ? '8' : previous!.reps.toString();
 
-  Widget durationInput() => TransmuteTextField(
-    controller: draft.duration,
-    keyboardType: TextInputType.number,
-    hint: targetDurationSeconds?.toString(),
-    suffixText: 'sec',
-    kind: TransmuteFieldKind.ledger,
-    semanticLabel: 'Set $number, duration in seconds',
-    focusNode: draft.durationFocus,
-    textInputAction: TextInputAction.done,
-    onSubmitted: (_) => onLog(),
+  Widget durationInput() => Row(
+    children: [
+      Expanded(
+        child: TransmuteTextField(
+          controller: draft.duration,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          hint: targetDurationSeconds == null
+              ? null
+              : draft.durationUnit
+                    .fromSeconds(targetDurationSeconds!)
+                    .toString(),
+          suffixText: draft.durationUnit.label,
+          kind: TransmuteFieldKind.ledger,
+          semanticLabel: 'Set $number, duration in ${draft.durationUnit.label}',
+          focusNode: draft.durationFocus,
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) => onLog(),
+        ),
+      ),
+      PopupMenuButton<TimedDurationUnit>(
+        tooltip: 'Duration unit',
+        initialValue: draft.durationUnit,
+        onSelected: onDurationUnitChanged,
+        itemBuilder: (context) => TimedDurationUnit.values
+            .map((unit) => PopupMenuItem(value: unit, child: Text(unit.label)))
+            .toList(),
+        icon: const Icon(Icons.unfold_more),
+      ),
+    ],
   );
 
   @override
@@ -1868,8 +1964,15 @@ String _number(double value) =>
 
 String _formatTimedDuration(int? seconds) {
   if (seconds == null) return '—';
+  final hours = seconds ~/ 3600;
   final minutes = seconds ~/ 60;
   final remaining = seconds % 60;
+  if (hours > 0) {
+    final remainingMinutes = (seconds % 3600) ~/ 60;
+    return remainingMinutes == 0 && remaining == 0
+        ? '$hours hr'
+        : '$hours hr $remainingMinutes min${remaining == 0 ? '' : ' $remaining sec'}';
+  }
   if (minutes == 0) return '$remaining sec';
   return remaining == 0 ? '$minutes min' : '$minutes min $remaining sec';
 }
@@ -2047,7 +2150,7 @@ class _DirectExerciseVideoState extends State<_DirectExerciseVideo> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    _controller = exerciseVideoController(widget.url);
     _initialize();
   }
 

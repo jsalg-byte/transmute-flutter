@@ -2,6 +2,36 @@ import 'dart:typed_data';
 
 enum WeightUnit { kg, lb }
 
+enum TimedDurationUnit {
+  seconds(1, 'sec'),
+  minutes(60, 'min'),
+  hours(3600, 'hr');
+
+  const TimedDurationUnit(this.secondsPerUnit, this.label);
+
+  final int secondsPerUnit;
+  final String label;
+
+  int toSeconds(num value) => (value * secondsPerUnit).round();
+
+  double fromSeconds(int seconds) => seconds / secondsPerUnit;
+
+  String formatValue(double value) {
+    final rounded = value.toStringAsFixed(6);
+    return rounded.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  static TimedDurationUnit forSeconds(int? seconds) {
+    if (seconds != null && seconds >= 3600) {
+      return TimedDurationUnit.hours;
+    }
+    if (seconds != null && seconds >= 60) {
+      return TimedDurationUnit.minutes;
+    }
+    return TimedDurationUnit.seconds;
+  }
+}
+
 enum ThemePalette {
   transmute,
   flameAlchemist,

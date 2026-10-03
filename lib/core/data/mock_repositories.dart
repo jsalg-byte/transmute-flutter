@@ -43,7 +43,20 @@ class MockStore {
       muscleGroup: 'Calves',
       category: 'strength',
     );
-    catalog = [bench, row, press, squat, rdl, calf];
+    final wristCurl = const Exercise(
+      id: 'barbell-wrist-curl',
+      name: 'Barbell Wrist Curl',
+      muscleGroup: 'Arms',
+      category: 'strength',
+    );
+    final reverseCurl = const Exercise(
+      id: 'barbell-reverse-curl',
+      name: 'Barbell Reverse Curl',
+      muscleGroup: 'Arms',
+      category: 'strength',
+      demoUrl: 'asset://assets/reverse_curl.webm',
+    );
+    catalog = [bench, row, press, squat, rdl, calf, wristCurl, reverseCurl];
     final historicalAt = DateTime.now().toUtc().subtract(
       const Duration(days: 4),
     );
@@ -1750,7 +1763,8 @@ class MockPlanRepository implements PlanRepository {
     int? targetDurationSeconds,
     double? targetWeightKg,
   }) async {
-    if (targetSets < 1 || targetSets > 20 ||
+    if (targetSets < 1 ||
+        targetSets > 20 ||
         (trackingMode == ExerciseTrackingMode.reps &&
             (targetReps < 1 || targetReps > 50)) ||
         (trackingMode == ExerciseTrackingMode.timed &&
@@ -2296,8 +2310,7 @@ class MockSessionRepository implements SessionRepository {
     final previous = row.previousPerformance;
     return SetLogResult(
       set: set,
-      personalRecord: isWarmup || previous == null
-          || durationSeconds != null
+      personalRecord: isWarmup || previous == null || durationSeconds != null
           ? null
           : _mockPersonalRecord(
               row.name,

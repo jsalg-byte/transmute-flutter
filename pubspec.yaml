@@ -68,6 +68,7 @@ flutter:
 
   assets:
     - assets/transmute/
+    - assets/reverse_curl.webm
 
   fonts:
     - family: Spectral
