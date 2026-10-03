@@ -6,6 +6,7 @@ import '../../../core/domain/models.dart';
 import '../../../core/domain/recovery.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_tokens.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/recovery_anatomy.dart';
 import '../../../shared/theme/transmute_palette.dart';
@@ -21,6 +22,7 @@ class DashboardScreen extends ConsumerWidget {
     return AppShell(
       title: 'Dashboard',
       child: overview.when(
+        skipLoadingOnRefresh: true,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => _RetryState(
           label: 'Unable to load the workbench.',
@@ -28,6 +30,7 @@ class DashboardScreen extends ConsumerWidget {
         ),
         data: (data) {
           final palette = TransmutePalette.of(context);
+          final compact = MediaQuery.sizeOf(context).width < 600;
           final next = data.plans
               .where((plan) => plan.days.isNotEmpty)
               .map((plan) => (plan: plan, day: plan.days.first))
@@ -36,9 +39,9 @@ class DashboardScreen extends ConsumerWidget {
             padding: EdgeInsets.zero,
             children: [
               const _Eyebrow('THE WORKBENCH'),
-              const SizedBox(height: 16),
+              SizedBox(height: compact ? 8 : 16),
               Text('Welcome back.', style: _DashboardText.welcome(palette)),
-              const SizedBox(height: 18),
+              SizedBox(height: compact ? 12 : 18),
               _InkButton(
                 label: 'Quick Add Workout',
                 onPressed: () => showDialog<void>(
@@ -46,18 +49,19 @@ class DashboardScreen extends ConsumerWidget {
                   builder: (_) => const _QuickAddDialog(),
                 ),
               ),
-              const SizedBox(height: 38),
+              SizedBox(height: compact ? 20 : 38),
               Divider(color: palette.ink, height: 1),
-              const SizedBox(height: 28),
+              SizedBox(height: compact ? 18 : 28),
               _SessionPrescription(active: data.activeSession, next: next),
               const SizedBox(height: 20),
               Divider(color: palette.ink, height: 1),
-              const SizedBox(height: 28),
+              SizedBox(height: compact ? 16 : 28),
               const _Eyebrow('RECOVERY'),
-              const SizedBox(height: 22),
-              _RecoveryPanel(groups: data.readiness),
-              const SizedBox(height: 36),
+              SizedBox(height: compact ? 12 : 22),
+              _RecoveryPanel(groups: data.readiness, compact: compact),
+              SizedBox(height: compact ? 24 : 36),
               recent.when(
+                skipLoadingOnRefresh: true,
                 loading: () => const _InlineLoading(),
                 error: (_, __) => _DailyPrompt(
                   title: 'Recent record unavailable',
@@ -194,13 +198,25 @@ class _QuickAddDialogState extends ConsumerState<_QuickAddDialog> {
         ),
         FilledButton(
           onPressed: _saving ? null : () => _save(unit, cardio),
-          child: _saving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Save Workout'),
+          child: Semantics(
+            liveRegion: _saving,
+            label: _saving ? 'Saving workout' : 'Save workout',
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Opacity(
+                  opacity: _saving ? 0 : 1,
+                  child: const Text('Save Workout'),
+                ),
+                if (_saving)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+          ),
         ),
       ],
     );
@@ -232,7 +248,13 @@ class _QuickAddDialogState extends ConsumerState<_QuickAddDialog> {
           );
       ref.invalidate(historyProvider);
       ref.invalidate(recentRecordProvider);
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        Navigator.pop(context);
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Workout added to your record.')),
+        );
+      }
     } on AppFailure catch (error) {
       if (mounted) {
         setState(() => _saving = false);
@@ -573,8 +595,9 @@ class _DailyPrompt extends StatelessWidget {
 }
 
 class _RecoveryPanel extends StatelessWidget {
-  const _RecoveryPanel({required this.groups});
+  const _RecoveryPanel({required this.groups, required this.compact});
   final List<RecoveryGroup> groups;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -597,8 +620,8 @@ class _RecoveryPanel extends StatelessWidget {
         if (constraints.maxWidth < 560) {
           return Column(
             children: [
-              RecoveryAnatomy(groups: groups),
-              const SizedBox(height: 22),
+              RecoveryAnatomy(groups: groups, compact: compact),
+              SizedBox(height: compact ? 12 : 22),
               details,
             ],
           );
@@ -792,9 +815,17 @@ class _WeekSummary extends StatelessWidget {
               session.completedAt!.isAfter(since),
         )
         .length;
-    return Text(
-      'THIS WEEK  ·  $total ${total == 1 ? 'SESSION' : 'SESSIONS'} COMPLETED',
-      style: _DashboardText.timing(TransmutePalette.of(context)),
+    return AnimatedSwitcher(
+      duration: DesignMotion.duration(context, DesignMotion.instant),
+      switchInCurve: DesignMotion.curve,
+      switchOutCurve: DesignMotion.curve,
+      transitionBuilder: (child, animation) =>
+          FadeTransition(opacity: animation, child: child),
+      child: Text(
+        'THIS WEEK  ·  $total ${total == 1 ? 'SESSION' : 'SESSIONS'} COMPLETED',
+        key: ValueKey(total),
+        style: _DashboardText.timing(TransmutePalette.of(context)),
+      ),
     );
   }
 }

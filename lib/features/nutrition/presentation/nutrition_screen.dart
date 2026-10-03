@@ -6,6 +6,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_tokens.dart';
 import '../../../shared/widgets/app_shell.dart';
 
 class NutritionScreen extends ConsumerStatefulWidget {
@@ -25,6 +26,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
     return AppShell(
       title: 'Nutrition',
       child: record.when(
+        skipLoadingOnRefresh: true,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => Center(
           child: ElevatedButton(
@@ -146,7 +148,14 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
       context: context,
       builder: (_) => _MealLogDialog(record: record, day: _day),
     );
-    if (saved == true) ref.invalidate(nutritionRecordProvider);
+    if (saved == true) {
+      ref.invalidate(nutritionRecordProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Meal logged.')));
+      }
+    }
   }
 
   Future<void> _createFood([Food? seed]) async {
@@ -362,10 +371,21 @@ class _DayHeader extends StatelessWidget {
                 icon: const Icon(Icons.chevron_left),
               ),
               Expanded(
-                child: Text(
-                  _displayDate(day),
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
+                child: AnimatedSwitcher(
+                  duration: DesignMotion.duration(
+                    context,
+                    DesignMotion.instant,
+                  ),
+                  switchInCurve: DesignMotion.curve,
+                  switchOutCurve: DesignMotion.curve,
+                  transitionBuilder: (child, animation) =>
+                      FadeTransition(opacity: animation, child: child),
+                  child: Text(
+                    _displayDate(day),
+                    key: ValueKey(_dateOnly(day)),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
               ),
               IconButton(
@@ -375,32 +395,47 @@ class _DayHeader extends StatelessWidget {
               ),
             ],
           ),
-          Wrap(
-            spacing: 16,
-            runSpacing: 6,
-            alignment: WrapAlignment.center,
-            children: [
-              _Macro(
-                label: 'Cals',
-                value: '${totals.calories.round()} cals',
-                icon: Icons.monitor_weight_outlined,
-              ),
-              _Macro(
-                label: 'Protein',
-                value: '${totals.protein.toStringAsFixed(1)} g',
-                icon: Icons.fitness_center_outlined,
-              ),
-              _Macro(
-                label: 'Carbs',
-                value: '${totals.carbs.toStringAsFixed(1)} g',
-                icon: Icons.bakery_dining_outlined,
-              ),
-              _Macro(
-                label: 'Fat',
-                value: '${totals.fat.toStringAsFixed(1)} g',
-                icon: Icons.local_drink_outlined,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 500;
+              final macros = [
+                _Macro(
+                  label: 'Cals',
+                  value: '${totals.calories.round()} cals',
+                  icon: Icons.monitor_weight_outlined,
+                  compact: compact,
+                ),
+                _Macro(
+                  label: 'Protein',
+                  value: '${totals.protein.toStringAsFixed(1)} g',
+                  icon: Icons.fitness_center_outlined,
+                  compact: compact,
+                ),
+                _Macro(
+                  label: 'Carbs',
+                  value: '${totals.carbs.toStringAsFixed(1)} g',
+                  icon: Icons.bakery_dining_outlined,
+                  compact: compact,
+                ),
+                _Macro(
+                  label: 'Fat',
+                  value: '${totals.fat.toStringAsFixed(1)} g',
+                  icon: Icons.local_drink_outlined,
+                  compact: compact,
+                ),
+              ];
+              if (!compact) {
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 6,
+                  alignment: WrapAlignment.center,
+                  children: macros,
+                );
+              }
+              return Row(
+                children: [for (final macro in macros) Expanded(child: macro)],
+              );
+            },
           ),
         ],
       ),
@@ -409,19 +444,67 @@ class _DayHeader extends StatelessWidget {
 }
 
 class _Macro extends StatelessWidget {
-  const _Macro({required this.label, required this.value, required this.icon});
+  const _Macro({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.compact = false,
+  });
   final String label;
   final String value;
   final IconData icon;
-  @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Text(value, style: Theme.of(context).textTheme.titleMedium),
-      Text(label),
-      const SizedBox(height: 4),
-      Icon(icon, size: 18),
-    ],
+  final bool compact;
+
+  Widget _value(BuildContext context, TextStyle? style) => AnimatedSwitcher(
+    duration: DesignMotion.duration(context, DesignMotion.instant),
+    switchInCurve: DesignMotion.curve,
+    switchOutCurve: DesignMotion.curve,
+    transitionBuilder: (child, animation) =>
+        FadeTransition(opacity: animation, child: child),
+    child: Text(
+      value,
+      key: ValueKey(value),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+    ),
   );
+
+  @override
+  Widget build(BuildContext context) {
+    if (compact) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _value(context, Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 3),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 15),
+              const SizedBox(width: 3),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+    return Column(
+      children: [
+        _value(context, Theme.of(context).textTheme.titleMedium),
+        Text(label),
+        const SizedBox(height: 4),
+        Icon(icon, size: 18),
+      ],
+    );
+  }
 }
 
 class _MealLogDialog extends ConsumerStatefulWidget {
@@ -735,7 +818,25 @@ class _MealComposer extends StatelessWidget {
               const SizedBox(height: 10),
               ElevatedButton(
                 onPressed: saving ? null : onSave,
-                child: Text(saving ? 'Saving…' : 'Log meal'),
+                child: Semantics(
+                  liveRegion: saving,
+                  label: saving ? 'Saving meal' : 'Log meal',
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Opacity(
+                        opacity: saving ? 0 : 1,
+                        child: const Text('Log meal'),
+                      ),
+                      if (saving)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ],

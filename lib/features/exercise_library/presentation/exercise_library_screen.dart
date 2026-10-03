@@ -75,6 +75,7 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
           const SizedBox(height: 20),
           Expanded(
             child: results.when(
+              skipLoadingOnRefresh: true,
               loading: () => const _LibraryLoading(),
               error: (_, __) => _LibraryError(
                 onRetry: () =>
@@ -203,7 +204,7 @@ class _BodyMusclePicker extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxWidth < 620;
+            final compact = constraints.maxWidth < 480;
             final anatomy = _Anatomy(
               selectedGroups: selectedGroups,
               availableGroups: availableGroups,
@@ -214,6 +215,40 @@ class _BodyMusclePicker extends StatelessWidget {
               availableGroups: availableGroups,
               onGroupToggled: onGroupToggled,
             );
+            if (compact) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Muscle groups',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Filter movements by the muscles you want to train.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: palette.muted),
+                  ),
+                  const SizedBox(height: 10),
+                  controls,
+                  const Divider(height: 20),
+                  Theme(
+                    data: Theme.of(
+                      context,
+                    ).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      childrenPadding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      title: const Text('Browse by body map'),
+                      subtitle: const Text('Tap a region to filter'),
+                      children: [Center(child: anatomy)],
+                    ),
+                  ),
+                ],
+              );
+            }
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -227,18 +262,13 @@ class _BodyMusclePicker extends StatelessWidget {
                   style: TextStyle(color: palette.muted),
                 ),
                 const SizedBox(height: 16),
-                if (compact) ...[
-                  Center(child: anatomy),
-                  const SizedBox(height: 16),
-                  controls,
-                ] else
-                  Row(
-                    children: [
-                      Expanded(child: Center(child: anatomy)),
-                      const SizedBox(width: 24),
-                      Expanded(child: controls),
-                    ],
-                  ),
+                Row(
+                  children: [
+                    Expanded(child: Center(child: anatomy)),
+                    const SizedBox(width: 24),
+                    Expanded(child: controls),
+                  ],
+                ),
               ],
             );
           },
@@ -389,17 +419,26 @@ class _AnatomyRegionTapTarget extends StatelessWidget {
   final ValueChanged<String> onGroupToggled;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    selected: selected,
-    label: '${selected ? 'Deselect' : 'Select'} $group muscle group',
-    hint: enabled ? null : 'No exercises in this group',
-    child: GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: enabled ? () => onGroupToggled(group) : null,
-      child: const SizedBox(width: 48, height: 48),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${selected ? 'Deselect' : 'Select'} $group muscle group',
+      hint: enabled ? null : 'No exercises in this group',
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          splashColor: palette.oxide.withValues(alpha: .16),
+          highlightColor: palette.oxide.withValues(alpha: .08),
+          onTap: enabled ? () => onGroupToggled(group) : null,
+          child: const SizedBox(width: 48, height: 48),
+        ),
+      ),
+    );
+  }
 }
 
 class _MuscleGroupControls extends StatelessWidget {

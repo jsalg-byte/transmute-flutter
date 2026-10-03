@@ -69,6 +69,7 @@ class _SessionBody extends ConsumerStatefulWidget {
 
 class _SessionBodyState extends ConsumerState<_SessionBody> {
   late int _movementIndex;
+  final _compactScrollController = ScrollController();
 
   @override
   void initState() {
@@ -81,11 +82,41 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session.id != widget.session.id) {
       _movementIndex = _resumeMovementIndex(widget.session);
+      _scrollCompactToTop(animate: false);
     } else if (_movementIndex >= widget.session.exercises.length) {
       _movementIndex = widget.session.exercises.isEmpty
           ? 0
           : widget.session.exercises.length - 1;
+      _scrollCompactToTop();
     }
+  }
+
+  @override
+  void dispose() {
+    _compactScrollController.dispose();
+    super.dispose();
+  }
+
+  void _selectMovement(int index) {
+    if (index == _movementIndex) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _movementIndex = index);
+    _scrollCompactToTop();
+  }
+
+  void _scrollCompactToTop({bool animate = true}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_compactScrollController.hasClients) return;
+      if (!animate || MediaQuery.sizeOf(context).width >= 1024) {
+        _compactScrollController.jumpTo(0);
+        return;
+      }
+      _compactScrollController.animateTo(
+        0,
+        duration: DesignMotion.duration(context, DesignMotion.standard),
+        curve: DesignMotion.curve,
+      );
+    });
   }
 
   @override
@@ -98,6 +129,7 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     return LayoutBuilder(
       builder: (context, box) {
         final wide = box.maxWidth >= 1024;
+        final compact = box.maxWidth < 600;
         final selected = session.exercises.isEmpty
             ? null
             : session.exercises[_movementIndex];
@@ -108,7 +140,7 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
             : TransmuteButton(
                 onPressed: isFinalMovement
                     ? () => _finish(context, ref, session)
-                    : () => setState(() => _movementIndex += 1),
+                    : () => _selectMovement(_movementIndex + 1),
                 icon: isFinalMovement
                     ? Icons.check_circle_outline
                     : Icons.arrow_forward,
@@ -125,13 +157,11 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                 movementCount: session.exercises.length,
                 onPrevious: _movementIndex == 0
                     ? null
-                    : () => setState(() => _movementIndex -= 1),
+                    : () => _selectMovement(_movementIndex - 1),
                 onNext: _movementIndex == session.exercises.length - 1
                     ? null
-                    : () => setState(() => _movementIndex += 1),
-                onStepSelected: (index) => setState(() {
-                  _movementIndex = index;
-                }),
+                    : () => _selectMovement(_movementIndex + 1),
+                onStepSelected: _selectMovement,
                 onAdd: () => _chooseExercise(context, ref, session),
                 action: action!,
               )
@@ -141,13 +171,11 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                 movementCount: session.exercises.length,
                 onPrevious: _movementIndex == 0
                     ? null
-                    : () => setState(() => _movementIndex -= 1),
+                    : () => _selectMovement(_movementIndex - 1),
                 onNext: _movementIndex == session.exercises.length - 1
                     ? null
-                    : () => setState(() => _movementIndex += 1),
-                onStepSelected: (index) => setState(() {
-                  _movementIndex = index;
-                }),
+                    : () => _selectMovement(_movementIndex + 1),
+                onStepSelected: _selectMovement,
                 onAdd: () => _chooseExercise(context, ref, session),
                 action: action!,
               );
@@ -163,8 +191,8 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                         session.planName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 26,
+                        style: TextStyle(
+                          fontSize: compact ? 22 : 26,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -203,6 +231,7 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                           child: movement,
                         )
                       : ListView(
+                          controller: _compactScrollController,
                           padding: const EdgeInsets.only(bottom: 112),
                           children: [movement],
                         ),
@@ -513,9 +542,8 @@ class _MovementStepper extends StatelessWidget {
       footer: TextButton.icon(
         style: compact
             ? TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                minimumSize: const Size(0, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
               )
             : null,
         onPressed: onAdd,
@@ -718,10 +746,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 style: compact
-                    ? TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      )
+                    ? TextButton.styleFrom(minimumSize: const Size(0, 44))
                     : null,
                 onPressed: _savingDraft != null
                     ? null
@@ -756,6 +781,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
       setState(() => _error = 'Enter at least 1 rep.');
       return;
     }
+    FocusScope.of(context).unfocus();
     setState(() {
       _savingDraft = draft;
       _setIdsBeforeSave = widget.exercise.sets.map((set) => set.id).toSet();
@@ -1166,9 +1192,13 @@ class _SetDraft {
   final int order;
   final weight = TextEditingController();
   final reps = TextEditingController();
+  final weightFocus = FocusNode();
+  final repsFocus = FocusNode();
   void dispose() {
     weight.dispose();
     reps.dispose();
+    weightFocus.dispose();
+    repsFocus.dispose();
   }
 }
 
@@ -1222,11 +1252,11 @@ class _SetDraftRow extends StatelessWidget {
   final VoidCallback onLog;
 
   String? get _weightPlaceholder => previous == null
-      ? null
-      : '${_number(unit == WeightUnit.lb ? previous!.weightKg * 2.2046226218 : previous!.weightKg)} ${unit.name}';
+      ? 'e.g. 20 ${unit.name}'
+      : 'Last ${_number(unit == WeightUnit.lb ? previous!.weightKg * 2.2046226218 : previous!.weightKg)} ${unit.name}';
 
   String? get _repsPlaceholder =>
-      previous == null ? null : '${previous!.reps} reps';
+      previous == null ? 'e.g. 8 reps' : 'Last ${previous!.reps} reps';
 
   @override
   Widget build(BuildContext context) {
@@ -1237,6 +1267,9 @@ class _SetDraftRow extends StatelessWidget {
       hint: _weightPlaceholder,
       kind: TransmuteFieldKind.ledger,
       semanticLabel: 'Set $number, Weight (${unit.name})',
+      focusNode: draft.weightFocus,
+      textInputAction: TextInputAction.next,
+      onSubmitted: (_) => draft.repsFocus.requestFocus(),
     );
     Widget repsInput() => TransmuteTextField(
       controller: draft.reps,
@@ -1244,22 +1277,37 @@ class _SetDraftRow extends StatelessWidget {
       hint: _repsPlaceholder,
       kind: TransmuteFieldKind.ledger,
       semanticLabel: 'Set $number, Reps',
+      focusNode: draft.repsFocus,
+      textInputAction: TextInputAction.done,
+      onSubmitted: (_) => onLog(),
     );
     final logButton = SizedBox(
       width: compact ? 64 : 72,
       child: ElevatedButton(
         onPressed: disabled ? null : onLog,
         style: ElevatedButton.styleFrom(
-          minimumSize: Size(compact ? 64 : 72, compact ? 40 : 48),
+          minimumSize: Size(compact ? 64 : 72, 48),
           padding: EdgeInsets.zero,
         ),
-        child: isSubmitting
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Text('Log', maxLines: 1, softWrap: false),
+        child: Semantics(
+          liveRegion: isSubmitting,
+          label: isSubmitting ? 'Saving set $number' : 'Log set $number',
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Opacity(
+                opacity: isSubmitting ? 0 : 1,
+                child: const Text('Log', maxLines: 1, softWrap: false),
+              ),
+              if (isSubmitting)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+        ),
       ),
     );
     return Padding(
@@ -1564,6 +1612,7 @@ class _RestTimer extends ConsumerStatefulWidget {
 class _RestTimerState extends ConsumerState<_RestTimer> {
   Timer? _ticker;
   var _open = false;
+  var _autoOpened = false;
   var _clearingExpired = false;
   @override
   void initState() {
@@ -1577,7 +1626,10 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
     if (deadline != null && !deadline.isAfter(DateTime.now().toUtc())) {
       if (_clearingExpired) return;
       _clearingExpired = true;
-      setState(() => _open = false);
+      setState(() {
+        _open = false;
+        _autoOpened = false;
+      });
       await ref.read(activeSessionProvider.notifier).setRest(null);
       return;
     }
@@ -1596,6 +1648,7 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
     if (oldWidget.session.restEndsAt != widget.session.restEndsAt &&
         widget.session.restEndsAt != null) {
       _open = true;
+      _autoOpened = true;
     }
   }
 
@@ -1608,10 +1661,12 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
     final label =
         '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
     final palette = TransmutePalette.of(context);
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    final expanded = _open && !(compact && _autoOpened);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOut,
-      width: _open ? 224 : 112,
+      duration: DesignMotion.duration(context, DesignMotion.standard),
+      curve: DesignMotion.curve,
+      width: expanded ? (compact ? 190 : 224) : (compact ? 180 : 112),
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: palette.ink,
@@ -1624,7 +1679,7 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
           ),
         ],
       ),
-      child: _open
+      child: expanded
           ? Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1643,10 +1698,13 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                     ),
                     IconButton(
                       tooltip: 'Minimize rest timer',
-                      onPressed: () => setState(() => _open = false),
+                      onPressed: () => setState(() {
+                        _open = false;
+                        _autoOpened = false;
+                      }),
                       constraints: const BoxConstraints.tightFor(
-                        width: 36,
-                        height: 36,
+                        width: 44,
+                        height: 44,
                       ),
                       padding: EdgeInsets.zero,
                       icon: Icon(Icons.close, color: palette.raised, size: 20),
@@ -1659,9 +1717,8 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                       Expanded(
                         child: TextButton(
                           style: TextButton.styleFrom(
-                            minimumSize: const Size(0, 36),
+                            minimumSize: const Size(0, 44),
                             padding: const EdgeInsets.symmetric(horizontal: 2),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           onPressed: () => _start(duration),
                           child: Text(
@@ -1671,13 +1728,13 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                         ),
                       ),
                     SizedBox(
-                      width: 32,
-                      height: 36,
+                      width: 40,
+                      height: 44,
                       child: IconButton(
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints.tightFor(
-                          width: 32,
-                          height: 36,
+                          width: 40,
+                          height: 44,
                         ),
                         tooltip: 'Custom rest',
                         onPressed: _custom,
@@ -1689,13 +1746,13 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                       ),
                     ),
                     SizedBox(
-                      width: 32,
-                      height: 36,
+                      width: 40,
+                      height: 44,
                       child: IconButton(
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints.tightFor(
-                          width: 32,
-                          height: 36,
+                          width: 40,
+                          height: 44,
                         ),
                         tooltip: 'Reset rest timer',
                         onPressed: deadline == null
@@ -1704,7 +1761,12 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                                 await ref
                                     .read(activeSessionProvider.notifier)
                                     .setRest(null);
-                                if (mounted) setState(() => _open = false);
+                                if (mounted) {
+                                  setState(() {
+                                    _open = false;
+                                    _autoOpened = false;
+                                  });
+                                }
                               },
                         icon: Icon(
                           Icons.restart_alt,
@@ -1718,18 +1780,45 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
               ],
             )
           : Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(
-                  tooltip: 'Open rest timer',
-                  onPressed: () => setState(() => _open = true),
-                  icon: Icon(Icons.timer_outlined, color: palette.gold),
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: IconButton(
+                    tooltip:
+                        'Open rest timer${deadline == null ? '' : ', $label remaining'}',
+                    onPressed: () => setState(() {
+                      _open = true;
+                      _autoOpened = false;
+                    }),
+                    padding: EdgeInsets.zero,
+                    icon: Icon(Icons.timer_outlined, color: palette.gold),
+                  ),
                 ),
-                VerticalDivider(color: palette.divider, width: 1),
-                IconButton(
-                  tooltip: 'Start 60 second rest',
-                  onPressed: () => _start(60),
-                  icon: Icon(Icons.play_arrow, color: palette.gold),
+                Expanded(
+                  child: Text(
+                    deadline == null ? 'Rest' : label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: palette.raised,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: IconButton(
+                    tooltip: deadline == null
+                        ? 'Start 60 second rest'
+                        : 'Restart 60 second rest',
+                    onPressed: () => _start(60),
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      deadline == null ? Icons.play_arrow : Icons.restart_alt,
+                      color: palette.gold,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1738,7 +1827,10 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
 
   Future<void> _start(int seconds) async {
     _clearingExpired = false;
-    setState(() => _open = true);
+    setState(() {
+      _open = true;
+      _autoOpened = false;
+    });
     await ref
         .read(activeSessionProvider.notifier)
         .setRest(DateTime.now().toUtc().add(Duration(seconds: seconds)));

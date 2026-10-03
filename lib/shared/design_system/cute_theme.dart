@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../theme/transmute_palette.dart';
+import 'design_tokens.dart';
 
 /// Palette sampled from the supplied pastel reference:
 /// #F29191, #F7ADAD, #B1E5E6, and #CCFBFA.
@@ -354,6 +355,7 @@ ThemeData _buildCuteTheme({bool colorBlindSafe = false}) {
     extensions: [
       customStyles,
       TransmutePalette.cutePastel(colorBlindSafe: colorBlindSafe),
+      DesignTokens.soft,
     ],
     appBarTheme: AppBarTheme(
       backgroundColor: surface,
@@ -364,6 +366,47 @@ ThemeData _buildCuteTheme({bool colorBlindSafe = false}) {
       surfaceTintColor: Colors.transparent,
       titleTextStyle: textTheme.titleLarge,
       iconTheme: IconThemeData(color: ink),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: panel,
+      indicatorColor: colorBlindSafe
+          ? CuteColorBlindColors.accent.withValues(alpha: .45)
+          : secondary,
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return textTheme.labelSmall?.copyWith(
+          color: selected ? primary : mutedInk,
+        );
+      }),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(color: selected ? primary : mutedInk, size: 24);
+      }),
+    ),
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: surface,
+      indicatorColor: colorBlindSafe
+          ? CuteColorBlindColors.accent.withValues(alpha: .45)
+          : secondary,
+      selectedIconTheme: IconThemeData(color: primary, size: 24),
+      unselectedIconTheme: IconThemeData(color: mutedInk, size: 24),
+      selectedLabelTextStyle: textTheme.labelSmall?.copyWith(color: primary),
+      unselectedLabelTextStyle: textTheme.labelSmall?.copyWith(color: mutedInk),
+    ),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) return mutedInk;
+        return states.contains(WidgetState.selected) ? onPastel : panel;
+      }),
+      trackColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) {
+          return accent.withValues(alpha: .35);
+        }
+        return states.contains(WidgetState.selected)
+            ? primary
+            : accent.withValues(alpha: .65);
+      }),
+      trackOutlineColor: WidgetStatePropertyAll(accent),
     ),
     cardTheme: CardThemeData(
       color: panel,

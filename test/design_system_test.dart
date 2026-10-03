@@ -54,11 +54,58 @@ void main() {
             greaterThanOrEqualTo(44),
           );
           expect(theme.textTheme.titleLarge!.fontFamily, 'Spectral');
+          expect(theme.textTheme.bodyMedium, isNotNull);
+          expect(theme.colorScheme.surface, isNot(Colors.transparent));
+          expect(
+            theme.navigationBarTheme.backgroundColor,
+            TransmutePalette.forPalette(palette, brightness).raised,
+          );
+          expect(theme.navigationRailTheme.selectedIconTheme, isNotNull);
+          expect(theme.switchTheme.trackColor, isNotNull);
         }
       }
     }
     expect(DesignTokens.ledger.lerp(DesignTokens.soft, .5).radius, 8);
+    expect(DesignTokens.soft.rowMinHeight, greaterThanOrEqualTo(56));
+    expect(DesignTokens.soft.panelElevation, greaterThan(0));
+    expect(DesignTokens.soft.lerp(DesignTokens.ledger, .5).focusWidth, 2);
   });
+
+  testWidgets(
+    'shared row and state panel expose meaningful accessible states',
+    (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(
+        host(
+          Column(
+            children: [
+              TransmuteListRow(
+                title: 'Workout plan',
+                subtitle: 'Three movements',
+                leading: const Icon(Icons.fitness_center),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => taps++,
+              ),
+              const TransmuteStatePanel(
+                kind: TransmuteStateKind.empty,
+                title: 'Nothing logged yet',
+                message: 'Add a record to get started.',
+              ),
+            ],
+          ),
+        ),
+      );
+      expect(
+        find.bySemanticsLabel('Workout plan, Three movements'),
+        findsOneWidget,
+      );
+      expect(find.text('Nothing logged yet'), findsOneWidget);
+      await tester.tap(find.text('Workout plan'));
+      await tester.pump();
+      expect(taps, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   test('cute custom style tokens retain the sampled pastel language', () {
     final styles = CuteCustomStyles.defaults();

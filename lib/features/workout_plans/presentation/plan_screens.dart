@@ -15,28 +15,47 @@ class PlanListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final plans = ref.watch(plansProvider);
     final active = ref.watch(activeSessionProvider);
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return AppShell(
       title: 'Workout plans',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Workout plans',
-                  style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+          if (compact)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Plans', style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 6),
+                ElevatedButton.icon(
+                  onPressed: () => _newPlan(context, ref),
+                  icon: const Icon(Icons.add),
+                  label: const Text('New plan'),
                 ),
-              ),
-              ElevatedButton.icon(
-                onPressed: () => _newPlan(context, ref),
-                icon: const Icon(Icons.add),
-                label: const Text('New plan'),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Workout plans',
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _newPlan(context, ref),
+                  icon: const Icon(Icons.add),
+                  label: const Text('New plan'),
+                ),
+              ],
+            ),
           const SizedBox(height: 12),
           active.when(
+            skipLoadingOnRefresh: true,
             data: (session) => session == null
                 ? const SizedBox()
                 : Card(
@@ -60,6 +79,7 @@ class PlanListScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           Expanded(
             child: plans.when(
+              skipLoadingOnRefresh: true,
               data: (items) => _PlanList(items: items),
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (_, _) => _Error(
@@ -239,7 +259,25 @@ class _PlanCreationDialogState extends ConsumerState<_PlanCreationDialog> {
         const SizedBox(height: 12),
         ElevatedButton(
           onPressed: _generating ? null : _generate,
-          child: Text(_generating ? 'Building plan…' : 'Generate plan'),
+          child: Semantics(
+            liveRegion: _generating,
+            label: _generating ? 'Building plan' : 'Generate plan',
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Opacity(
+                  opacity: _generating ? 0 : 1,
+                  child: const Text('Generate plan'),
+                ),
+                if (_generating)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+          ),
         ),
         TextButton(
           onPressed: _generating
@@ -302,45 +340,75 @@ class _PlanList extends StatelessWidget {
             : box.maxWidth >= 560
             ? 2
             : 1;
+        final compact = box.maxWidth < 560;
+        final gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: count,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          mainAxisExtent: compact ? 142 : null,
+          childAspectRatio: compact ? 1 : 1.5,
+        );
         return GridView.builder(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: count,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.35,
-          ),
+          gridDelegate: gridDelegate,
           itemCount: items.length,
           itemBuilder: (_, index) {
             final plan = items[index];
             return Card(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(compact ? 12 : 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      plan.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 6),
-                    Expanded(
-                      child: Text(
-                        plan.description ??
-                            'A repeatable training prescription.',
+                    if (compact) ...[
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              plan.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          IconButton.filledTonal(
+                            tooltip: 'Open ${plan.name}',
+                            onPressed: () => context.go('/plans/${plan.id}'),
+                            icon: const Icon(Icons.arrow_forward),
+                          ),
+                        ],
                       ),
-                    ),
-                    Text(
-                      '${plan.days.length} training days · ${plan.exerciseCount} exercises',
-                      style: const TextStyle(color: Color(0xff605D63)),
-                    ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: ElevatedButton(
-                        onPressed: () => context.go('/plans/${plan.id}'),
-                        child: const Text('Open plan'),
+                      const Spacer(),
+                      Text(
+                        '${plan.days.length} days · ${plan.exerciseCount} exercises',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
-                    ),
+                    ] else ...[
+                      Text(
+                        plan.name,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 6),
+                      Expanded(
+                        child: Text(
+                          plan.description ??
+                              'A repeatable training prescription.',
+                        ),
+                      ),
+                      Text(
+                        '${plan.days.length} training days · ${plan.exerciseCount} exercises',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: ElevatedButton(
+                          onPressed: () => context.go('/plans/${plan.id}'),
+                          child: const Text('Open plan'),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -368,6 +436,7 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
     return AppShell(
       title: 'Plan details',
       child: plan.when(
+        skipLoadingOnRefresh: true,
         data: (value) {
           if (value.days.isNotEmpty &&
               !value.days.any((day) => day.id == _dayId))

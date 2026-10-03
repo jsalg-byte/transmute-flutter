@@ -1,91 +1,52 @@
-# Transmute Flutter demo architecture
+# Architecture
 
-## Locked technical decisions
+This repository is the Flutter client for Transmute's existing Expo/Fastify `/v1` API. The code is organized as a compact layered app, not as fully separated feature-local data/domain/presentation packages.
 
-- Flutter stable `3.44.6` and bundled Dart `3.12.2`, pinned through FVM and
-  recorded in `.fvmrc` when implementation begins. This was the latest stable
-  SDK version verified from the [Flutter SDK archive](https://docs.flutter.dev/install/archive)
-  on 2026-08-11.
-- `go_router` for routes and guards.
-- Riverpod for application state and dependency injection.
-- Dio for HTTP, interceptor-based auth, and retry classification.
-- Freezed and `json_serializable` for immutable DTO/domain models.
-- `flutter_secure_storage` for credentials; `shared_preferences` only for
-  non-sensitive visual preferences if one is added later.
-- No Drift/Isar in this scope. The API is authoritative; active-session
-  recovery is server-backed. A small secure credential cache is sufficient.
-- Material 3 with the exact custom tokens in `UI_SPEC.md`.
+## Layers and modules
 
-## Project layout
+- `lib/app/app.dart` boots `MaterialApp.router`, defines the `GoRouter` route table and auth redirects, and selects the active `ThemeData`.
+- `lib/core/domain/` contains shared immutable models, repository interfaces, domain calculations, and recovery logic. `AppFailure` is the user-facing repository error type.
+- `lib/core/providers.dart` is the Riverpod composition root: it selects mock/API repositories, configures network and storage services, and owns shared async providers and controllers.
+- `lib/core/api/api_repositories.dart` implements the repository interfaces over Dio and maps the actual `/v1` payloads into app models. `lib/core/data/mock_repositories.dart` implements the same interfaces against in-memory fixtures.
+- `lib/core/data/pending_set_sync.dart` contains the durable pending-set queue and ordered idempotent replay.
+- `lib/features/<feature>/presentation/` contains routed screens and their feature-specific UI/state interactions. Feature screens call providers or repositories through Riverpod, not Dio directly.
+- `lib/shared/` contains the responsive `AppShell`, reusable widgets, theme palettes, and the original and Cute Pastel design systems.
 
-```text
-lib/
-  app/
-    app.dart
-    router.dart
-    theme/
-    responsive/
-  core/
-    api/
-    auth/
-    errors/
-    persistence/
-    utilities/
-  features/
-    authentication/{data,domain,presentation}/
-    workout_plans/{data,domain,presentation}/
-    active_session/{data,domain,presentation}/
-    workout_history/{data,domain,presentation}/
-  shared/
-    widgets/
-    models/
-test/
-integration_test/
-```
+## State and dependencies
 
-Each feature has repositories/interfaces in domain, repository implementations
-and DTO mapping in data, and widgets/controllers/providers in presentation.
-Widgets must never call Dio or secure storage directly.
+The app starts under `ProviderScope`. `repositoryModeProvider` reads `TRANSMUTE_REPOSITORY_MODE` once (`mock` by default, `api` for the live service); each repository provider supplies either a mock or API implementation behind the same domain interface. HTTP configuration is in `dioProvider`; API mode requires `TRANSMUTE_API_BASE_URL`, and `/` resolves to the browser's current origin.
 
-## Dependency flow
+Riverpod `FutureProvider` and family providers own most read state (plans, history, nutrition, progress, goals, and details). Notifiers own longer-lived state and mutations where sequencing matters: `AuthController`, `ActiveSessionController`, `ArcanaController`, and local theme controllers. Mutations generally update or invalidate the relevant providers after repository success.
 
-```mermaid
-flowchart LR
-  W["Widgets/routes"] --> P["Riverpod controllers/providers"]
-  P --> R["Repository interfaces"]
-  R --> M["Mock repositories"]
-  R --> A["Dio API repositories"]
-  A --> S["Session store / API contract"]
-```
+## API and authentication
 
-`RepositoryMode` is selected once during app bootstrap from dart defines and
-injected through Riverpod. Feature code depends on repository interfaces, never
-checks environment variables or switches between HTTP/mock branches itself.
+`ApiAuthRepository` logs in/registers through `/v1/auth/*`, stores access/refresh credentials, and restores a cached session using `/v1/me` or `/v1/auth/refresh`. `AuthController` starts restoration when first created and publishes loading, signed-out, or signed-in state. Login and registration then load the saved weight unit from preferences when available.
 
-## State ownership
+The shared Dio instance attaches the access token and uses `_AccessTokenRefreshInterceptor` for one-time 401 recovery. Concurrent requests can receive 401 together: before refreshing, the interceptor checks whether another request already replaced Dio's shared authorization header and retries with that token. `_request` converts Dio failures into `AppFailure` with status and retryability. API JSON parsing and model construction stay in the API repositories; keep mappings aligned to the verified service contract.
 
-| Concern | Owner |
-| --- | --- |
-| Access/refresh tokens | `AuthRepository` + secure session store. |
-| Route protection | Router redirect derived from auth provider. |
-| Plan/catalog/history reads | Async Riverpod providers keyed by query/entity ID. |
-| Mutating active session | `ActiveSessionController`; it is the sole place for optimistic set updates and query invalidation. |
-| Rest countdown display | View provider derived from persisted `restEndsAt` plus injected clock. |
-| Network configuration | Bootstrap/config provider; never a widget constant. |
+## Persistence
 
-## Testing contract
+- The server is authoritative for user account data, plans, sessions, and records.
+- `flutter_secure_storage` backs API credentials, the user-scoped pending-set queue, per-session rest deadlines, and device-local Cute Pastel/accessibility toggles. The demo login uses a separate credential namespace.
+- Mock repository data is in-memory fixture state. There is no general local database or shared-preferences persistence layer in the current app.
+- A rest timer is stored as an absolute UTC deadline and rendered from that deadline, rather than persisted as a ticking counter.
 
-- Unit-test domain unit conversion, timer deadline calculation, state
-  transitions, DTO mapping, and error classification.
-- Widget-test route guards, form validation, optimistic set rollback, dialogs,
-  and responsive navigation at all three breakpoints.
-- Integration-test mock mode for the full plan-to-history loop.
-- Run API repository tests against fixtures/contract responses; do not require a
-  live production service in normal CI.
+## Navigation and shell
 
-## Production boundaries
+`GoRouter` and `_RouterRefresh` in `lib/app/app.dart` hold the route table and refresh redirects when `AuthController` changes. Signed-out users are sent to `/`; signed-in users are directed from public entry routes to the dashboard or welcome flow. Most feature routes are top-level; `/friends/sessions/:sessionId`, `/plans/:planId`, and `/history/:sessionId[/share]` are nested detail routes. The design library route is debug-only.
 
-No secret, database credential, or service token enters a Flutter build. API
-base URL and repository mode are public configuration only. The demo API
-contract is standalone; connecting the legacy Expo API requires an explicit
-adapter, rather than an undocumented collection of compatibility fallbacks.
+Feature pages use `AppShell` from `lib/shared/widgets/app_shell.dart`. It presents bottom navigation below 600dp, a navigation rail from 600–1023dp, and a desktop header/navigation plus scroll surface from 1024dp upward. Keep route additions in `app.dart` and add their navigation affordance to the shell when appropriate.
+
+## Workout and session flow
+
+Plan screens read plans through `plansProvider`/`planProvider` and mutate through `PlanRepository`. The dashboard combines plan/preferences data, active-session state, history, and other records into overview cards. Beginning a planned workout calls `ActiveSessionController.start(planId, planDayId)`, which delegates to `SessionRepository.startSession`; the API adapter creates the server session using its plan-day ID, then fetches canonical session detail.
+
+`ActiveSessionController` is the sole owner of active-session mutations. It loads the server's active session, restores pending device-local sets, and exposes add/remove exercise, set update/delete, rest, completion, and discard operations. If the API advertises offline set replay, a validated set is first queued in secure storage with a UUID operation ID and shown as pending. Retries run in order with that same ID; server acknowledgement refreshes canonical session detail. Completion is blocked while sets remain unsynced. Without that API capability, set creation uses the direct request path.
+
+Quick Add uses a separate `QuickAddRepository` and dashboard flow to create an independent workout record; it does not start or alter the selected workout plan's active session. Completed history is read through `SessionRepository` and invalidated after completion/deletion.
+
+## Shared repositories and services
+
+The domain interfaces in `lib/core/domain/repositories.dart` are the boundary for plans, sessions, Quick Add, preferences, nutrition, progress, recovery, fasting, goals, planning, Arcana, friends, and auth. For an existing feature, add or extend its contract there, implement both API and mock versions, register/supply it through `providers.dart`, then connect the feature screen. Put reusable visual components or theme tokens in `lib/shared`; put calculations independent of Flutter in `lib/core/domain`.
+
+Further details: [API contract](API_CONTRACT.md), [state transitions](STATE_TRANSITIONS.md), [domain model](DOMAIN_MODEL.md), [design system](DESIGN_SYSTEM.md), and [deployment](DEPLOYMENT.md).

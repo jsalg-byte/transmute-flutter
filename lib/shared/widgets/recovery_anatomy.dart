@@ -8,11 +8,17 @@ import '../design_system/cute_theme.dart';
 /// Renders the same anatomical paths used by the Expo client. The asset files
 /// retain named placeholders so readiness can color individual muscle regions.
 class RecoveryAnatomy extends StatelessWidget {
-  const RecoveryAnatomy({super.key, required this.groups, this.templateLoader});
+  const RecoveryAnatomy({
+    super.key,
+    required this.groups,
+    this.templateLoader,
+    this.compact = false,
+  });
 
   final List<RecoveryGroup> groups;
   @visibleForTesting
   final Future<List<String>>? templateLoader;
+  final bool compact;
 
   static final Future<List<String>> _templates = Future.wait([
     rootBundle.loadString('assets/transmute/muscle-front.svg'),
@@ -24,7 +30,10 @@ class RecoveryAnatomy extends StatelessWidget {
     future: templateLoader ?? _templates,
     builder: (context, snapshot) {
       if (!snapshot.hasData) {
-        return const SizedBox(width: 176, height: 224);
+        return SizedBox(
+          width: compact ? 128 : 176,
+          height: compact ? 168 : 224,
+        );
       }
       final colorBlindSafe =
           Theme.of(context).extension<CuteCustomStyles>()?.colorBlindSafe ??
@@ -39,7 +48,7 @@ class RecoveryAnatomy extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
-              height: 224,
+              height: compact ? 168 : 224,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -52,6 +61,7 @@ class RecoveryAnatomy extends StatelessWidget {
                         colorBlindSafe: colorBlindSafe,
                       ),
                     ),
+                    compact: compact,
                   ),
                   const SizedBox(width: 4),
                   _BodySvg(
@@ -63,12 +73,13 @@ class RecoveryAnatomy extends StatelessWidget {
                         colorBlindSafe: colorBlindSafe,
                       ),
                     ),
+                    compact: compact,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-            _RecoveryLegend(colorBlindSafe: colorBlindSafe),
+            SizedBox(height: compact ? 4 : 8),
+            _RecoveryLegend(colorBlindSafe: colorBlindSafe, compact: compact),
           ],
         ),
       );
@@ -77,12 +88,16 @@ class RecoveryAnatomy extends StatelessWidget {
 }
 
 class _BodySvg extends StatelessWidget {
-  const _BodySvg({required this.svg});
+  const _BodySvg({required this.svg, this.compact = false});
   final String svg;
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) =>
-      SvgPicture.string(svg, width: 112, height: 224);
+  Widget build(BuildContext context) => SvgPicture.string(
+    svg,
+    width: compact ? 84 : 112,
+    height: compact ? 168 : 224,
+  );
 }
 
 Map<String, Color> _regionColors(
@@ -176,14 +191,15 @@ String _applyColors(
 }
 
 class _RecoveryLegend extends StatelessWidget {
-  const _RecoveryLegend({required this.colorBlindSafe});
+  const _RecoveryLegend({required this.colorBlindSafe, this.compact = false});
   final bool colorBlindSafe;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Wrap(
     alignment: WrapAlignment.center,
-    spacing: 10,
-    runSpacing: 6,
+    spacing: compact ? 6 : 10,
+    runSpacing: compact ? 4 : 6,
     children: [
       _RecoveryLegendItem(
         icon: Icons.pause_circle_filled,

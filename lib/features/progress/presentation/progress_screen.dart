@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_tokens.dart';
 import '../../../shared/widgets/app_shell.dart';
 
 class ProgressScreen extends ConsumerStatefulWidget {
@@ -28,6 +29,7 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
     return AppShell(
       title: 'Progress',
       child: record.when(
+        skipLoadingOnRefresh: true,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => Center(
           child: ElevatedButton(
@@ -70,16 +72,27 @@ class _ProgressScreenState extends ConsumerState<ProgressScreen> {
             ElevatedButton.icon(
               onPressed: _saving ? null : _addPhotos,
               icon: const Icon(Icons.add_a_photo_outlined),
-              label: Text(
-                _saving && _uploadTotal > 1
-                    ? 'Uploading $_uploadedCount of $_uploadTotal…'
-                    : _saving
-                    ? 'Uploading…'
-                    : 'Add photos',
-              ),
+              label: Text(_saving ? 'Uploading…' : 'Add photos'),
             ),
           ],
         ),
+        if (_saving && _uploadTotal > 0) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            liveRegion: true,
+            label: 'Uploading progress photos',
+            value: '$_uploadedCount of $_uploadTotal uploaded',
+            child: LinearProgressIndicator(
+              value: _uploadedCount / _uploadTotal,
+              minHeight: 3,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$_uploadedCount of $_uploadTotal photos uploaded',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         const SizedBox(height: 8),
         const Text(
           'Index visual check-ins by day, alongside the completed training evidence that belongs to them.',
@@ -451,7 +464,9 @@ class _Calendar extends StatelessWidget {
               '${_date(date)}${hasPhoto ? ', progress photo' : ''}${hasSession ? ', training session' : ''}',
           child: InkWell(
             onTap: () => onSelect(date),
-            child: Container(
+            child: AnimatedContainer(
+              duration: DesignMotion.duration(context, DesignMotion.instant),
+              curve: DesignMotion.curve,
               margin: const EdgeInsets.all(2),
               decoration: BoxDecoration(
                 color: DateUtils.isSameDay(selected, date)
@@ -460,21 +475,23 @@ class _Calendar extends StatelessWidget {
                 border: Border.all(color: Theme.of(context).dividerColor),
               ),
               child: Padding(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(4),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '$day',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 2),
                     Wrap(
-                      spacing: 3,
+                      spacing: 2,
                       children: [
-                        if (hasPhoto) const Icon(Icons.photo, size: 14),
+                        if (hasPhoto) const Icon(Icons.photo, size: 11),
                         if (hasSession)
-                          const Icon(Icons.fitness_center, size: 14),
+                          const Icon(Icons.fitness_center, size: 11),
                       ],
                     ),
                   ],
@@ -535,14 +552,25 @@ class _Calendar extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            SizedBox(
-              height: 330,
-              child: GridView.count(
-                crossAxisCount: 7,
-                childAspectRatio: 0.92,
-                physics: const NeverScrollableScrollPhysics(),
-                children: cells,
-              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final rowCount = (cells.length / 7).ceil();
+                final cellWidth = constraints.maxWidth / 7;
+                final cellHeight = (cellWidth * .88).clamp(38.0, 52.0);
+                final height = rowCount * cellHeight;
+                return SizedBox(
+                  height: height,
+                  child: GridView.builder(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 7,
+                      mainAxisExtent: cellHeight,
+                    ),
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: cells.length,
+                    itemBuilder: (_, index) => cells[index],
+                  ),
+                );
+              },
             ),
           ],
         ),

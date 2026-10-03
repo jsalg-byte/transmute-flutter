@@ -19,15 +19,24 @@ Style and palette are independent. The prototype is not a saved account setting.
 | Layer | Source | Responsibility |
 | --- | --- | --- |
 | Color | `lib/shared/theme/transmute_palette.dart` | Existing semantic colors, selected by the saved palette and brightness. |
-| Geometry | `lib/shared/design_system/design_tokens.dart` | Shape, border width, insets, control minimum size, spacing. |
-| Theme | `lib/shared/design_system/transmute_theme.dart` | One ThemeData factory for the app and preview, including Spectral typography. |
-| Components | `lib/shared/design_system/components.dart` | Reusable presentation and accessible control states. |
+| Geometry and motion | `lib/shared/design_system/design_tokens.dart` | Shape, spacing scale, control/row minimum sizes, elevation, focus width, and reduced-motion-aware duration helpers. |
+| Theme | `lib/shared/design_system/transmute_theme.dart` | Explicit semantic Material roles, complete Spectral/editorial + sans body typography, and shared component themes. |
+| Components | `lib/shared/design_system/components.dart` | Reusable panels, list rows, state panels, and accessible control states. |
 | Features | `lib/features/` | Data, validation, async actions, controller lifetime, and navigation. |
 
 Import `shared/design_system/design_system.dart` from feature screens. Do not
 branch a screen on palette/style or copy the catalog's mock data into a feature.
 Read semantic colors through `TransmutePalette.of(context)` and geometry through
 `DesignTokens.of(context)` when composing additional shared widgets.
+
+The default Ledger style keeps Transmute's sharp, printed-record surfaces and
+Spectral display headings; body and control text use the platform sans family.
+Soft geometry is an alternate style preset, and Cute Pastel injects the same
+soft geometry tokens so shared widgets remain coherent when that preference is
+active. Use `DesignMotion.duration(context, DesignMotion.standard)` for custom
+transitions so system reduced-motion settings can shorten them to zero. Prefer
+Material's built-in pressed/focus/disabled behavior for controls over bespoke
+screen-local animations.
 
 ## Components
 
@@ -45,6 +54,14 @@ Read semantic colors through `TransmutePalette.of(context)` and geometry through
   boundary callbacks, and can pass `onStepSelected` for direct step jumps. The
   title scales down to preserve the existing one-line movement layout; semantics
   always expose the full title and step position.
+- `TransmuteListRow`: shared touch-sized title/subtitle rows with optional icons,
+  trailing content, tap behavior, and a single accessible name.
+- `TransmuteStatePanel`: consistent loading, empty, error, and success treatment;
+  errors are announced as a live region and every state has text, not color alone.
+
+Panels and controls take their shape, spacing, focus, and disabled states from
+the active `ThemeData`; new feature screens should compose these shared parts
+rather than set local colors or radii for common patterns.
 
 ```dart
 TransmutePanel(

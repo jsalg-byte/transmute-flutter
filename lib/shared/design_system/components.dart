@@ -17,13 +17,167 @@ class TransmutePanel extends StatelessWidget {
   final EdgeInsetsGeometry? margin;
 
   @override
-  Widget build(BuildContext context) => Card(
-    margin: margin,
-    child: Padding(
-      padding: padding ?? EdgeInsets.all(DesignTokens.of(context).panelPadding),
-      child: child,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final tokens = DesignTokens.of(context);
+    return Card(
+      margin: margin,
+      child: Padding(
+        padding: padding ?? EdgeInsets.all(tokens.panelPadding),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// A compact, consistently aligned row for navigation or a selectable item.
+/// Null [onTap] produces a genuinely non-interactive row.
+class TransmuteListRow extends StatelessWidget {
+  const TransmuteListRow({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.leading,
+    this.trailing,
+    this.onTap,
+    this.semanticLabel,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+  final String? semanticLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    return Semantics(
+      button: onTap != null,
+      label: semanticLabel ?? [title, ?subtitle].join(', '),
+      child: ExcludeSemantics(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(
+              DesignTokens.of(context).radius,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: DesignTokens.of(context).rowMinHeight,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: DesignSpace.md,
+                  vertical: DesignSpace.sm,
+                ),
+                child: Row(
+                  children: [
+                    if (leading case final leadingWidget?) ...[
+                      IconTheme(
+                        data: IconThemeData(color: palette.muted, size: 22),
+                        child: leadingWidget,
+                      ),
+                      const SizedBox(width: DesignSpace.md),
+                    ],
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          if (subtitle != null) ...[
+                            const SizedBox(height: DesignSpace.xs),
+                            Text(
+                              subtitle!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: palette.muted),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (trailing case final trailingWidget?) ...[
+                      const SizedBox(width: DesignSpace.md),
+                      trailingWidget,
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum TransmuteStateKind { loading, empty, error, success }
+
+/// Shared treatment for async, empty, and recovery states inside a feature.
+class TransmuteStatePanel extends StatelessWidget {
+  const TransmuteStatePanel({
+    super.key,
+    required this.kind,
+    required this.title,
+    this.message,
+    this.action,
+  });
+
+  final TransmuteStateKind kind;
+  final String title;
+  final String? message;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final palette = TransmutePalette.of(context);
+    final (icon, color) = switch (kind) {
+      TransmuteStateKind.loading => (null, colors.primary),
+      TransmuteStateKind.empty => (Icons.inbox_outlined, palette.muted),
+      TransmuteStateKind.error => (Icons.error_outline, colors.error),
+      TransmuteStateKind.success => (Icons.check_circle_outline, palette.ready),
+    };
+    return Semantics(
+      liveRegion: kind == TransmuteStateKind.error,
+      child: TransmutePanel(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (kind == TransmuteStateKind.loading)
+              CircularProgressIndicator(color: color)
+            else
+              Icon(icon, size: 28, color: color),
+            const SizedBox(height: DesignSpace.md),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            if (message != null) ...[
+              const SizedBox(height: DesignSpace.xs),
+              Text(
+                message!,
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: palette.muted),
+              ),
+            ],
+            if (action != null) ...[
+              const SizedBox(height: DesignSpace.lg),
+              action!,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 enum TransmuteButtonKind { primary, secondary, quiet, destructive }
@@ -136,6 +290,9 @@ class TransmuteTextField extends StatelessWidget {
     this.keyboardType,
     this.onChanged,
     this.inputFormatters,
+    this.focusNode,
+    this.textInputAction,
+    this.onSubmitted,
   });
   final TextEditingController? controller;
   final String? label;
@@ -147,6 +304,9 @@ class TransmuteTextField extends StatelessWidget {
   final TextInputType? keyboardType;
   final ValueChanged<String>? onChanged;
   final List<TextInputFormatter>? inputFormatters;
+  final FocusNode? focusNode;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -156,9 +316,12 @@ class TransmuteTextField extends StatelessWidget {
       label: semanticLabel,
       child: TextField(
         controller: controller,
+        focusNode: focusNode,
         enabled: enabled,
         keyboardType: keyboardType,
+        textInputAction: textInputAction,
         onChanged: onChanged,
+        onSubmitted: onSubmitted,
         inputFormatters: inputFormatters,
         decoration: InputDecoration(
           labelText: label,

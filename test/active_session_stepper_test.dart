@@ -6,6 +6,57 @@ import 'package:transmute_flutter/core/providers.dart';
 import 'package:transmute_flutter/features/active_session/presentation/active_session_screen.dart';
 
 void main() {
+  testWidgets('mobile set entry labels values and advances keyboard focus', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await container
+        .read(activeSessionProvider.notifier)
+        .start('upper-a', 'upper-a-day-1');
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const ActiveSessionScreen()),
+        GoRoute(path: '/dashboard', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/plans', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/session', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/history', builder: (_, _) => const SizedBox()),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final fields = find.byType(TextField);
+    expect(fields, findsNWidgets(6));
+    final weight = tester.widget<TextField>(fields.at(0));
+    final reps = tester.widget<TextField>(fields.at(1));
+    expect(weight.decoration?.hintText, startsWith('Last '));
+    expect(
+      weight.decoration?.hintText,
+      anyOf(endsWith(' lb'), endsWith(' kg')),
+    );
+    expect(reps.decoration?.hintText, startsWith('Last '));
+    expect(reps.decoration?.hintText, endsWith(' reps'));
+    expect(weight.textInputAction, TextInputAction.next);
+    expect(reps.textInputAction, TextInputAction.done);
+
+    await tester.ensureVisible(fields.at(0));
+    await tester.tap(fields.at(0));
+    await tester.enterText(fields.at(0), '95');
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    await tester.pump();
+    expect(tester.widget<TextField>(fields.at(1)).focusNode!.hasFocus, isTrue);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await container.read(activeSessionProvider.notifier).discard();
+  });
+
   testWidgets(
     'active workout shows one movement and steps to the next movement',
     (tester) async {
@@ -37,7 +88,6 @@ void main() {
       expect(find.text('Upper strength'), findsOneWidget);
       expect(find.text('Chest-supported row'), findsNothing);
       expect(find.text('Next Movement'), findsOneWidget);
-
       await tester.tap(find.byTooltip('Start 60 second rest'));
       await tester.pump();
 
