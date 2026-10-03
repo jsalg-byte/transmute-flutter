@@ -420,6 +420,8 @@ class ApiPlanRepository implements PlanRepository {
     String planExerciseId, {
     required int targetSets,
     required int targetReps,
+    ExerciseTrackingMode trackingMode = ExerciseTrackingMode.reps,
+    int? targetDurationSeconds,
     double? targetWeightKg,
   }) async {
     final unit = _recordWeightUnit(await _record());
@@ -429,6 +431,8 @@ class ApiPlanRepository implements PlanRepository {
         data: {
           'targetSets': targetSets,
           'targetReps': targetReps,
+          'trackingMode': trackingMode.name,
+          'targetDurationSeconds': targetDurationSeconds,
           'targetWeight': targetWeightKg == null
               ? null
               : fromKg(targetWeightKg, unit),
@@ -716,6 +720,7 @@ class ApiSessionRepository implements SessionRepository {
     double weightKg,
     int reps, {
     bool isWarmup = false,
+    int? durationSeconds,
     String? clientOperationId,
   }) async {
     final sessionId = await _activeId();
@@ -731,8 +736,9 @@ class ApiSessionRepository implements SessionRepository {
         '/v1/sessions/$sessionId/sets',
         data: {
           'exerciseId': sessionExerciseId,
-          'weight': fromKg(weightKg, weightUnit),
-          'reps': reps,
+          if (durationSeconds == null) 'weight': fromKg(weightKg, weightUnit),
+          if (durationSeconds == null) 'reps': reps,
+          'durationSeconds': ?durationSeconds,
           'isWarmup': isWarmup,
           'clientOperationId': ?clientOperationId,
         },
@@ -755,6 +761,7 @@ class ApiSessionRepository implements SessionRepository {
     double weightKg,
     int reps, {
     bool isWarmup = false,
+    int? durationSeconds,
   }) async {
     final exerciseId = _setExercise[id];
     if (exerciseId == null)
@@ -775,8 +782,9 @@ class ApiSessionRepository implements SessionRepository {
         '/v1/sets/$id',
         data: {
           'exerciseId': exerciseId,
-          'weight': fromKg(weightKg, weightUnit),
-          'reps': reps,
+          if (durationSeconds == null) 'weight': fromKg(weightKg, weightUnit),
+          if (durationSeconds == null) 'reps': reps,
+          'durationSeconds': ?durationSeconds,
           'isWarmup': isWarmup,
         },
       ),
@@ -1029,6 +1037,10 @@ List<WorkoutPlan> _plans(Map<String, dynamic> record, WeightUnit weightUnit) =>
                 sortOrder: entry['sortOrder'] as int,
                 targetSets: (entry['targetSets'] as num?)?.toInt() ?? 3,
                 targetReps: (entry['targetReps'] as num?)?.toInt() ?? 10,
+                trackingMode: ExerciseTrackingMode.values.byName(
+                  (entry['trackingMode'] as String?) ?? 'reps',
+                ),
+                targetDurationSeconds: (entry['targetDurationSeconds'] as num?)?.toInt(),
                 targetWeightKg: entry['targetWeight'] == null
                     ? null
                     : toKg(_number(entry['targetWeight']), weightUnit),
@@ -1102,6 +1114,10 @@ WorkoutSession _session(
         sortOrder: 0,
         targetSets: (row['targetSets'] as num?)?.toInt() ?? 3,
         targetReps: (row['targetReps'] as num?)?.toInt() ?? 10,
+        trackingMode: ExerciseTrackingMode.values.byName(
+          (row['trackingMode'] as String?) ?? 'reps',
+        ),
+        targetDurationSeconds: (row['targetDurationSeconds'] as num?)?.toInt(),
         targetWeightKg: row['targetWeight'] == null
             ? null
             : toKg(_number(row['targetWeight']), weightUnit),
@@ -1959,6 +1975,7 @@ SharedWorkoutSet _sharedWorkoutSet(Map<String, dynamic> map) =>
       reps: map['reps'] as int,
       weight: map['weight'] == null ? null : _number(map['weight']),
       isWarmup: map['isWarmup'] == true,
+      durationSeconds: (map['durationSeconds'] as num?)?.toInt(),
     );
 FriendRequest _friendRequest(Map<String, dynamic> map) => FriendRequest(
   id: map['id'] as String,

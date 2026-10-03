@@ -39,6 +39,8 @@ void main() {
                     'targetSets': 3,
                     'targetReps': 8,
                     'targetWeight': '61.25',
+                    'trackingMode': 'timed',
+                    'targetDurationSeconds': 45,
                     'demoUrl': 'https://media.example.test/bench.gif',
                     'demoSourceName': 'Verified exercise source',
                   },
@@ -56,6 +58,11 @@ void main() {
     expect(plan.name, 'Strength');
     expect(plan.days.single.name, 'Push');
     expect(plan.days.single.exercises.single.targetWeightKg, 61.25);
+    expect(
+      plan.days.single.exercises.single.trackingMode,
+      ExerciseTrackingMode.timed,
+    );
+    expect(plan.days.single.exercises.single.targetDurationSeconds, 45);
     expect(
       plan.days.single.exercises.single.exercise.demoUrl,
       'https://media.example.test/bench.gif',
@@ -143,6 +150,16 @@ void main() {
 
       expect(postedSet!['weight'], 135);
       expect(result.set.weightKg, closeTo(61.235, .001));
+
+      await repository.createSet(
+        'entry-1',
+        0,
+        1,
+        durationSeconds: 45,
+      );
+      expect(postedSet!['durationSeconds'], 45);
+      expect(postedSet!.containsKey('reps'), isFalse);
+      expect(postedSet!.containsKey('weight'), isFalse);
     },
   );
 

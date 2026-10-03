@@ -37,6 +37,39 @@ void main() {
     expect(result.personalRecord?.kind.name, 'estimatedOneRepMax');
   });
 
+  test('timed prescriptions carry their target into session set records', () async {
+    final store = MockStore();
+    final plans = MockPlanRepository(store);
+    final plan = await plans.getPlan('upper-a');
+    final day = plan.days.first;
+    final entry = day.exercises.first;
+    await plans.updatePrescription(
+      plan.id,
+      day.id,
+      entry.id,
+      targetSets: 2,
+      targetReps: entry.targetReps,
+      trackingMode: ExerciseTrackingMode.timed,
+      targetDurationSeconds: 45,
+    );
+    final session = await MockSessionRepository(store).startSession(
+      plan.id,
+      day.id,
+    );
+    final exercise = session.exercises.first;
+    expect(exercise.trackingMode, ExerciseTrackingMode.timed);
+    expect(exercise.targetDurationSeconds, 45);
+
+    final result = await MockSessionRepository(store).createSet(
+      exercise.id,
+      0,
+      1,
+      durationSeconds: 55,
+    );
+    expect(result.set.durationSeconds, 55);
+    expect(result.personalRecord, isNull);
+  });
+
   test('mock plan builder creates a day and uses its prescriptions', () async {
     final store = MockStore();
     final plans = MockPlanRepository(store);

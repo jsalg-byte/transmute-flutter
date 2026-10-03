@@ -781,13 +781,20 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     double weightKg,
     int reps, {
     bool isWarmup = false,
+    int? durationSeconds,
   }) async {
     final current = state.value;
     if (current == null) return const SetSubmissionResult(queued: false);
     if (!_offlineSyncAvailable) {
       final result = await ref
           .read(sessionRepositoryProvider)
-          .createSet(exercise.id, weightKg, reps, isWarmup: isWarmup);
+          .createSet(
+            exercise.id,
+            weightKg,
+            reps,
+            isWarmup: isWarmup,
+            durationSeconds: durationSeconds,
+          );
       await refresh();
       return SetSubmissionResult(
         personalRecord: result.personalRecord,
@@ -807,6 +814,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
       sessionExerciseId: exercise.id,
       weightKg: weightKg,
       reps: reps,
+      durationSeconds: durationSeconds,
       isWarmup: isWarmup,
       createdAt: DateTime.now().toUtc(),
     );
@@ -887,10 +895,17 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     double weightKg,
     int reps, {
     bool isWarmup = false,
+    int? durationSeconds,
   }) async {
     await ref
         .read(sessionRepositoryProvider)
-        .updateSet(setId, weightKg, reps, isWarmup: isWarmup);
+        .updateSet(
+          setId,
+          weightKg,
+          reps,
+          isWarmup: isWarmup,
+          durationSeconds: durationSeconds,
+        );
     await refresh();
   }
 

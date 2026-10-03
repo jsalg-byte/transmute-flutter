@@ -27,6 +27,13 @@ secret and is not a Coolify runtime variable. The script also versions the
 Flutter bootstrap and application URLs so browsers cannot reuse an old bundle
 after a deployment.
 
+For API changes that add schema requirements, apply and verify the matching
+numbered migration in `/Users/mzootfb/Sites/transmute-mobile/api/migrations/`
+before deploying the API code. In particular, timed plan/session tracking
+requires `008_timed_exercises.sql`; Coolify does not run it automatically.
+Deploy the API migration and compatible API code before promoting a Flutter
+bundle that uses the new fields.
+
 The approved Flutter production origin is `https://transmute.mzootfb.xyz`.
 Configure the Fastify API's `CORS_ORIGINS` runtime variable to contain that
 exact value. Do not add wildcard origins and do not leave the temporary

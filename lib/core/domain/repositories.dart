@@ -68,6 +68,8 @@ abstract class PlanRepository {
     String planExerciseId, {
     required int targetSets,
     required int targetReps,
+    ExerciseTrackingMode trackingMode = ExerciseTrackingMode.reps,
+    int? targetDurationSeconds,
     double? targetWeightKg,
   });
   Future<Exercise> createExercise({
@@ -109,6 +111,7 @@ abstract class SessionRepository {
     double weightKg,
     int reps, {
     bool isWarmup = false,
+    int? durationSeconds,
     String? clientOperationId,
   });
   Future<LoggedSet> updateSet(
@@ -116,6 +119,7 @@ abstract class SessionRepository {
     double weightKg,
     int reps, {
     bool isWarmup = false,
+    int? durationSeconds,
   });
   Future<void> deleteSet(String id);
   Future<WorkoutSession> complete(String id);

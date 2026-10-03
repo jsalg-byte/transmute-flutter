@@ -362,6 +362,7 @@ class _CompletedDetail extends ConsumerWidget {
 String _formatQuickAddDuration(int seconds) {
   final minutes = seconds ~/ 60;
   final remainder = seconds % 60;
+  if (minutes == 0) return '$remainder sec';
   return remainder == 0 ? '$minutes min' : '$minutes min $remainder sec';
 }
 

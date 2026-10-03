@@ -89,6 +89,7 @@ class PendingSetSyncService {
             log.weightKg,
             log.reps,
             isWarmup: log.isWarmup,
+            durationSeconds: log.durationSeconds,
             clientOperationId: log.operationId,
           ),
         );

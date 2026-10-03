@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:transmute_flutter/core/providers.dart';
+import 'package:transmute_flutter/core/domain/models.dart';
+import 'package:transmute_flutter/core/data/mock_repositories.dart';
 import 'package:transmute_flutter/features/active_session/presentation/active_session_screen.dart';
 
 void main() {
@@ -55,6 +57,70 @@ void main() {
     await tester.pump();
     expect(tester.widget<TextField>(fields.at(1)).focusNode!.hasFocus, isTrue);
     FocusManager.instance.primaryFocus?.unfocus();
+    await container.read(activeSessionProvider.notifier).discard();
+  });
+
+  testWidgets('timed plan exercise logs and displays duration in seconds', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final container = ProviderContainer(
+      overrides: [
+        sessionRepositoryProvider.overrideWith(
+          (ref) => _OnlineMockSessionRepository(ref.read(mockStoreProvider)),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final plan = await container.read(planRepositoryProvider).getPlan('upper-a');
+    final day = plan.days.first;
+    final entry = day.exercises.first;
+    await container.read(planRepositoryProvider).updatePrescription(
+      plan.id,
+      day.id,
+      entry.id,
+      targetSets: 1,
+      targetReps: entry.targetReps,
+      trackingMode: ExerciseTrackingMode.timed,
+      targetDurationSeconds: 45,
+    );
+    final session = await container
+        .read(activeSessionProvider.notifier)
+        .start(plan.id, day.id);
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const ActiveSessionScreen()),
+        GoRoute(path: '/dashboard', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/plans', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/session', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/history', builder: (_, _) => const SizedBox()),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final durationField = find.byType(TextField).first;
+    expect(
+      tester.widget<TextField>(durationField).decoration?.suffixText,
+      'sec',
+    );
+    await tester.ensureVisible(durationField);
+    await tester.tap(durationField);
+    await tester.enterText(durationField, '55');
+    await tester.tap(find.text('Log').first);
+    await tester.pumpAndSettle();
+
+    final saved = await container
+        .read(sessionRepositoryProvider)
+        .getSession(session.id);
+    expect(saved.exercises.first.sets.single.durationSeconds, 55);
+    expect(find.text('55 sec'), findsOneWidget);
     await container.read(activeSessionProvider.notifier).discard();
   });
 
@@ -232,4 +298,11 @@ void main() {
     expect(tester.takeException(), isNull);
     await container.read(activeSessionProvider.notifier).discard();
   });
+}
+
+class _OnlineMockSessionRepository extends MockSessionRepository {
+  _OnlineMockSessionRepository(super.store);
+
+  @override
+  Future<bool> supportsOfflineSetSync() async => false;
 }

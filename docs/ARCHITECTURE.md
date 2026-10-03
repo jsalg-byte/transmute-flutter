@@ -24,6 +24,8 @@ Riverpod `FutureProvider` and family providers own most read state (plans, histo
 
 The `/` route uses `PreLoginEntryRoute` to reactively show the loading splash only during restoration, then the three-slide guest introduction; signed-in users are redirected to the dashboard. Keep this route watching auth state: GoRouter refreshes redirects when auth changes, but the same public URL also needs its page widget to rebuild.
 
+The auth-restoration splash is intentionally branded with `assets/transmute/ouroboros.svg`, rotated by a lightweight repeating animation. It stops when the platform requests reduced motion and keeps a single semantic “Loading Transmute” announcement.
+
 The shared Dio instance attaches the access token and uses `_AccessTokenRefreshInterceptor` for one-time 401 recovery. Concurrent requests can receive 401 together: before refreshing, the interceptor checks whether another request already replaced Dio's shared authorization header and retries with that token. It is a regular Dio `Interceptor`, not a `QueuedInterceptor`: refresh is coalesced through one shared future, while serializing an error callback that awaits its own retried request can deadlock if that retry also fails. `_request` converts Dio failures into `AppFailure` with status and retryability. API JSON parsing and model construction stay in the API repositories; keep mappings aligned to the verified service contract.
 
 ## Persistence
@@ -44,6 +46,8 @@ Feature pages use `AppShell` from `lib/shared/widgets/app_shell.dart`. It presen
 Plan screens read plans through `plansProvider`/`planProvider` and mutate through `PlanRepository`. The active plan is a separate account preference (`PreferencesRepository.activePlanId`), selectable in Settings or directly from plan details; selecting it does not start a session. The dashboard combines plan/preferences data, active-session state, history, and other records into overview cards. Beginning a planned workout calls `ActiveSessionController.start(planId, planDayId)`, which delegates to `SessionRepository.startSession`; the API adapter creates the server session using its plan-day ID, then fetches canonical session detail.
 
 `ActiveSessionController` is the sole owner of active-session mutations. It loads the server's active session, restores pending device-local sets, and exposes add/remove exercise, set update/delete, rest, completion, and discard operations. If the API advertises offline set replay, a validated set is first queued in secure storage with a UUID operation ID and shown as pending. Retries run in order with that same ID; server acknowledgement refreshes canonical session detail. Completion is blocked while sets remain unsynced. Without that API capability, set creation uses the direct request path.
+
+Each plan-day prescription carries `trackingMode` (`reps` or `timed`); timed mode also carries `targetDurationSeconds`. The active-session UI follows that prescription and writes either repetitions or elapsed `durationSeconds`, never both. The API persists timed duration separately from weight/reps; see [API_CONTRACT.md](API_CONTRACT.md) and [DECISIONS.md](DECISIONS.md) before changing the mapping.
 
 Quick Add uses a separate `QuickAddRepository` and dashboard flow to create an independent workout record; it does not start or alter the selected workout plan's active session. Completed history is read through `SessionRepository` and invalidated after completion/deletion.
 

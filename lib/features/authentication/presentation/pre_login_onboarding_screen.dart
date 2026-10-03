@@ -23,8 +23,40 @@ class PreLoginEntryRoute extends ConsumerWidget {
 
 /// Shown only while the router is restoring the saved authentication state.
 /// Guests then see the three-slide introduction; signed-in users go to Home.
-class AuthLoadingSplashScreen extends StatelessWidget {
+class AuthLoadingSplashScreen extends StatefulWidget {
   const AuthLoadingSplashScreen({super.key});
+
+  @override
+  State<AuthLoadingSplashScreen> createState() =>
+      _AuthLoadingSplashScreenState();
+}
+
+class _AuthLoadingSplashScreenState extends State<AuthLoadingSplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 2400),
+  );
+  bool? _reducedMotion;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reducedMotion == reducedMotion) return;
+    _reducedMotion = reducedMotion;
+    if (reducedMotion) {
+      _spin.stop();
+    } else {
+      _spin.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,10 +67,20 @@ class AuthLoadingSplashScreen extends StatelessWidget {
         child: Center(
           child: Semantics(
             label: 'Loading Transmute',
-            child: Icon(
-              Icons.fitness_center_rounded,
-              size: 64,
-              color: palette.ink,
+            liveRegion: true,
+            child: ExcludeSemantics(
+              child: RotationTransition(
+                turns: _spin,
+                child: SvgPicture.asset(
+                  'assets/transmute/ouroboros.svg',
+                  width: 64,
+                  height: 64,
+                  colorFilter: ColorFilter.mode(
+                    palette.ink,
+                    BlendMode.srcIn,
+                  ),
+                ),
+              ),
             ),
           ),
         ),

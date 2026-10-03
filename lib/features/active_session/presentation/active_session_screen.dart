@@ -1068,7 +1068,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         Text(
-                          '${exercise.muscleGroup ?? 'Movement'} · target ${exercise.targetSets} × ${exercise.targetReps}',
+                          '${exercise.muscleGroup ?? 'Movement'} · target ${exercise.targetSets} × ${exercise.trackingMode == ExerciseTrackingMode.timed ? _formatTimedDuration(exercise.targetDurationSeconds) : '${exercise.targetReps} reps'}',
                         ),
                       ],
                     ),
@@ -1114,7 +1114,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
               ),
             ),
             SizedBox(height: compact ? 4 : 8),
-            _SetLedgerHeader(unit: unit),
+            _SetLedgerHeader(unit: unit, trackingMode: exercise.trackingMode),
             ...visibleSets.map(
               (set) => ListTile(
                 dense: compact,
@@ -1128,7 +1128,9 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                   child: Text('${set.setOrder}'),
                 ),
                 title: Text(
-                  '${displayWeight(set.weightKg, unit)} × ${set.reps}',
+                  set.durationSeconds == null
+                      ? '${displayWeight(set.weightKg, unit)} × ${set.reps}'
+                      : _formatTimedDuration(set.durationSeconds),
                   style: compact ? const TextStyle(fontSize: 17) : null,
                 ),
                 subtitle: set.isWarmup ? const Text('Warm-up set') : null,
@@ -1153,6 +1155,8 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 number: _drafts[index].order + 1,
                 draft: _drafts[index],
                 unit: unit,
+                trackingMode: exercise.trackingMode,
+                targetDurationSeconds: exercise.targetDurationSeconds,
                 previous: _previousFor(_drafts[index].order),
                 isSubmitting: identical(_savingDraft, _drafts[index]),
                 disabled: _savingDraft != null,
@@ -1187,17 +1191,26 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     if (_savingDraft != null) return;
     final draft = _drafts[index];
     final previous = _previousFor(draft.order);
+    final timed = widget.exercise.trackingMode == ExerciseTrackingMode.timed;
+    final duration = timed
+        ? int.tryParse(draft.duration.text.trim()) ??
+              widget.exercise.targetDurationSeconds
+        : null;
+    if (timed && (duration == null || duration < 1 || duration > 86400)) {
+      setState(() => _error = 'Enter a duration from 1 to 86,400 seconds.');
+      return;
+    }
     final weight = draft.weight.text.trim().isEmpty
         ? (previous == null ? 0.0 : _displayWeight(previous.weightKg))
         : double.tryParse(draft.weight.text);
     final reps = draft.reps.text.trim().isEmpty
         ? previous?.reps
         : int.tryParse(draft.reps.text);
-    if (weight == null || weight < 0 || weight > 1000) {
+    if (!timed && (weight == null || weight < 0 || weight > 1000)) {
       setState(() => _error = 'Enter a weight from 0 to 1,000.');
       return;
     }
-    if (reps == null || reps < 1 || reps > 100) {
+    if (!timed && (reps == null || reps < 1 || reps > 100)) {
       setState(() => _error = 'Enter at least 1 rep.');
       return;
     }
@@ -1214,9 +1227,10 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
           .read(activeSessionProvider.notifier)
           .createSet(
             widget.exercise,
-            toKg(weight, unit),
-            reps,
+            timed ? 0 : toKg(weight!, unit),
+            timed ? 1 : reps!,
             isWarmup: false,
+            durationSeconds: duration,
           );
       // Rest-timer persistence is secondary to logging the set. It must not
       // hold the Log button in its loading state if the server is slow.
@@ -1270,7 +1284,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   }
 
   Future<void> _edit(LoggedSet set, WeightUnit unit) async {
-    final values = await showModalBottomSheet<({double weight, int reps})>(
+    final values = await showModalBottomSheet<({double weight, int reps, int? durationSeconds})>(
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
@@ -1285,6 +1299,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
             toKg(values.weight, unit),
             values.reps,
             isWarmup: set.isWarmup,
+            durationSeconds: values.durationSeconds,
           );
     } on AppFailure catch (error) {
       if (mounted) setState(() => _error = error.message);
@@ -1305,6 +1320,7 @@ class _EditSetSheet extends StatefulWidget {
 class _EditSetSheetState extends State<_EditSetSheet> {
   late final TextEditingController _weight;
   late final TextEditingController _reps;
+  late final TextEditingController _duration;
   String? _error;
 
   @override
@@ -1315,18 +1331,28 @@ class _EditSetSheetState extends State<_EditSetSheet> {
         : widget.set.weightKg;
     _weight = TextEditingController(text: value.toStringAsFixed(1));
     _reps = TextEditingController(text: '${widget.set.reps}');
+    _duration = TextEditingController(
+      text: '${widget.set.durationSeconds ?? ''}',
+    );
   }
 
   @override
   void dispose() {
     _weight.dispose();
     _reps.dispose();
+    _duration.dispose();
     super.dispose();
   }
 
   void _save() {
-    final weight = double.tryParse(_weight.text);
-    final reps = int.tryParse(_reps.text);
+    final timed = widget.set.durationSeconds != null;
+    final duration = int.tryParse(_duration.text);
+    final weight = timed ? 0.0 : double.tryParse(_weight.text);
+    final reps = timed ? 1 : int.tryParse(_reps.text);
+    if (timed && (duration == null || duration < 1 || duration > 86400)) {
+      setState(() => _error = 'Enter a duration from 1 to 86,400 seconds.');
+      return;
+    }
     if (weight == null || weight < 0 || weight > 1000) {
       setState(() => _error = 'Enter a weight from 0 to 1,000.');
       return;
@@ -1335,7 +1361,11 @@ class _EditSetSheetState extends State<_EditSetSheet> {
       setState(() => _error = 'Enter at least 1 rep.');
       return;
     }
-    Navigator.of(context).pop((weight: weight, reps: reps));
+    Navigator.of(context).pop((
+      weight: weight,
+      reps: reps,
+      durationSeconds: duration,
+    ));
   }
 
   @override
@@ -1352,6 +1382,19 @@ class _EditSetSheetState extends State<_EditSetSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.set.durationSeconds != null)
+            TextField(
+              controller: _duration,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _save(),
+              decoration: const InputDecoration(
+                labelText: 'Duration',
+                suffixText: 'sec',
+              ),
+            )
+          else
           Row(
             children: [
               Expanded(
@@ -1612,19 +1655,24 @@ class _SetDraft {
   final int order;
   final weight = TextEditingController();
   final reps = TextEditingController();
+  final duration = TextEditingController();
   final weightFocus = FocusNode();
   final repsFocus = FocusNode();
+  final durationFocus = FocusNode();
   void dispose() {
     weight.dispose();
     reps.dispose();
+    duration.dispose();
     weightFocus.dispose();
     repsFocus.dispose();
+    durationFocus.dispose();
   }
 }
 
 class _SetLedgerHeader extends StatelessWidget {
-  const _SetLedgerHeader({required this.unit});
+  const _SetLedgerHeader({required this.unit, required this.trackingMode});
   final WeightUnit unit;
+  final ExerciseTrackingMode trackingMode;
 
   @override
   Widget build(BuildContext context) {
@@ -1641,9 +1689,19 @@ class _SetLedgerHeader extends StatelessWidget {
           padding: EdgeInsets.only(left: 48, right: 84),
           child: Row(
             children: [
-              Expanded(child: Text('WEIGHT (${unit.name.toUpperCase()})')),
+              Expanded(
+                child: Text(
+                  trackingMode == ExerciseTrackingMode.timed
+                      ? 'DURATION'
+                      : 'WEIGHT (${unit.name.toUpperCase()})',
+                ),
+              ),
               const SizedBox(width: 16),
-              const Expanded(child: Text('REPS')),
+              Expanded(
+                child: Text(
+                  trackingMode == ExerciseTrackingMode.timed ? '' : 'REPS',
+                ),
+              ),
             ],
           ),
         );
@@ -1658,6 +1716,8 @@ class _SetDraftRow extends StatelessWidget {
     required this.number,
     required this.draft,
     required this.unit,
+    required this.trackingMode,
+    required this.targetDurationSeconds,
     required this.previous,
     required this.isSubmitting,
     required this.disabled,
@@ -1666,6 +1726,8 @@ class _SetDraftRow extends StatelessWidget {
   final int number;
   final _SetDraft draft;
   final WeightUnit unit;
+  final ExerciseTrackingMode trackingMode;
+  final int? targetDurationSeconds;
   final PreviousPerformance? previous;
   final bool isSubmitting;
   final bool disabled;
@@ -1681,6 +1743,18 @@ class _SetDraftRow extends StatelessWidget {
 
   String? get _repsPlaceholder =>
       previous == null ? '8' : previous!.reps.toString();
+
+  Widget durationInput() => TransmuteTextField(
+    controller: draft.duration,
+    keyboardType: TextInputType.number,
+    hint: targetDurationSeconds?.toString(),
+    suffixText: 'sec',
+    kind: TransmuteFieldKind.ledger,
+    semanticLabel: 'Set $number, duration in seconds',
+    focusNode: draft.durationFocus,
+    textInputAction: TextInputAction.done,
+    onSubmitted: (_) => onLog(),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1751,13 +1825,18 @@ class _SetDraftRow extends StatelessWidget {
                 Row(
                   children: [
                     SizedBox(width: 28, child: numberLabel),
-                    Expanded(child: weightInput()),
+                    Expanded(
+                      child: trackingMode == ExerciseTrackingMode.timed
+                          ? durationInput()
+                          : weightInput(),
+                    ),
                   ],
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 28),
-                  child: repsInput(),
-                ),
+                if (trackingMode == ExerciseTrackingMode.reps)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 28),
+                    child: repsInput(),
+                  ),
                 Align(alignment: Alignment.centerRight, child: logButton),
               ],
             );
@@ -1765,9 +1844,15 @@ class _SetDraftRow extends StatelessWidget {
           return Row(
             children: [
               SizedBox(width: compact ? 40 : 48, child: numberLabel),
-              Expanded(child: weightInput()),
-              SizedBox(width: compact ? 10 : 16),
-              Expanded(child: repsInput()),
+              Expanded(
+                child: trackingMode == ExerciseTrackingMode.timed
+                    ? durationInput()
+                    : weightInput(),
+              ),
+              if (trackingMode == ExerciseTrackingMode.reps) ...[
+                SizedBox(width: compact ? 10 : 16),
+                Expanded(child: repsInput()),
+              ],
               SizedBox(width: compact ? 8 : 12),
               logButton,
             ],
@@ -1780,6 +1865,14 @@ class _SetDraftRow extends StatelessWidget {
 
 String _number(double value) =>
     value.toStringAsFixed(value == value.roundToDouble() ? 0 : 1);
+
+String _formatTimedDuration(int? seconds) {
+  if (seconds == null) return '—';
+  final minutes = seconds ~/ 60;
+  final remaining = seconds % 60;
+  if (minutes == 0) return '$remaining sec';
+  return remaining == 0 ? '$minutes min' : '$minutes min $remaining sec';
+}
 
 class _PendingSyncIndicator extends ConsumerWidget {
   const _PendingSyncIndicator({required this.pendingCount});

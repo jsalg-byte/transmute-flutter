@@ -134,6 +134,7 @@ class _ReplaySessionRepository implements SessionRepository {
     double weightKg,
     int reps, {
     bool isWarmup = false,
+    int? durationSeconds,
     String? clientOperationId,
   }) async {
     operationIds.add(clientOperationId);
@@ -152,6 +153,7 @@ class _ReplaySessionRepository implements SessionRepository {
         setOrder: 1,
         weightKg: weightKg,
         reps: reps,
+        durationSeconds: durationSeconds,
         completedAt: DateTime.utc(2026, 8, 13),
         isWarmup: isWarmup,
       ),

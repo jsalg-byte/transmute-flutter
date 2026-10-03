@@ -830,7 +830,7 @@ class _PrescriptionCard extends ConsumerWidget {
             _showExerciseDetail(context, ref, entry.exercise, onSaved: refresh),
         title: Text(entry.exercise.name),
         subtitle: Text(
-          '${entry.exercise.muscleGroup ?? entry.exercise.category} · ${entry.targetSets} × ${entry.targetReps}${entry.targetWeightKg == null ? '' : ' at ${displayWeight(entry.targetWeightKg!, unit)}'}${entry.previousPerformance == null ? '' : '\nPrevious: ${displayWeight(entry.previousPerformance!.weightKg, unit)} × ${entry.previousPerformance!.reps}'}',
+          '${entry.exercise.muscleGroup ?? entry.exercise.category} · ${entry.targetSets} × ${entry.trackingMode == ExerciseTrackingMode.timed ? _formatPrescriptionDuration(entry.targetDurationSeconds) : '${entry.targetReps} reps'}${entry.trackingMode == ExerciseTrackingMode.reps && entry.targetWeightKg != null ? ' at ${displayWeight(entry.targetWeightKg!, unit)}' : ''}${entry.previousPerformance == null ? '' : '\nPrevious: ${displayWeight(entry.previousPerformance!.weightKg, unit)} × ${entry.previousPerformance!.reps}'}',
         ),
         trailing: Wrap(
           children: [
@@ -875,6 +875,8 @@ class _PrescriptionCard extends ConsumerWidget {
             entry.id,
             targetSets: result.sets,
             targetReps: result.reps,
+            trackingMode: result.mode,
+            targetDurationSeconds: result.durationSeconds,
             targetWeightKg: result.weight == null
                 ? null
                 : toKg(result.weight!, unit),
@@ -1281,71 +1283,140 @@ Future<bool> _confirm(BuildContext context, String title, String body) async =>
 void _notice(BuildContext context, String message) => ScaffoldMessenger.of(
   context,
 ).showSnackBar(SnackBar(content: Text(message)));
-Future<({int sets, int reps, double? weight})?> _prescriptionDialog(
+String _formatPrescriptionDuration(int? seconds) => seconds == null
+    ? 'time'
+    : seconds >= 60 && seconds % 60 == 0
+    ? '${seconds ~/ 60} min'
+    : '${seconds}s';
+
+Future<({int sets, int reps, ExerciseTrackingMode mode, int? durationSeconds, double? weight})?> _prescriptionDialog(
   BuildContext context,
   PlanExercise entry,
   WeightUnit unit,
-) async {
-  final sets = TextEditingController(text: '${entry.targetSets}');
-  final reps = TextEditingController(text: '${entry.targetReps}');
-  final weight = TextEditingController(
-    text: entry.targetWeightKg == null
+) async => showDialog(
+  context: context,
+  builder: (_) => _PrescriptionDialog(entry: entry, unit: unit),
+);
+
+class _PrescriptionDialog extends StatefulWidget {
+  const _PrescriptionDialog({required this.entry, required this.unit});
+  final PlanExercise entry;
+  final WeightUnit unit;
+
+  @override
+  State<_PrescriptionDialog> createState() => _PrescriptionDialogState();
+}
+
+class _PrescriptionDialogState extends State<_PrescriptionDialog> {
+  late final _sets = TextEditingController(text: '${widget.entry.targetSets}');
+  late final _reps = TextEditingController(text: '${widget.entry.targetReps}');
+  late final _duration = TextEditingController(
+    text: '${widget.entry.targetDurationSeconds ?? 30}',
+  );
+  late final _weight = TextEditingController(
+    text: widget.entry.targetWeightKg == null
         ? ''
-        : (unit == WeightUnit.lb
-                  ? entry.targetWeightKg! * 2.2046226218
-                  : entry.targetWeightKg!)
+        : (widget.unit == WeightUnit.lb
+                  ? widget.entry.targetWeightKg! * 2.2046226218
+                  : widget.entry.targetWeightKg!)
               .toStringAsFixed(1),
   );
-  final result = await showDialog<({int sets, int reps, double? weight})>(
-    context: context,
-    builder: (dialog) => AlertDialog(
-      title: Text('Edit ${entry.exercise.name}'),
-      content: Column(
+  late ExerciseTrackingMode _mode = widget.entry.trackingMode;
+
+  @override
+  void dispose() {
+    _sets.dispose();
+    _reps.dispose();
+    _duration.dispose();
+    _weight.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Edit ${widget.entry.exercise.name}'),
+    content: SingleChildScrollView(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          SegmentedButton<ExerciseTrackingMode>(
+            segments: const [
+              ButtonSegment(
+                value: ExerciseTrackingMode.reps,
+                label: Text('Sets × reps'),
+              ),
+              ButtonSegment(
+                value: ExerciseTrackingMode.timed,
+                label: Text('Timed'),
+              ),
+            ],
+            selected: {_mode},
+            onSelectionChanged: (selection) =>
+                setState(() => _mode = selection.first),
+          ),
+          const SizedBox(height: 12),
           TextField(
-            controller: sets,
+            controller: _sets,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: 'Sets'),
           ),
-          TextField(
-            controller: reps,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Target reps'),
-          ),
-          TextField(
-            controller: weight,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Target weight (${unit.name}, optional)',
+          if (_mode == ExerciseTrackingMode.reps) ...[
+            TextField(
+              controller: _reps,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: 'Target reps'),
             ),
-          ),
+            TextField(
+              controller: _weight,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Target weight (${widget.unit.name}, optional)',
+              ),
+            ),
+          ] else
+            TextField(
+              controller: _duration,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Target duration (seconds per set)',
+                suffixText: 'sec',
+              ),
+            ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialog),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final s = int.tryParse(sets.text);
-            final r = int.tryParse(reps.text);
-            final w = weight.text.trim().isEmpty
-                ? null
-                : double.tryParse(weight.text);
-            if (s != null && r != null && (w == null || w >= 0))
-              Navigator.pop(dialog, (sets: s, reps: r, weight: w));
-          },
-          child: const Text('Save'),
-        ),
-      ],
     ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      ElevatedButton(onPressed: _save, child: const Text('Save')),
+    ],
   );
-  sets.dispose();
-  reps.dispose();
-  weight.dispose();
-  return result;
+
+  void _save() {
+    final sets = int.tryParse(_sets.text);
+    final reps = int.tryParse(_reps.text);
+    final duration = int.tryParse(_duration.text);
+    final weight = _weight.text.trim().isEmpty
+        ? null
+        : double.tryParse(_weight.text);
+    if (sets == null || sets < 1 || sets > 20) return;
+    if (_mode == ExerciseTrackingMode.reps &&
+        (reps == null || reps < 1 || reps > 50 || (weight != null && weight < 0))) return;
+    if (_mode == ExerciseTrackingMode.timed &&
+        (duration == null || duration < 1 || duration > 86400)) return;
+    Navigator.pop(
+      context,
+      (
+        sets: sets,
+        reps: reps ?? widget.entry.targetReps,
+        mode: _mode,
+        durationSeconds: _mode == ExerciseTrackingMode.timed ? duration : null,
+        weight: weight,
+      ),
+    );
+  }
 }
 
 class _Error extends StatelessWidget {

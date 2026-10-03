@@ -1338,6 +1338,8 @@ class MockPlanRepository implements PlanRepository {
                       sortOrder: row.sortOrder,
                       targetSets: row.targetSets,
                       targetReps: row.targetReps,
+                      trackingMode: row.trackingMode,
+                      targetDurationSeconds: row.targetDurationSeconds,
                       targetWeightKg: row.targetWeightKg,
                       previousPerformance: _previous(row.exercise.id),
                     ),
@@ -1728,6 +1730,8 @@ class MockPlanRepository implements PlanRepository {
               sortOrder: i,
               targetSets: entries[i].targetSets,
               targetReps: entries[i].targetReps,
+              trackingMode: entries[i].trackingMode,
+              targetDurationSeconds: entries[i].targetDurationSeconds,
               targetWeightKg: entries[i].targetWeightKg,
             ),
         ],
@@ -1742,12 +1746,20 @@ class MockPlanRepository implements PlanRepository {
     String planExerciseId, {
     required int targetSets,
     required int targetReps,
+    ExerciseTrackingMode trackingMode = ExerciseTrackingMode.reps,
+    int? targetDurationSeconds,
     double? targetWeightKg,
   }) async {
-    if (targetSets < 1 || targetSets > 20 || targetReps < 1 || targetReps > 100)
+    if (targetSets < 1 || targetSets > 20 ||
+        (trackingMode == ExerciseTrackingMode.reps &&
+            (targetReps < 1 || targetReps > 50)) ||
+        (trackingMode == ExerciseTrackingMode.timed &&
+            (targetDurationSeconds == null ||
+                targetDurationSeconds < 1 ||
+                targetDurationSeconds > 86400)))
       throw const AppFailure(
         'invalid_prescription',
-        'Use 1–20 sets and 1–100 reps.',
+        'Use 1–20 sets and a valid rep target or duration.',
       );
     final plan = _requirePlan(planId);
     final day = _day(plan, dayId);
@@ -1760,6 +1772,8 @@ class MockPlanRepository implements PlanRepository {
         sortOrder: entry.sortOrder,
         targetSets: targetSets,
         targetReps: targetReps,
+        trackingMode: trackingMode,
+        targetDurationSeconds: targetDurationSeconds,
         targetWeightKg: targetWeightKg,
         previousPerformance: entry.previousPerformance,
       );
@@ -1860,6 +1874,8 @@ class MockPlanRepository implements PlanRepository {
                         sortOrder: entry.sortOrder,
                         targetSets: entry.targetSets,
                         targetReps: entry.targetReps,
+                        trackingMode: entry.trackingMode,
+                        targetDurationSeconds: entry.targetDurationSeconds,
                         targetWeightKg: entry.targetWeightKg,
                         previousPerformance: entry.previousPerformance,
                       ),
@@ -2115,6 +2131,8 @@ class MockSessionRepository implements SessionRepository {
               sortOrder: row.sortOrder,
               targetSets: row.targetSets,
               targetReps: row.targetReps,
+              trackingMode: row.trackingMode,
+              targetDurationSeconds: row.targetDurationSeconds,
               targetWeightKg: row.targetWeightKg,
               previousPerformance: row.previousPerformance,
               previousPerformances: row.previousPerformance == null
@@ -2234,6 +2252,7 @@ class MockSessionRepository implements SessionRepository {
     double weightKg,
     int reps, {
     bool isWarmup = false,
+    int? durationSeconds,
     String? clientOperationId,
   }) async {
     if (failFirstCreateSet && !_hasFailed) {
@@ -2259,6 +2278,7 @@ class MockSessionRepository implements SessionRepository {
       setOrder: row.sets.length + 1,
       weightKg: weightKg,
       reps: reps,
+      durationSeconds: durationSeconds,
       completedAt: DateTime.now().toUtc(),
       isWarmup: isWarmup,
     );
@@ -2277,6 +2297,7 @@ class MockSessionRepository implements SessionRepository {
     return SetLogResult(
       set: set,
       personalRecord: isWarmup || previous == null
+          || durationSeconds != null
           ? null
           : _mockPersonalRecord(
               row.name,
@@ -2294,6 +2315,7 @@ class MockSessionRepository implements SessionRepository {
     double weightKg,
     int reps, {
     bool isWarmup = false,
+    int? durationSeconds,
   }) async {
     final session = _store.active;
     if (session == null)
@@ -2308,6 +2330,7 @@ class MockSessionRepository implements SessionRepository {
         updated = set.copyWith(
           weightKg: weightKg,
           reps: reps,
+          durationSeconds: durationSeconds,
           isWarmup: isWarmup,
         );
         return updated!;

@@ -768,7 +768,9 @@ class SharedSessionScreen extends ConsumerWidget {
                         const SizedBox(height: 8),
                         ...entry.value.map(
                           (set) => Text(
-                            '#${set.order} · ${set.reps} reps${set.weight == null ? '' : ' · ${set.weight} ${session.weightUnit == WeightUnit.kg ? 'kg' : 'lbs'}'}${set.isWarmup ? ' · warm-up' : ''}',
+                            set.durationSeconds == null
+                                ? '#${set.order} · ${set.reps} reps${set.weight == null ? '' : ' · ${set.weight} ${session.weightUnit == WeightUnit.kg ? 'kg' : 'lbs'}'}${set.isWarmup ? ' · warm-up' : ''}'
+                                : '#${set.order} · ${_formatDuration(set.durationSeconds!)}',
                           ),
                         ),
                       ],
@@ -798,6 +800,12 @@ class _EmptyCard extends StatelessWidget {
 }
 
 String _date(DateTime value) => '${value.month}/${value.day}/${value.year}';
+String _formatDuration(int seconds) {
+  final minutes = seconds ~/ 60;
+  final remainder = seconds % 60;
+  if (minutes == 0) return '$remainder sec';
+  return remainder == 0 ? '$minutes min' : '$minutes min $remainder sec';
+}
 String _paletteLabel(ThemePalette value) => switch (value) {
   ThemePalette.transmute => 'Transmute',
   ThemePalette.flameAlchemist => 'Flame Alchemist',

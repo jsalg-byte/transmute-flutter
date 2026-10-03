@@ -88,6 +88,7 @@ class SharedWorkoutSet {
     required this.reps,
     required this.isWarmup,
     this.weight,
+    this.durationSeconds,
   });
   final String id;
   final String exerciseName;
@@ -95,6 +96,7 @@ class SharedWorkoutSet {
   final int reps;
   final double? weight;
   final bool isWarmup;
+  final int? durationSeconds;
 }
 
 class SharedWorkoutSession {
@@ -605,6 +607,8 @@ class PreviousPerformance {
   final int setOrder;
 }
 
+enum ExerciseTrackingMode { reps, timed }
+
 class PlanExercise {
   const PlanExercise({
     required this.id,
@@ -612,6 +616,8 @@ class PlanExercise {
     required this.sortOrder,
     required this.targetSets,
     required this.targetReps,
+    this.trackingMode = ExerciseTrackingMode.reps,
+    this.targetDurationSeconds,
     this.targetWeightKg,
     this.previousPerformance,
   });
@@ -620,6 +626,8 @@ class PlanExercise {
   final int sortOrder;
   final int targetSets;
   final int targetReps;
+  final ExerciseTrackingMode trackingMode;
+  final int? targetDurationSeconds;
   final double? targetWeightKg;
   final PreviousPerformance? previousPerformance;
 }
@@ -738,6 +746,7 @@ class PendingSetLog {
     required this.sessionExerciseId,
     required this.weightKg,
     required this.reps,
+    this.durationSeconds,
     required this.isWarmup,
     required this.createdAt,
     this.blocked = false,
@@ -747,6 +756,7 @@ class PendingSetLog {
   final String sessionExerciseId;
   final double weightKg;
   final int reps;
+  final int? durationSeconds;
   final bool isWarmup;
   final DateTime createdAt;
   final bool blocked;
@@ -757,6 +767,7 @@ class PendingSetLog {
     setOrder: order,
     weightKg: weightKg,
     reps: reps,
+    durationSeconds: durationSeconds,
     completedAt: createdAt,
     isWarmup: isWarmup,
     pending: true,
@@ -768,6 +779,7 @@ class PendingSetLog {
     'sessionExerciseId': sessionExerciseId,
     'weightKg': weightKg,
     'reps': reps,
+    'durationSeconds': ?durationSeconds,
     'isWarmup': isWarmup,
     'createdAt': createdAt.toUtc().toIso8601String(),
     'blocked': blocked,
@@ -779,6 +791,7 @@ class PendingSetLog {
     sessionExerciseId: json['sessionExerciseId'] as String,
     weightKg: (json['weightKg'] as num).toDouble(),
     reps: json['reps'] as int,
+    durationSeconds: (json['durationSeconds'] as num?)?.toInt(),
     isWarmup: json['isWarmup'] as bool,
     createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
     blocked: json['blocked'] == true,
@@ -790,6 +803,7 @@ class PendingSetLog {
     sessionExerciseId: sessionExerciseId,
     weightKg: weightKg,
     reps: reps,
+    durationSeconds: durationSeconds,
     isWarmup: isWarmup,
     createdAt: createdAt,
     blocked: blocked ?? this.blocked,
@@ -822,6 +836,8 @@ class SessionExercise {
     required this.sortOrder,
     required this.targetSets,
     required this.targetReps,
+    this.trackingMode = ExerciseTrackingMode.reps,
+    this.targetDurationSeconds,
     required this.sets,
     this.muscleGroup,
     this.demoUrl,
@@ -839,6 +855,8 @@ class SessionExercise {
   final int sortOrder;
   final int targetSets;
   final int targetReps;
+  final ExerciseTrackingMode trackingMode;
+  final int? targetDurationSeconds;
   final double? targetWeightKg;
   final PreviousPerformance? previousPerformance;
   final List<PreviousPerformance> previousPerformances;
@@ -854,6 +872,8 @@ class SessionExercise {
     sortOrder: sortOrder,
     targetSets: targetSets,
     targetReps: targetReps,
+    trackingMode: trackingMode,
+    targetDurationSeconds: targetDurationSeconds,
     targetWeightKg: targetWeightKg,
     previousPerformance: previousPerformance,
     previousPerformances: previousPerformances,

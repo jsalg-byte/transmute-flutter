@@ -13,6 +13,8 @@
 - Keep wire mapping in API repositories and use verified payload fields. No speculative casing/alias fallbacks. Server data is canonical; client optimistic state must remain explicitly pending until acknowledged.
 - Nutrition has an unusual established contract: the meal payload field is named `grams`, but the quantity follows the food's saved serving unit. Check the **Food catalog and meals** entry in `docs/API_CONTRACT.md` before changing quantity conversions.
 - `ActiveSessionController` owns active-workout writes and invalidation. Preserve capability-gated set replay, stable operation IDs, and the one-active-session invariant; details are in [DECISIONS.md](docs/DECISIONS.md) and [STATE_TRANSITIONS.md](docs/STATE_TRANSITIONS.md).
+- Exercise prescriptions distinguish `reps` from `timed`; timed targets and logged durations require the matching API contract and migration in the sibling repo. Keep both UI modes aligned across plan editing, active-session set logging, history, and the mock adapter; see [API_CONTRACT.md](docs/API_CONTRACT.md) and [DECISIONS.md](docs/DECISIONS.md).
+- The auth-restoration splash uses the existing Ouroboros SVG and respects `MediaQuery.disableAnimations`; retain the accessible loading label when changing its presentation.
 - Do not commit, push, or deploy unless the user asks for that action. Recheck current branch, working tree, API migration state, and external Coolify settings before release operations.
 
 ## UI/UX polish

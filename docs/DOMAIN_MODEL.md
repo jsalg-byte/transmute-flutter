@@ -41,11 +41,8 @@
 
 ### WorkoutPlan
 
-The original focused-demo document represented exercises directly on a plan.
-The implemented mock core loop now uses explicit `WorkoutPlanDay` records with
-ordered `PlanExercise` prescriptions. A selected `planDayId` is recorded on
-each workout session. This matches the shape that the Expo product requires,
-while its exact API adapter remains a later step.
+The app uses explicit `WorkoutPlanDay` records with ordered `PlanExercise`
+prescriptions. A selected `planDayId` is recorded on each workout session.
 
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
@@ -65,12 +62,18 @@ while its exact API adapter remains a later step.
 | `exerciseId` | UUID | Yes | Catalog reference. |
 | `sortOrder` | integer | Yes | Zero-based unique within plan. |
 | `targetSets` | integer | Yes | 1–20. |
-| `targetReps` | integer | Yes | 1–100. |
+| `targetReps` | integer | Yes | 1–50 when `trackingMode` is `reps`; retained as a legacy/default rep value in timed mode. |
+| `trackingMode` | `reps \| timed` | Yes | Defaults to `reps`; controls the prescription and active-session input type. |
+| `targetDurationSeconds` | integer | Timed only | 1–86,400 seconds per set. |
 | `targetWeightKg` | number | No | Canonical target. |
 
 ```json
 {"id":"752f8f8d-04d8-4ae2-a5c1-8efb03ef9f85","planId":"2fe5c405-5935-4f48-887d-75d89c40bbca","exerciseId":"84c9a056-7f17-459b-86d1-bbc698867397","sortOrder":0,"targetSets":3,"targetReps":8,"targetWeightKg":61.235}
 ```
+
+For timed prescriptions, `trackingMode` is `timed` and `targetDurationSeconds`
+contains the target duration per set. Rep prescriptions use `trackingMode: reps`;
+older payloads without a mode are interpreted as reps.
 
 ### WorkoutSession
 
