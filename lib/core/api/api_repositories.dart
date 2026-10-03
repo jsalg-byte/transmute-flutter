@@ -826,6 +826,8 @@ class ApiSessionRepository implements SessionRepository {
         .map(
           (item) => CompletedSessionSummary(
             id: item.id,
+            planId: item.planId,
+            planDayId: item.planDayId,
             planName: item.planName,
             planDayName: item.planDayName,
             startedAt: item.startedAt,

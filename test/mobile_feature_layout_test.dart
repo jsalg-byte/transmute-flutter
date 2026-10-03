@@ -38,7 +38,7 @@ void main() {
     );
 
     const cases = [
-      ('/dashboard', 'Welcome back.'),
+      ('/dashboard', 'NEXT UP'),
       ('/plans', 'Plans'),
       ('/exercises', 'Exercise library'),
       ('/progress', 'Progress'),

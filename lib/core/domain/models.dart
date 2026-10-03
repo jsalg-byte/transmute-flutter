@@ -930,6 +930,8 @@ class WorkoutSession {
 class CompletedSessionSummary {
   const CompletedSessionSummary({
     required this.id,
+    required this.planId,
+    required this.planDayId,
     required this.planName,
     required this.planDayName,
     required this.startedAt,
@@ -939,6 +941,8 @@ class CompletedSessionSummary {
     required this.totalVolumeKg,
   });
   final String id;
+  final String planId;
+  final String planDayId;
   final String planName;
   final String planDayName;
   final DateTime startedAt;

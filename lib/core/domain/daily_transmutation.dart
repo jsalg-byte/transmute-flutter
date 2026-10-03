@@ -11,6 +11,49 @@ enum DailyAction {
   createPlan,
 }
 
+/// Picks the next day in the explicitly selected plan, advancing from that
+/// plan's most recently completed day and wrapping to its first day.
+/// History carries canonical plan/day IDs so renamed or similarly named plans
+/// cannot steal another plan's progression.
+CompletedSessionSummary? lastCompletedWorkoutForPlan({
+  required List<CompletedSessionSummary> history,
+  required String? planId,
+}) {
+  if (planId == null) return null;
+  CompletedSessionSummary? latest;
+  for (final session in history) {
+    if (session.planId != planId) continue;
+    if (latest == null || session.completedAt.isAfter(latest.completedAt)) {
+      latest = session;
+    }
+  }
+  return latest;
+}
+
+({WorkoutPlan plan, WorkoutPlanDay day})? nextPlannedWorkout({
+  required List<WorkoutPlan> plans,
+  required String? activePlanId,
+  required List<CompletedSessionSummary> history,
+}) {
+  if (activePlanId == null) return null;
+  WorkoutPlan? plan;
+  for (final candidate in plans) {
+    if (candidate.id == activePlanId) {
+      plan = candidate;
+      break;
+    }
+  }
+  if (plan == null || plan.days.isEmpty) return null;
+
+  final days = [...plan.days]
+    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+  final latest = lastCompletedWorkoutForPlan(history: history, planId: plan.id);
+  if (latest == null) return (plan: plan, day: days.first);
+  final previousIndex = days.indexWhere((day) => day.id == latest.planDayId);
+  final nextIndex = previousIndex < 0 ? 0 : (previousIndex + 1) % days.length;
+  return (plan: plan, day: days[nextIndex]);
+}
+
 class DailyRecommendation {
   const DailyRecommendation({
     required this.action,

@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -362,7 +362,17 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> restore() async {
     try {
-      final session = await ref.read(authRepositoryProvider).restore();
+      final isMock = ref.read(repositoryModeProvider) == RepositoryMode.mock;
+      // Secure storage can stall indefinitely in some browser contexts. Do not
+      // leave the public entry route on its loading splash forever; API mode
+      // gets room for the configured network timeouts, while the local mock
+      // store should resolve quickly.
+      final restore = ref.read(authRepositoryProvider).restore();
+      // The web secure-storage adapter may stall rather than reject. Native
+      // storage and API requests have their own platform/network timeouts.
+      final session = await (kIsWeb
+          ? restore.timeout(Duration(seconds: isMock ? 3 : 35))
+          : restore);
       state = session == null
           ? const AuthState(AuthStatus.signedOut)
           : AuthState(
@@ -572,11 +582,17 @@ final recentRecordProvider = FutureProvider<List<RecentRecordItem>>((
 class DailyOverview {
   const DailyOverview({
     required this.plans,
+    required this.activePlanId,
+    required this.lastCompletedPlanWorkout,
+    required this.nextWorkout,
     required this.activeSession,
     required this.completedSessions,
     required this.readiness,
   });
   final List<WorkoutPlan> plans;
+  final String? activePlanId;
+  final CompletedSessionSummary? lastCompletedPlanWorkout;
+  final ({WorkoutPlan plan, WorkoutPlanDay day})? nextWorkout;
   final WorkoutSession? activeSession;
   final List<WorkoutSession> completedSessions;
   final List<RecoveryGroup> readiness;
@@ -600,6 +616,16 @@ final dailyOverviewProvider = FutureProvider<DailyOverview>((ref) async {
   );
   return DailyOverview(
     plans: orderedPlans,
+    activePlanId: preferences.activePlanId,
+    lastCompletedPlanWorkout: lastCompletedWorkoutForPlan(
+      history: summaries,
+      planId: preferences.activePlanId,
+    ),
+    nextWorkout: nextPlannedWorkout(
+      plans: plans,
+      activePlanId: preferences.activePlanId,
+      history: summaries,
+    ),
     activeSession: active,
     completedSessions: sessions,
     readiness: deriveRecovery(sessions),

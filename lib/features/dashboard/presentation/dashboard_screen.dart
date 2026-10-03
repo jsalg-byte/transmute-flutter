@@ -10,6 +10,7 @@ import '../../../shared/design_system/design_tokens.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/recovery_anatomy.dart';
 import '../../../shared/theme/transmute_palette.dart';
+import '../../quick_add/presentation/quick_add_dialog.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -31,28 +32,41 @@ class DashboardScreen extends ConsumerWidget {
         data: (data) {
           final palette = TransmutePalette.of(context);
           final compact = MediaQuery.sizeOf(context).width < 600;
-          final next = data.plans
-              .where((plan) => plan.days.isNotEmpty)
-              .map((plan) => (plan: plan, day: plan.days.first))
+          final activePlan = data.plans
+              .where((plan) => plan.id == data.activePlanId)
               .firstOrNull;
+          final next = data.nextWorkout;
           return ListView(
             padding: EdgeInsets.zero,
             children: [
               const _Eyebrow('THE WORKBENCH'),
-              SizedBox(height: compact ? 8 : 16),
-              Text('Welcome back.', style: _DashboardText.welcome(palette)),
+              SizedBox(height: compact ? 8 : 12),
+              Text(
+                "Today's Workout",
+                style: _DashboardText.dashboardHeading(palette),
+              ),
               SizedBox(height: compact ? 12 : 18),
-              _InkButton(
-                label: 'Quick Add Workout',
-                onPressed: () => showDialog<void>(
-                  context: context,
-                  builder: (_) => const _QuickAddDialog(),
+              _SessionPrescription(
+                active: data.activeSession,
+                activePlan: activePlan,
+                next: next,
+                lastCompleted: data.lastCompletedPlanWorkout,
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => const QuickAddWorkoutDialog(),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Quick Add Workout'),
                 ),
               ),
-              SizedBox(height: compact ? 20 : 38),
+              SizedBox(height: compact ? 14 : 24),
               Divider(color: palette.ink, height: 1),
               SizedBox(height: compact ? 18 : 28),
-              _SessionPrescription(active: data.activeSession, next: next),
               const SizedBox(height: 20),
               Divider(color: palette.ink, height: 1),
               SizedBox(height: compact ? 16 : 28),
@@ -82,246 +96,89 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-class _QuickAddDialog extends ConsumerStatefulWidget {
-  const _QuickAddDialog();
-
-  @override
-  ConsumerState<_QuickAddDialog> createState() => _QuickAddDialogState();
-}
-
-class _QuickAddDialogState extends ConsumerState<_QuickAddDialog> {
-  final _search = TextEditingController();
-  final _weight = TextEditingController();
-  final _reps = TextEditingController();
-  final _duration = TextEditingController();
-  Exercise? _selected;
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _search.dispose();
-    _weight.dispose();
-    _reps.dispose();
-    _duration.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final exercises = ref.watch(exerciseSearchProvider(_search.text));
-    final unit =
-        ref.watch(authControllerProvider).user?.weightUnit ?? WeightUnit.lb;
-    final cardio = _selected?.category == 'cardio';
-    return AlertDialog(
-      title: const Text('Quick Add Workout'),
-      content: SizedBox(
-        width: 520,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextField(
-                controller: _search,
-                decoration: const InputDecoration(
-                  labelText: 'Choose an exercise',
-                  prefixIcon: Icon(Icons.search),
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-              const SizedBox(height: 8),
-              exercises.when(
-                loading: () => const LinearProgressIndicator(),
-                error: (_, _) => const Text('Exercise library unavailable.'),
-                data: (items) => SizedBox(
-                  height: 180,
-                  child: ListView.builder(
-                    itemCount: items.take(30).length,
-                    itemBuilder: (_, index) {
-                      final exercise = items[index];
-                      return ListTile(
-                        dense: true,
-                        title: Text(exercise.name),
-                        subtitle: Text(
-                          exercise.category == 'cardio'
-                              ? 'Duration-based'
-                              : 'Weight × reps',
-                        ),
-                        selected: _selected?.id == exercise.id,
-                        onTap: () => setState(() => _selected = exercise),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              if (_selected != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  _selected!.name,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                if (cardio)
-                  TextField(
-                    controller: _duration,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Duration (minutes)',
-                    ),
-                  )
-                else ...[
-                  TextField(
-                    controller: _weight,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Weight (${unit.name})',
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _reps,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Reps'),
-                  ),
-                ],
-              ],
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : () => _save(unit, cardio),
-          child: Semantics(
-            liveRegion: _saving,
-            label: _saving ? 'Saving workout' : 'Save workout',
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Opacity(
-                  opacity: _saving ? 0 : 1,
-                  child: const Text('Save Workout'),
-                ),
-                if (_saving)
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _save(WeightUnit unit, bool cardio) async {
-    if (_selected == null) return;
-    final weight = double.tryParse(_weight.text.trim());
-    final reps = int.tryParse(_reps.text.trim());
-    final minutes = int.tryParse(_duration.text.trim());
-    if (cardio
-        ? minutes == null || minutes <= 0
-        : reps == null || reps <= 0 || weight == null || weight < 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter valid workout values.')),
-      );
-      return;
-    }
-    setState(() => _saving = true);
-    try {
-      await ref
-          .read(quickAddRepositoryProvider)
-          .create(
-            exerciseId: _selected!.id,
-            weightUnit: unit,
-            weightKg: cardio ? null : toKg(weight!, unit),
-            reps: cardio ? null : reps,
-            durationSeconds: cardio ? minutes! * 60 : null,
-          );
-      ref.invalidate(historyProvider);
-      ref.invalidate(recentRecordProvider);
-      if (mounted) {
-        final messenger = ScaffoldMessenger.of(context);
-        Navigator.pop(context);
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Workout added to your record.')),
-        );
-      }
-    } on AppFailure catch (error) {
-      if (mounted) {
-        setState(() => _saving = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
-      }
-    }
-  }
-}
-
 class _SessionPrescription extends ConsumerWidget {
-  const _SessionPrescription({required this.active, required this.next});
+  const _SessionPrescription({
+    required this.active,
+    required this.activePlan,
+    required this.next,
+    required this.lastCompleted,
+  });
   final WorkoutSession? active;
+  final WorkoutPlan? activePlan;
   final ({WorkoutPlan plan, WorkoutPlanDay day})? next;
+  final CompletedSessionSummary? lastCompleted;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final palette = TransmutePalette.of(context);
-    final label = active != null ? 'ACTIVE WORK' : 'YOUR NEXT SESSION';
+    final compact = MediaQuery.sizeOf(context).width < 600;
     final title = active != null
-        ? '${active!.planName} — ${active!.planDayName}'
-        : next == null
-        ? 'Build the work before you perform it.'
-        : '${next!.plan.name} — ${next!.day.name}';
-    final meta = active != null
+        ? '${active!.planName} · ${active!.planDayName}'
+        : next?.day.name ??
+              (activePlan == null
+                  ? 'Choose your active plan'
+                  : 'Add a training day');
+    final subtitle = active != null
         ? '${active!.workingSetCount} working sets logged'
-        : next == null
-        ? 'A plan gives your next session a place to begin.'
-        : '${next!.day.exercises.length} ${next!.day.exercises.length == 1 ? 'exercise' : 'exercises'} ready to log';
-    final movements = active == null && next != null
-        ? next!.day.exercises
-              .take(3)
-              .map((item) => item.exercise.name)
-              .join(' · ')
-        : null;
-    final action = active != null
-        ? 'Continue session'
-        : next == null
-        ? 'Build your first plan'
-        : 'Begin session';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _Eyebrow(label),
-        const SizedBox(height: 12),
-        Text(title, style: _DashboardText.sessionTitle(palette)),
-        const SizedBox(height: 10),
-        Text(meta, style: _DashboardText.body(palette)),
-        if (movements != null && movements.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text(movements, style: _DashboardText.body(palette)),
-        ],
-        const SizedBox(height: 26),
-        _InkButton(
-          label: action,
-          onPressed: () {
-            if (active != null) {
-              context.go('/session');
-            } else if (next == null) {
-              context.go('/plans');
-            } else {
-              _chooseDayAndStart(context, ref);
-            }
-          },
+        : next != null
+        ? lastCompleted == null
+              ? 'First day in ${next!.plan.name} · ${next!.day.exercises.length} ${next!.day.exercises.length == 1 ? 'exercise' : 'exercises'}'
+              : 'After ${lastCompleted!.planDayName} · ${next!.plan.name}'
+        : activePlan == null
+        ? 'Select a plan to see your next scheduled day.'
+        : '${activePlan!.name} has no training days yet.';
+    return Card(
+      color: palette.raised,
+      shape: DesignTokens.of(context).shape(palette.divider),
+      child: Padding(
+        padding: EdgeInsets.all(compact ? 16 : 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  active != null
+                      ? Icons.play_circle_fill
+                      : Icons.fitness_center,
+                  color: palette.oxide,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                _Eyebrow(active != null ? 'IN PROGRESS' : 'NEXT UP'),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(title, style: _DashboardText.sessionTitle(palette)),
+            const SizedBox(height: 6),
+            Text(subtitle, style: _DashboardText.body(palette)),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: _InkButton(
+                label: active != null
+                    ? 'Resume Workout'
+                    : next != null
+                    ? 'Start Workout'
+                    : activePlan == null
+                    ? 'Choose a Plan'
+                    : 'Add a Training Day',
+                onPressed: () {
+                  if (active != null) {
+                    context.go('/session');
+                  } else if (next != null) {
+                    _chooseDayAndStart(context, ref);
+                  } else if (activePlan != null) {
+                    context.go('/plans/${activePlan!.id}');
+                  } else {
+                    context.go('/plans');
+                  }
+                },
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -334,6 +191,7 @@ class _SessionPrescription extends ConsumerWidget {
       showDragHandle: true,
       builder: (sheetContext) => _TrainingDayFlyover(
         plan: plan,
+        nextDayId: next!.day.id,
         onSelect: (choice) => Navigator.of(sheetContext).pop(choice),
         onBrowsePlans: () {
           Navigator.of(sheetContext).pop();
@@ -378,11 +236,13 @@ class _TrainingDayChoice {
 class _TrainingDayFlyover extends ConsumerWidget {
   const _TrainingDayFlyover({
     required this.plan,
+    required this.nextDayId,
     required this.onSelect,
     required this.onBrowsePlans,
   });
 
   final WorkoutPlan plan;
+  final String nextDayId;
   final ValueChanged<_TrainingDayChoice> onSelect;
   final VoidCallback onBrowsePlans;
 
@@ -443,7 +303,7 @@ class _TrainingDayFlyover extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Choose a day to start logging.',
+                      'Up next: ${plan.days.where((day) => day.id == nextDayId).firstOrNull?.name ?? plan.name}. Choose it or another day to begin.',
                       style: TextStyle(color: palette.muted),
                     ),
                     const SizedBox(height: 14),
@@ -477,11 +337,7 @@ class _TrainingDayFlyover extends ConsumerWidget {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    _lastPerformedLabel(
-                                      choice.lastPerformedAt,
-                                      DateTime.now(),
-                                      unavailableLabel: choice.historyStatus,
-                                    ),
+                                    '${choice.day.id == nextDayId ? 'NEXT · ' : ''}${_lastPerformedLabel(choice.lastPerformedAt, DateTime.now(), unavailableLabel: choice.historyStatus)}',
                                     textAlign: TextAlign.center,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -891,12 +747,12 @@ class _Eyebrow extends StatelessWidget {
 }
 
 class _DashboardText {
-  static TextStyle welcome(TransmutePalette palette) => TextStyle(
+  static TextStyle dashboardHeading(TransmutePalette palette) => TextStyle(
     color: palette.ink,
-    fontSize: 48,
-    height: 1,
+    fontSize: 28,
+    height: 1.1,
     fontWeight: FontWeight.w900,
-    letterSpacing: -2.2,
+    letterSpacing: -0.8,
   );
   static TextStyle sessionTitle(TransmutePalette palette) => TextStyle(
     color: palette.ink,

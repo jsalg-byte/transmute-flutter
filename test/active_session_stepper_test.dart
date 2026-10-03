@@ -37,19 +37,20 @@ void main() {
     expect(fields, findsNWidgets(6));
     final weight = tester.widget<TextField>(fields.at(0));
     final reps = tester.widget<TextField>(fields.at(1));
-    expect(weight.decoration?.hintText, startsWith('Last '));
-    expect(
-      weight.decoration?.hintText,
-      anyOf(endsWith(' lb'), endsWith(' kg')),
-    );
-    expect(reps.decoration?.hintText, startsWith('Last '));
-    expect(reps.decoration?.hintText, endsWith(' reps'));
+    expect(double.tryParse(weight.decoration!.hintText!), isNotNull);
+    expect(weight.decoration?.suffixText, anyOf('lb', 'kg'));
+    expect(int.tryParse(reps.decoration!.hintText!), isNotNull);
+    expect(reps.decoration?.suffixText, 'reps');
     expect(weight.textInputAction, TextInputAction.next);
     expect(reps.textInputAction, TextInputAction.done);
 
     await tester.ensureVisible(fields.at(0));
     await tester.tap(fields.at(0));
     await tester.enterText(fields.at(0), '95');
+    expect(
+      tester.widget<TextField>(fields.at(0)).decoration?.suffixText,
+      anyOf('lb', 'kg'),
+    );
     await tester.testTextInput.receiveAction(TextInputAction.next);
     await tester.pump();
     expect(tester.widget<TextField>(fields.at(1)).focusNode!.hasFocus, isTrue);

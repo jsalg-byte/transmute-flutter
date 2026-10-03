@@ -12,7 +12,9 @@ These notes capture behavior and constraints that are easy to break while changi
 
 - `ApiAuthRepository` persists access/refresh tokens in `flutter_secure_storage`. `_AccessTokenRefreshInterceptor` in `lib/core/api/api_repositories.dart` handles one 401 retry.
 - Several providers can request data together on route entry. If simultaneous 401s each rotate the refresh token, a later refresh can fail because the first request already replaced it. Before refreshing, compare the failed request's `Authorization` header with Dio's current shared header; if it changed, retry with that newer token. Do not remove this check as redundant.
+- Keep `_AccessTokenRefreshInterceptor` as a regular Dio `Interceptor`, not `QueuedInterceptor`. Its error handler awaits the retried request; a serialized error queue can deadlock when the retry itself gets a 401 and has to enter that same queue. `_refreshing` coalesces concurrent refresh calls, and the changed-header check handles requests that fail after another request refreshed. `test/expo_adapter_test.dart` covers a successful refresh and concurrent unauthorized retries that must terminate.
 - Settings loads preferences and plan data, while app theme resolution also reads theme preferences. A Settings spinner can therefore come from an auth/API dependency race, not from Cute Pastel rendering. Diagnose the route's requests and auth state before changing theme code. Dio currently has 10-second connect and 15-second send/receive timeouts.
+- Bound auth restoration in `AuthController`: secure-storage reads can stall in browser contexts, so public routes must not remain on the startup splash forever (mock restore gets 3 seconds; API restore gets 35 seconds for its network timeouts). `/` also needs a Riverpod-watching entry widget; a router refresh alone may not rebuild the same URL after loading ends.
 
 ## Active workout and set logging
 
@@ -27,6 +29,7 @@ These notes capture behavior and constraints that are easy to break while changi
 ## Plans, Quick Add, and history
 
 - Planned sessions start with a plan-day ID and then load canonical session detail. Keep day identity and plan identity attached to this flow; the API's aggregate record does not replace the individual session detail read.
+- An active workout plan is an account preference, not an in-progress workout session. It can be selected from Settings or a plan's detail page; this selection must not implicitly start a session. Starting a day creates/resumes the distinct single active session owned by `ActiveSessionController`.
 - Quick Add is an independent recording path through `QuickAddRepository` and `/v1/quick-add`. It must not start a planned session or change the selected active plan. Strength entries use weight/reps; duration-based activities send `durationSeconds`.
 - The duration field requires API migration `007_quick_add_duration.sql` in the sibling `/Users/mzootfb/Sites/transmute-mobile` repository. Docker/Coolify deployment does not automatically apply API migrations. Inspect the live schema and apply/verify an explicit migration before relying on a new DB field; a healthy `/health` response alone does not prove the affected endpoint works.
 - Session history is built from completed server sessions. Completion/deletion should invalidate the history and dependent “last performed” providers so dates and day subtitles refresh.

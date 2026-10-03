@@ -2389,6 +2389,8 @@ class MockSessionRepository implements SessionRepository {
           .map(
             (session) => CompletedSessionSummary(
               id: session.id,
+              planId: session.planId,
+              planDayId: session.planDayId,
               planName: session.planName,
               planDayName: session.planDayName,
               startedAt: session.startedAt,

@@ -17,6 +17,8 @@ void main() {
             (ref) async => [
               CompletedSessionSummary(
                 id: 'legacy-session',
+                planId: 'plan-garou',
+                planDayId: 'day-push-1',
                 planName: 'GAROU II',
                 planDayName: 'PUSH 1',
                 startedAt: at,
@@ -62,16 +64,21 @@ void main() {
       expect(find.text('Record today’s recovery'), findsNothing);
       expect(find.text('DAILY TRANSMUTATION'), findsNothing);
 
-      final beginSession = find.text('Begin session');
+      expect(find.text("Today's Workout"), findsOneWidget);
+      expect(find.text('Upper strength'), findsOneWidget);
+      final beginSession = find.text('Start Workout');
       await tester.tap(beginSession);
       await tester.pumpAndSettle();
 
       expect(find.text('What are you training today?'), findsOneWidget);
-      expect(find.text('Upper strength'), findsOneWidget);
+      expect(
+        find.widgetWithText(OutlinedButton, 'Upper strength'),
+        findsOneWidget,
+      );
       expect(find.textContaining('Last performed'), findsOneWidget);
       expect(find.text('Lower strength'), findsNothing);
 
-      await tester.tap(find.text('Upper strength'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Upper strength'));
       await tester.pumpAndSettle();
 
       expect(find.text('Active workout destination'), findsOneWidget);

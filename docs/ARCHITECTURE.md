@@ -22,7 +22,9 @@ Riverpod `FutureProvider` and family providers own most read state (plans, histo
 
 `ApiAuthRepository` logs in/registers through `/v1/auth/*`, stores access/refresh credentials, and restores a cached session using `/v1/me` or `/v1/auth/refresh`. `AuthController` starts restoration when first created and publishes loading, signed-out, or signed-in state. Login and registration then load the saved weight unit from preferences when available.
 
-The shared Dio instance attaches the access token and uses `_AccessTokenRefreshInterceptor` for one-time 401 recovery. Concurrent requests can receive 401 together: before refreshing, the interceptor checks whether another request already replaced Dio's shared authorization header and retries with that token. `_request` converts Dio failures into `AppFailure` with status and retryability. API JSON parsing and model construction stay in the API repositories; keep mappings aligned to the verified service contract.
+The `/` route uses `PreLoginEntryRoute` to reactively show the loading splash only during restoration, then the three-slide guest introduction; signed-in users are redirected to the dashboard. Keep this route watching auth state: GoRouter refreshes redirects when auth changes, but the same public URL also needs its page widget to rebuild.
+
+The shared Dio instance attaches the access token and uses `_AccessTokenRefreshInterceptor` for one-time 401 recovery. Concurrent requests can receive 401 together: before refreshing, the interceptor checks whether another request already replaced Dio's shared authorization header and retries with that token. It is a regular Dio `Interceptor`, not a `QueuedInterceptor`: refresh is coalesced through one shared future, while serializing an error callback that awaits its own retried request can deadlock if that retry also fails. `_request` converts Dio failures into `AppFailure` with status and retryability. API JSON parsing and model construction stay in the API repositories; keep mappings aligned to the verified service contract.
 
 ## Persistence
 
@@ -39,7 +41,7 @@ Feature pages use `AppShell` from `lib/shared/widgets/app_shell.dart`. It presen
 
 ## Workout and session flow
 
-Plan screens read plans through `plansProvider`/`planProvider` and mutate through `PlanRepository`. The dashboard combines plan/preferences data, active-session state, history, and other records into overview cards. Beginning a planned workout calls `ActiveSessionController.start(planId, planDayId)`, which delegates to `SessionRepository.startSession`; the API adapter creates the server session using its plan-day ID, then fetches canonical session detail.
+Plan screens read plans through `plansProvider`/`planProvider` and mutate through `PlanRepository`. The active plan is a separate account preference (`PreferencesRepository.activePlanId`), selectable in Settings or directly from plan details; selecting it does not start a session. The dashboard combines plan/preferences data, active-session state, history, and other records into overview cards. Beginning a planned workout calls `ActiveSessionController.start(planId, planDayId)`, which delegates to `SessionRepository.startSession`; the API adapter creates the server session using its plan-day ID, then fetches canonical session detail.
 
 `ActiveSessionController` is the sole owner of active-session mutations. It loads the server's active session, restores pending device-local sets, and exposes add/remove exercise, set update/delete, rest, completion, and discard operations. If the API advertises offline set replay, a validated set is first queued in secure storage with a UUID operation ID and shown as pending. Retries run in order with that same ID; server acknowledgement refreshes canonical session detail. Completion is blocked while sets remain unsynced. Without that API capability, set creation uses the direct request path.
 

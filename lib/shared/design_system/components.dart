@@ -283,6 +283,7 @@ class TransmuteTextField extends StatelessWidget {
     this.controller,
     this.label,
     this.hint,
+    this.suffixText,
     this.error,
     this.semanticLabel,
     this.enabled = true,
@@ -297,6 +298,7 @@ class TransmuteTextField extends StatelessWidget {
   final TextEditingController? controller;
   final String? label;
   final String? hint;
+  final String? suffixText;
   final String? error;
   final String? semanticLabel;
   final bool enabled;
@@ -326,6 +328,7 @@ class TransmuteTextField extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,
+          suffixText: suffixText,
           errorText: error,
           border: ledger ? const UnderlineInputBorder() : null,
           isDense: ledger && compact,

@@ -4,6 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:transmute_flutter/features/authentication/presentation/pre_login_onboarding_screen.dart';
 
 void main() {
+  testWidgets('auth restoration has a branded loading splash', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: AuthLoadingSplashScreen()));
+
+    expect(find.byIcon(Icons.fitness_center_rounded), findsOneWidget);
+    expect(find.bySemanticsLabel('Loading Transmute'), findsOneWidget);
+  });
+
   testWidgets('guest onboarding advances to account creation', (tester) async {
     final router = GoRouter(
       routes: [

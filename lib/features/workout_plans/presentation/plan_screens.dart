@@ -614,8 +614,11 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
     if (name == null) return;
     try {
       final day = await ref.read(planRepositoryProvider).addDay(plan.id, name);
-      setState(() => _dayId = day.id);
       _refresh();
+      // Select only after the refreshed plan contains the new day. Otherwise
+      // the retained pre-refresh plan can reset _dayId to its first day.
+      await ref.read(planProvider(plan.id).future);
+      if (mounted) setState(() => _dayId = day.id);
     } on AppFailure catch (error) {
       if (mounted) _notice(context, error.message);
     }
@@ -1193,33 +1196,67 @@ Future<String?> _textDialog(
   required String action,
   String? initial,
 }) async {
-  final controller = TextEditingController(text: initial);
-  final value = await showDialog<String>(
+  return showDialog<String>(
     context: context,
-    builder: (dialog) => AlertDialog(
-      title: Text(title),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        decoration: InputDecoration(labelText: label),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialog),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            final value = controller.text.trim();
-            if (value.isNotEmpty) Navigator.pop(dialog, value);
-          },
-          child: Text(action),
-        ),
-      ],
+    builder: (_) => _TextEntryDialog(
+      title: title,
+      label: label,
+      action: action,
+      initial: initial,
     ),
   );
-  controller.dispose();
-  return value;
+}
+
+class _TextEntryDialog extends StatefulWidget {
+  const _TextEntryDialog({
+    required this.title,
+    required this.label,
+    required this.action,
+    this.initial,
+  });
+
+  final String title;
+  final String label;
+  final String action;
+  final String? initial;
+
+  @override
+  State<_TextEntryDialog> createState() => _TextEntryDialogState();
+}
+
+class _TextEntryDialogState extends State<_TextEntryDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.title),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      decoration: InputDecoration(labelText: widget.label),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      ElevatedButton(
+        onPressed: () {
+          final value = _controller.text.trim();
+          if (value.isNotEmpty) Navigator.pop(context, value);
+        },
+        child: Text(widget.action),
+      ),
+    ],
+  );
 }
 
 Future<bool> _confirm(BuildContext context, String title, String body) async =>

@@ -1,6 +1,51 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../core/providers.dart';
+import '../../../shared/theme/transmute_palette.dart';
+
+/// Rebuilds when auth restoration completes so the splash can transition into
+/// the public onboarding flow without changing the URL.
+class PreLoginEntryRoute extends ConsumerWidget {
+  const PreLoginEntryRoute({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isRestoring =
+        ref.watch(authControllerProvider).status == AuthStatus.loading;
+    return isRestoring
+        ? const AuthLoadingSplashScreen()
+        : const PreLoginOnboardingScreen();
+  }
+}
+
+/// Shown only while the router is restoring the saved authentication state.
+/// Guests then see the three-slide introduction; signed-in users go to Home.
+class AuthLoadingSplashScreen extends StatelessWidget {
+  const AuthLoadingSplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    return Scaffold(
+      backgroundColor: palette.surface,
+      body: SafeArea(
+        child: Center(
+          child: Semantics(
+            label: 'Loading Transmute',
+            child: Icon(
+              Icons.fitness_center_rounded,
+              size: 64,
+              color: palette.ink,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class PreLoginOnboardingScreen extends StatefulWidget {
   const PreLoginOnboardingScreen({super.key});

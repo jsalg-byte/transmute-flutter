@@ -13,6 +13,7 @@ import '../../../core/providers.dart';
 import '../../../shared/design_system/design_system.dart';
 import '../../../shared/theme/transmute_palette.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../quick_add/presentation/quick_add_dialog.dart';
 
 class ActiveSessionScreen extends ConsumerWidget {
   const ActiveSessionScreen({super.key});
@@ -26,37 +27,456 @@ class ActiveSessionScreen extends ConsumerWidget {
       child: session.when(
         data: (value) {
           if (value != null) return _SessionBody(session: value);
-          return Center(
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('No active workout'),
-                    const SizedBox(height: 8),
-                    const Text('Open a plan to start one workout.'),
-                    const SizedBox(height: 12),
-                    ElevatedButton(
-                      onPressed: () => context.go('/plans'),
-                      child: const Text('Browse plans'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
+          return const _WorkoutHome();
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) => Center(
-          child: ElevatedButton(
+        error: (_, _) => TransmuteStatePanel(
+          kind: TransmuteStateKind.error,
+          title: 'Workout unavailable',
+          message: 'We could not check for an active session.',
+          action: TransmuteButton(
+            label: 'Retry',
+            icon: Icons.refresh,
             onPressed: () => ref.read(activeSessionProvider.notifier).refresh(),
-            child: const Text('Retry'),
           ),
         ),
       ),
     );
   }
+}
+
+class _WorkoutHome extends ConsumerStatefulWidget {
+  const _WorkoutHome();
+
+  @override
+  ConsumerState<_WorkoutHome> createState() => _WorkoutHomeState();
+}
+
+class _WorkoutHomeState extends ConsumerState<_WorkoutHome> {
+  String? _startingDayId;
+
+  @override
+  Widget build(BuildContext context) {
+    final overview = ref.watch(dailyOverviewProvider);
+    final compact = MediaQuery.sizeOf(context).width < 600;
+    return overview.when(
+      skipLoadingOnRefresh: true,
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (_, _) => TransmuteStatePanel(
+        kind: TransmuteStateKind.error,
+        title: 'Could not load workouts',
+        message: 'Your plan list is unavailable right now.',
+        action: TransmuteButton(
+          label: 'Retry',
+          icon: Icons.refresh,
+          onPressed: () => ref.invalidate(dailyOverviewProvider),
+        ),
+      ),
+      data: (data) {
+        final next = data.nextWorkout;
+        final palette = TransmutePalette.of(context);
+        return ListView(
+          padding: EdgeInsets.only(bottom: compact ? 24 : 32),
+          children: [
+            _WorkoutEyebrow('TODAY\'S WORKOUT'),
+            const SizedBox(height: 8),
+            _NextWorkoutPanel(
+              plan: next?.plan,
+              day: next?.day,
+              activePlanId: data.activePlanId,
+              plans: data.plans,
+              busy: next != null && _startingDayId == next.day.id,
+              onStart: next == null ? null : () => _start(next.plan, next.day),
+            ),
+            const SizedBox(height: 24),
+            _WorkoutSectionHeading(
+              title: 'New workout',
+              trailing: const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 10),
+            _NewWorkoutAction(
+              icon: Icons.add_circle_outline,
+              title: 'Quick Add workout',
+              subtitle: 'Log one exercise without changing your plan.',
+              onTap: () => showDialog<void>(
+                context: context,
+                builder: (_) => const QuickAddWorkoutDialog(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _NewWorkoutAction(
+              icon: Icons.edit_note_outlined,
+              title: 'Create or generate a plan',
+              subtitle: 'Build a routine manually or with plan assist.',
+              onTap: () => context.go('/plans'),
+            ),
+            const SizedBox(height: 24),
+            _WorkoutSectionHeading(
+              title: 'Routines',
+              trailing: TextButton.icon(
+                onPressed: () => context.go('/plans'),
+                icon: const Icon(Icons.add, size: 20),
+                label: const Text('New plan'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (data.plans.isEmpty)
+              TransmuteStatePanel(
+                kind: TransmuteStateKind.empty,
+                title: 'No routines yet',
+                message: 'Create a plan to organize your training days.',
+                action: TransmuteButton(
+                  label: 'Create a plan',
+                  icon: Icons.add,
+                  onPressed: () => context.go('/plans'),
+                ),
+              )
+            else
+              for (final plan in data.plans)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _RoutinePanel(
+                    plan: plan,
+                    isActive: plan.id == data.activePlanId,
+                    startingDayId: _startingDayId,
+                    onStart: (day) => _start(plan, day),
+                    onOpen: () => context.go('/plans/${plan.id}'),
+                  ),
+                ),
+            const SizedBox(height: 4),
+            Divider(color: palette.divider),
+            const SizedBox(height: 12),
+            TextButton.icon(
+              onPressed: () => context.go('/history'),
+              icon: const Icon(Icons.history),
+              label: const Text('View workout history'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _start(WorkoutPlan plan, WorkoutPlanDay day) async {
+    if (_startingDayId != null) return;
+    setState(() => _startingDayId = day.id);
+    try {
+      await ref.read(activeSessionProvider.notifier).start(plan.id, day.id);
+      if (mounted) context.go('/session');
+    } on AppFailure catch (error) {
+      if (!mounted) return;
+      if (error.code == 'active_session_exists') {
+        await ref.read(activeSessionProvider.notifier).refresh();
+        if (mounted) context.go('/session');
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _startingDayId = null);
+    }
+  }
+}
+
+class _NextWorkoutPanel extends StatelessWidget {
+  const _NextWorkoutPanel({
+    required this.plan,
+    required this.day,
+    required this.activePlanId,
+    required this.plans,
+    required this.busy,
+    required this.onStart,
+  });
+
+  final WorkoutPlan? plan;
+  final WorkoutPlanDay? day;
+  final String? activePlanId;
+  final List<WorkoutPlan> plans;
+  final bool busy;
+  final VoidCallback? onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    final activePlan = plans
+        .where((item) => item.id == activePlanId)
+        .firstOrNull;
+    final label = day != null
+        ? 'NEXT UP'
+        : activePlan == null
+        ? 'A PLAN FOR TODAY'
+        : 'READY WHEN YOU ARE';
+    final title =
+        day?.name ??
+        (activePlan == null ? 'Choose a workout plan' : 'Add a training day');
+    final subtitle = day != null
+        ? plan!.name
+        : activePlan == null
+        ? 'Set a routine as active to see the next day here.'
+        : '${activePlan.name} is active, but has no days yet.';
+    final exerciseCount = day?.exercises.length ?? 0;
+    final prescribedSets = day?.exercises.fold<int>(
+      0,
+      (total, exercise) => total + exercise.targetSets,
+    );
+    final actionLabel = day != null
+        ? 'Start Workout'
+        : activePlan == null
+        ? 'Browse plans'
+        : 'Open active plan';
+    return Card(
+      color: palette.raised,
+      child: Padding(
+        padding: const EdgeInsets.all(DesignSpace.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.fitness_center, size: 18, color: palette.steel),
+                const SizedBox(width: DesignSpace.sm),
+                _WorkoutEyebrow(label),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(title, style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 4),
+            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+            if (day != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '$exerciseCount ${exerciseCount == 1 ? 'exercise' : 'exercises'} · $prescribedSets planned sets',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: palette.muted),
+              ),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: TransmuteButton(
+                label: actionLabel,
+                icon: day == null ? Icons.play_arrow : Icons.arrow_forward,
+                loading: busy,
+                onPressed: day == null
+                    ? () {
+                        if (activePlan == null) {
+                          context.go('/plans');
+                        } else {
+                          context.go('/plans/${activePlan.id}');
+                        }
+                      }
+                    : onStart,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkoutSectionHeading extends StatelessWidget {
+  const _WorkoutSectionHeading({required this.title, required this.trailing});
+  final String title;
+  final Widget trailing;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Expanded(
+        child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+      ),
+      trailing,
+    ],
+  );
+}
+
+class _NewWorkoutAction extends StatelessWidget {
+  const _NewWorkoutAction({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: TransmuteListRow(
+      title: title,
+      subtitle: subtitle,
+      leading: Icon(icon),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      onTap: onTap,
+    ),
+  );
+}
+
+class _RoutinePanel extends StatelessWidget {
+  const _RoutinePanel({
+    required this.plan,
+    required this.isActive,
+    required this.startingDayId,
+    required this.onStart,
+    required this.onOpen,
+  });
+
+  final WorkoutPlan plan;
+  final bool isActive;
+  final String? startingDayId;
+  final ValueChanged<WorkoutPlanDay> onStart;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    final exerciseTotal = plan.exerciseCount;
+    final activeLabel = isActive ? ' · ACTIVE PLAN' : '';
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: DesignSpace.lg),
+        childrenPadding: const EdgeInsets.fromLTRB(
+          DesignSpace.lg,
+          0,
+          DesignSpace.lg,
+          DesignSpace.md,
+        ),
+        title: Text(plan.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          '${plan.days.length} ${plan.days.length == 1 ? 'day' : 'days'} · $exerciseTotal ${exerciseTotal == 1 ? 'exercise' : 'exercises'}$activeLabel',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: isActive ? palette.steel : palette.muted,
+          ),
+        ),
+        initiallyExpanded: isActive,
+        children: [
+          if (plan.days.isEmpty)
+            TransmuteListRow(
+              title: 'No training days yet',
+              subtitle: 'Open this plan to add a day.',
+              leading: const Icon(Icons.event_note_outlined),
+              onTap: onOpen,
+            )
+          else
+            for (final day in plan.days)
+              _RoutineDayRow(
+                day: day,
+                busy: startingDayId == day.id,
+                disabled: startingDayId != null,
+                onStart: () => onStart(day),
+              ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onOpen,
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: const Text('View plan'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoutineDayRow extends StatelessWidget {
+  const _RoutineDayRow({
+    required this.day,
+    required this.busy,
+    required this.disabled,
+    required this.onStart,
+  });
+
+  final WorkoutPlanDay day;
+  final bool busy;
+  final bool disabled;
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = day.exercises.take(3).map((item) => item.exercise.name);
+    final sets = day.exercises.fold<int>(
+      0,
+      (total, exercise) => total + exercise.targetSets,
+    );
+    final previewText = preview.join(' · ');
+    return Padding(
+      padding: const EdgeInsets.only(top: DesignSpace.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      day.name,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: DesignSpace.xs),
+                    Text(
+                      '${day.exercises.length} ${day.exercises.length == 1 ? 'exercise' : 'exercises'} · $sets sets',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: DesignSpace.sm),
+              OutlinedButton(
+                onPressed: disabled ? null : onStart,
+                child: busy
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Start'),
+              ),
+            ],
+          ),
+          if (previewText.isNotEmpty) ...[
+            const SizedBox(height: DesignSpace.xs),
+            Text(
+              previewText,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+          if (day.exercises.length > 3)
+            Text(
+              'and ${day.exercises.length - 3} more',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          const Divider(height: DesignSpace.xl),
+        ],
+      ),
+    );
+  }
+}
+
+class _WorkoutEyebrow extends StatelessWidget {
+  const _WorkoutEyebrow(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+      letterSpacing: 1.2,
+      fontWeight: FontWeight.w700,
+      color: TransmutePalette.of(context).muted,
+    ),
+  );
 }
 
 class _SessionBody extends ConsumerStatefulWidget {
@@ -1252,11 +1672,15 @@ class _SetDraftRow extends StatelessWidget {
   final VoidCallback onLog;
 
   String? get _weightPlaceholder => previous == null
-      ? 'e.g. 20 ${unit.name}'
-      : 'Last ${_number(unit == WeightUnit.lb ? previous!.weightKg * 2.2046226218 : previous!.weightKg)} ${unit.name}';
+      ? '20'
+      : _number(
+          unit == WeightUnit.lb
+              ? previous!.weightKg * 2.2046226218
+              : previous!.weightKg,
+        );
 
   String? get _repsPlaceholder =>
-      previous == null ? 'e.g. 8 reps' : 'Last ${previous!.reps} reps';
+      previous == null ? '8' : previous!.reps.toString();
 
   @override
   Widget build(BuildContext context) {
@@ -1265,6 +1689,7 @@ class _SetDraftRow extends StatelessWidget {
       controller: draft.weight,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       hint: _weightPlaceholder,
+      suffixText: unit.name,
       kind: TransmuteFieldKind.ledger,
       semanticLabel: 'Set $number, Weight (${unit.name})',
       focusNode: draft.weightFocus,
@@ -1275,6 +1700,7 @@ class _SetDraftRow extends StatelessWidget {
       controller: draft.reps,
       keyboardType: TextInputType.number,
       hint: _repsPlaceholder,
+      suffixText: 'reps',
       kind: TransmuteFieldKind.ledger,
       semanticLabel: 'Set $number, Reps',
       focusNode: draft.repsFocus,

@@ -63,7 +63,7 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
             path: '/design-library',
             builder: (_, _) => const DesignLibraryScreen(),
           ),
-        GoRoute(path: '/', builder: (_, _) => const PreLoginOnboardingScreen()),
+        GoRoute(path: '/', builder: (_, _) => const PreLoginEntryRoute()),
         GoRoute(
           path: '/login',
           builder: (_, state) => LoginScreen(
