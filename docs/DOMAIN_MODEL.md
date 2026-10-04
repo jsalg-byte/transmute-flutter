@@ -1,5 +1,32 @@
 # Transmute Flutter demonstration: domain and data model
 
+> **Scope note (2026-10-03):** the entities below document the original
+> workout-loop baseline and contain early demo shapes; they are not the ceiling
+> for the expanded product. Verify the implemented API adapter contract and
+> sibling Fastify schema before using a field or changing a payload. The
+> target aggregates and exact proposed rules are in
+> [COMPETITOR_UPGRADE_PLAN.md](COMPETITOR_UPGRADE_PLAN.md). New contracts below
+> are planned, not currently implemented.
+
+## Target aggregates to add
+
+| Aggregate | Canonical evidence and planned persistence | Invariants |
+| --- | --- | --- |
+| `RoutineShareSnapshot` and `WorkoutSession` origin | Ordered routine/day prescriptions; immutable shared copy stored in `routine_share_snapshots` with owner, unguessable token, expiry/revocation and `routine_days.imported_from_share_id`; persisted session origin `plan_day`, `freeform`, or `quick_add`; freeform/Quick Add have null source routine/day. | A snapshot excludes sessions/history/goals and stores canonical kg targets. One active session spans planned and freeform origins; Quick Add is immediately completed. Imported copy has a new owner and cannot mutate the publisher's routine. |
+| `ExerciseRankBaseline` / `ExerciseRankSnapshot` | Exact exercise and tracking mode, comparable completed working sets, baseline, best metric, tier, next threshold, rule version and evidence IDs. | Provisional until two qualifying sessions on distinct dates; corrections/deletions recompute; personal tier is not a population percentile. |
+| `MuscleContribution` / `MuscleRankSnapshot` / `OverallRankSnapshot` | Curated exercise-to-front/back-muscle weights, top eligible exercise scores, overall coverage and history. | Missing mapping is explicit; front/back map and text detail use the same snapshot; placement needs documented coverage. |
+| `ProgressionLedger` / `Level` / `RewardClaim` | Qualified workout, set, PR and tier-up source events with idempotent XP/reversal entries and claim transaction. | Level and reward state are server-owned and rule-versioned; Arcana is a separate complementary aggregate. |
+| `QualifiedTrainingDay` / `StreakSnapshot` | Completed session evidence with the user's timezone frozen at completion. | At most one training-day mark per local date; current/best streak recompute on correction. |
+| `TrainingAggregate` / `BodyweightMeasurement` / typed `Goal` | Indexed confirmed-session metrics, dated user-entered bodyweight and exercise-linked estimated 1RM goals. | No invented calories or weight from photos; unit conversion does not mutate kg; goal progress names its baseline and rule. |
+| `DailyNutritionTarget` / `NutritionDay` | User-set calories/optional macros effective for local date; confirmed meals in saved food serving units. | Unset target is not zero; remaining defaults to food-only; image candidates never create meals without review. |
+| `RecipeVersion` and `MealPhotoCandidate` | Ingredient/serving nutrition provenance, owned media and reviewed photo analysis candidates. | Publishing requires moderation; logged meals retain their confirmed version and values. |
+| `FriendActivity` / `LeaderboardPeriod` / `LeagueCohort` | Accepted-friend events, opt-in settings and period-specific verified XP standings. | Authorization and opt-out/removal revoke visibility; no synthetic competitors or undisclosed population claims. |
+
+These aggregates require migrations and API routes in the sibling Fastify
+repository, Flutter domain repository interfaces, API/mock adapters and
+Riverpod registration. Allocate migration numbers only after checking the
+then-current backend state; the upgrade plan lists proposed endpoint shapes.
+
 ## Conventions
 
 - IDs are UUID strings.

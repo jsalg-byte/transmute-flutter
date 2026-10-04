@@ -1,0 +1,324 @@
+# Transmute competitor experience upgrade plan
+
+**Product direction, 2026-10-03.** Build a substantially fuller Transmute experience using the 28 supplied screenshots as the primary visual and product reference. Reproduce the useful screen structure, section order, navigation prominence, compact information, and progression loop seen in Liftoff. Keep Transmute's name, existing theme choices, and alchemical language and original artwork. Arcana remains a complementary evidence and collection system; it does not stand in for exercise ranks, levels, or streaks. Images [01–28](references/competitor-2026-10-03/) are review references, not assets to ship.
+
+This document defines the **target**. [PRD](PRD.md), [UI specification](UI_SPEC.md), [design system](DESIGN_SYSTEM.md), and [product roadmap](PRODUCT_LAUNCH_ROADMAP.md) align with it. Current code and the **Expo adapter contract (implemented core loop)** in [API_CONTRACT](API_CONTRACT.md) remain the truth for *implemented* behavior. Proposed routes, schemas, and algorithms below are new work, not claims about a deployed API. Historical focused-demo contract tables remain retired.
+
+**Text-only continuation guide:** [COMPETITOR_REFERENCE_HANDOFF.md](COMPETITOR_REFERENCE_HANDOFF.md) records the screenshot-derived visual and interaction details, current code entry points, and acceptance checks for every remaining slice (5–15). Read it with this plan before implementing a slice. It is a textual description of the supplied stills, not evidence of unseen Liftoff behavior.
+
+## Evidence and comparison boundary
+
+- **E = directly visible** in a supplied still: text, numbers, order, cards, tabs, controls, selected states, and styling. A still does not establish a tap result, hidden screen, persistence, scoring formula, or network behavior.
+- **P = proposed supporting behavior** needed to make the visible experience work end to end. Dense active-set logging, routine sharing, actual photo analysis, recipe import, and leaderboard calculation are P even where a nearby entry point is E.
+- **A = assumption/default** to validate with users or data. Our rank/XP/streak rules are transparent Transmute rules; they are not Liftoff's proprietary formulas. No percentile or population comparison is implied by a tier.
+- The prior audit compared signed-in **local mock** screens with a **deployed pre-login** screen. Those are different account states, data sources, and potentially bundles. The user reported that deployed “THE BLACKENING / Begin with the raw material” matches Flutter onboarding source; that view alone does not identify an old Expo release. We have not verified signed-in production visuals. Later slice reviews must record route, auth state, viewport, theme, data mode/account fixture, source commit, and deployed `release/web` build. The user performs browser verification.
+- The 01–26 dark screenshots visibly contain Liftoff copy. Images 27–28 come from a different strawberry-themed nutrition product and are **secondary** references. Do not copy either brand's copy, characters, badges, colors, or illustrations.
+
+## Current source and backend baseline
+
+Flutter has Today/dashboard, plans and plan days, an active-session controller, exercise discovery, completed history, nutrition logging, goals, Arcana, friends, and a responsive shell. Slices 1–4 added the six-destination Workout, Today, Ranks, Nutrition, Friends, Profile shell, reliable workout entry, a denser active ledger, startable routine rows/editor, and empty multi-exercise sessions in local source. It supports rep and timed prescriptions/sets, previous performance, rest, one active session, server-confirmed writes, and mock adapters. Ranks and Profile still contain truthful interim surfaces. It has no dedicated exercise rank gallery, overall rank history, ranked muscle bodygraph, general XP/level ledger, workout streak calendar, leaderboard, daily calorie/macro target, bodyweight series, or shared recipe catalog. Those are **product gaps to build**, not reasons to remove them from scope.
+
+The readable sibling Fastify checkout is `/Users/mzootfb/Sites/transmute-mobile/api/`. Source inspection found plan/day/prescription CRUD, AI plan draft, sessions/sets/completion, quick add, foods/meals and meal photo upload, Arcana, generic goals, friends/activity, and `/v1/record`. `/v1/record` is bounded (including 80 sessions, 300 foods, 100 meals, and 50 friend activities) and is unsuitable as the only growing analytics feed. Migration `005_arcana_foundation.sql` has `progression_events`, Arcana state, goals, and a **meal-days-per-week** nutrition-adherence target; that target is not a calorie or macro budget. The server records set and completion events, and supports idempotent set replay by stable operation ID where capability is advertised. No dedicated rank, XP, streak, leaderboard, bodyweight, calorie/macro-target, routine-share, recipe, or food-photo-analysis routes were found in inspected source. Existing meal photo upload stores a photo; it does not analyze food. This is a source audit, not a live schema or production API check.
+
+The Fastify repository is the sibling checkout. Slice 3 source changes were made there, but production API/database state remains unverified. Before each migration, inspect the then-current schema, latest migration number, actual payloads, and affected records. Do not infer production schema from committed SQL. Preserve the Flutter Riverpod/repository boundary: interface in `lib/core/domain/repositories.dart`, providers in `lib/core/providers.dart`, verified wire mapping in `lib/core/api/api_repositories.dart`, and a feature-complete in-memory mock in `lib/core/data/mock_repositories.dart`.
+
+**Source-derived reliability requirement:** `dailyOverviewProvider` currently waits on historical details when composing dashboard/workout entry. A failed detail read can obstruct a primary workout action. Slice 1 separates canonical start/resume state from optional summaries. Continue to preserve pending-set replay, stable operation IDs, the one-active-session invariant, and the special meal `grams` field (quantity in the food's saved serving unit). These fixes belong inside feature delivery, not as the roadmap's main purpose.
+
+## Screen-by-screen reference inventory
+
+The destination is a concrete **target Transmute screen**, even if its data contract is still proposed. `E` describes only what the image shows; `P` identifies the behavior to implement. All screenshots are available at the linked paths.
+
+| Ref → target screen | E: layout, sections, controls, metrics, visible state | P: workflow and adaptation; current gap |
+| --- | --- | --- |
+| [01](references/competitor-2026-10-03/01.jpg) → Today: For You | Level/progress header, flame and currency counters, For You/Feed/Discovery tabs, body-rank banner, quest card with 60%/Continue, then Today's Workout. | Make Today a dense, action-led scroll: real level/streak/next milestone above workout; navigation tabs lead to distinct real surfaces. Currency appears only if an earned balance exists. Current Today lacks this prominent unified progression stack. |
+| [02](references/competitor-2026-10-03/02.jpg) → Today: workout and recovery | Named 15-set/1h workout Start card first; Recovery Zone card with front/back body, intensity bar, explanatory ready-to-train text. | Put confirmed start/resume before independent recovery guidance; retain current recovery model and label uncertainty. Current entry depends too strongly on overview/history loading. |
+| [03](references/competitor-2026-10-03/03.jpg) → Today: bodyweight goal | Current 209 lb, target 180 lb, 42 days, gauge, then Last 14 Workouts volume. | Persist bodyweight measurements, target, baseline, deadline and a defined progress rule; link to goal detail. Generic current goals do not supply a bodyweight series. |
+| [04](references/competitor-2026-10-03/04.jpg) → Today: training summary and discovery | Last 14 Workouts volume, duration, records, burned calories, bodyweight; Discover cards below. | Compact real period summaries with drill-down. No exercise-calorie figure until a supported energy source exists; label it unavailable rather than synthesizing one. Current history is list-led. |
+| [05](references/competitor-2026-10-03/05.jpg) → Today: Discover | 2×2 cards for Leaderboards, Social Feeds, Streak Calendar, Rank Calculator. | Deep-link to delivered systems, using original Transmute icons; calculator uses published Transmute rules. Current More menu makes these goals less visible and most systems do not yet exist. |
+| [06](references/competitor-2026-10-03/06.jpg) → Today: Feed | Selected Feed tab; large warning, “last workout >3 days,” prompt to finish a workout before seeing friends. | Build friend activity with an honest empty state and training CTA. The screenshot does not prove a real feed gate; avoid shaming or hiding existing friends' records without a product rule. |
+| [07](references/competitor-2026-10-03/07.jpg) → Today: Discovery | Discovery selected, visibly same warning/empty content as Feed. | Give Discovery its own useful rank, recipe, and community destinations; loading/empty state remains coherent. A still cannot explain why content repeats. |
+| [08](references/competitor-2026-10-03/08.jpg) → Ranks: Your Rank | Horizontal rank tabs, large predicted Bronze I badge, 5-more-exercises placement count, ten token slots, Rank Exercises CTA, standings start. | Overall rank and qualifying-exercise count, not an Arcana substitute. Build placement eligibility and rule-linked CTA. No current rank contract. |
+| [09](references/competitor-2026-10-03/09.jpg) → Ranks: Your Rank below fold | Placement row, Rank Standings prerequisite, Rank Overtime prerequisite. | Persist overall snapshots, show history and qualifying requirements; keep locked explanations tied to actual counts. No current standing/history model. |
+| [10](references/competitor-2026-10-03/10.jpg) → Ranks: Bodygraph | Front/back anatomy with blue muscle highlights; last-workout card says 4 groups improved with See Improvements. | Curated exercise→muscle contribution map, per-group score/tier, before/after delta from confirmed sessions. Distinguish ranked muscle state from existing recovery map. |
+| [11](references/competitor-2026-10-03/11.jpg) → Ranks: Leagues | Eligibility empty state requiring 10 ranked exercises, badge and illustration. | Use 10 as proposed Transmute league-entry threshold; show actual eligible count and opt-in. The still does not establish league rules or opponents. |
+| [12](references/competitor-2026-10-03/12.jpg) → Ranks: Gallery | Search/filter above two-column exercise cards; tier/LP, badge, exercise, lb/reps and next-tier bar. | Searchable per-exercise rank gallery with genuine best result, mode, tier, threshold and progress. Current exercise library has browsing but no rank ledger. |
+| [13](references/competitor-2026-10-03/13.jpg) → Ranks: Analysis | Average ranks for training categories; prediction current front raise 30 lb × 8; Next Rank panel; statistics. | Show rule-based next threshold as a target, not a promised prediction. Category aggregates and per-exercise drill-down use persisted rank snapshots. |
+| [14](references/competitor-2026-10-03/14.jpg) → Ranks: Analysis below fold | Weekly rank-up counts, rank distribution donut, body region/muscle selectors. | Calculate counts and distribution from rank history; filters must change actual data and expose textual values. No current rank history. |
+| [15](references/competitor-2026-10-03/15.jpg) → Nutrition: daily overview | Date arrows, 1740 goal/0 food/44 exercise/1784 remaining, macro reveal, Add Meal; ad offers meal logging “with just a picture.” | Persist user-set targets and meal totals. Keep food-only remaining as default until exercise energy is validated. Photo ad evidences a feature claim, **not** an observed scan flow; build analysis as a separate reviewed integration. |
+| [16](references/competitor-2026-10-03/16.jpg) → Nutrition: meal diary | Recently Logged empty state; Breakfast/Lunch/Dinner/Snack headers, plus icons and full-width add rows. | Section add preselects category and date; confirm save before totals change. Current one-composer flow can gain this direct path. |
+| [17](references/competitor-2026-10-03/17.jpg) → Nutrition: lower diary | Same repeating meal sections plus Uncategorized, each with add action; no entries. | Match predictable groups with tighter Transmute spacing and edited/deleted meal rows. Empty state is real, not sample meals. |
+| [18](references/competitor-2026-10-03/18.jpg) → Friends | Leaderboards button, friend search, empty list art, Invite and Referrals. | Accepted-friend list/search, invitations, leaderboard access. Existing friend requests/activity are a base; referral rewards require their own contract and can follow core social. |
+| [19](references/competitor-2026-10-03/19.jpg) → Profile | Identity/avatar and rank badge; shortcut grid including Quests, Medals, Routines, Exercises; Memories calendar. | Compact personal hub with real route shortcuts and calendar of completed days/milestones. Original Transmute portrait/emblems; no empty store or fake inventory. |
+| [20](references/competitor-2026-10-03/20.jpg) → Profile: activity | Last 7 Days front/back body, Duration/Volume/Reps segmented chart and no-data state. | Metric and period chart from completed sessions, with valid no-data state and drill-down. Current history has records but lacks this profile summary. |
+| [21](references/competitor-2026-10-03/21.jpg) → Profile: streak | Seven weekday dots, best streak 1, Levels section begins. | Versioned, server-owned training-day streak and calendar. Avoid the screenshot's insulting copy. Current app has no streak ledger. |
+| [22](references/competitor-2026-10-03/22.jpg) → Profile: levels | Level 1, 202/506 XP to level 2, total XP, disabled claim, then Pro preview. | Persistent XP ledger, level thresholds and claimable original rewards with honest disabled state. Arcana may award related artifacts, but cannot replace level/XP. |
+| [23](references/competitor-2026-10-03/23.jpg) → Profile: progression preview | Rank examples for bench/squat with current and next result; Performance History teaser. | Expose real next-tier targets and chart entry. A premium preview is visible but does not prove full behavior; subscription gating is a separate product decision. |
+| [24](references/competitor-2026-10-03/24.jpg) → Profile: history and strength goal | Multi-metric performance-history preview; bench 1RM 185→225 lb, 56%, 37 days. | Persist per-exercise strength goals and evidence-backed trends; disclose estimated 1RM. Use our explicit progress formula, not the unexplained 56%. |
+| [25](references/competitor-2026-10-03/25.jpg) → Workout home | Today's Workout card; Start Empty/Generate options; Routines heading with folder/add and first compact row/direct Start. | Rebuild workout landing hierarchy and deliver a real freeform session path. Flutter has plan/day/AI/quick-add, but Quick Add is not a multi-exercise empty session. |
+| [26](references/competitor-2026-10-03/26.jpg) → Workout: routines | Dense repeatable rows: title, total sets, exercise names and set counts, “more,” overflow and direct Start. | Saved routine creation/editing, previews, start, and later share from overflow; current plan/day rows are a base but not this level of scannable routine management. |
+| [27](references/competitor-2026-10-03/27.jpg) → Nutrition: secondary overview | Different product: calorie ring, consumed/remaining, no-meals Log Food; collage and fasting cards below. | Borrow clear empty/summary hierarchy only. Existing fasting remains discoverable; collage is not required for the core nutrition target. Preserve Transmute themes. |
+| [28](references/competitor-2026-10-03/28.jpg) → Nutrition: recipes (secondary) | Different product: searchable two-column photo recipe cards with name, serving count, creator. | Build a recipe browse→detail→portion review→log path after meal fundamentals; shared publishing needs provenance/moderation. Do not copy the strawberry style. |
+
+### Visual translation across screens
+
+The Liftoff references use a short status header, persistent six-item navigation,
+large bold section names, compact secondary labels, highly visible numeric
+values, and repeating cards with one obvious action. Preserve that **reading
+order and density** while rendering with Transmute's Ledger/Soft geometry,
+saved palette and Spectral-plus-sans typography. Use the display face for
+major page identity, a clear sans weight for section titles and data, and
+aligned tabular numerals for sets, rank thresholds, XP and nutrition. Keep
+8–12dp internal row spacing and 24–32dp between major sections as an initial
+Flutter target, adjusted for text scaling. Strong original alchemical emblems
+and a front/back region vector should give progression equal visual prominence
+to the reference without borrowing its artwork. Selected tabs, completion,
+locked eligibility and progress all need text as well as color or animation.
+
+## Gap and dependency table
+
+| Current behavior | Reference evidence | Proposed improvement | Priority | Dependency |
+| --- | --- | --- | --- | --- |
+| Workout entry can wait on optional history; plans/day rows and session logger exist but the landing page and set ledger are less compact. | 02, 25–26; logger layout itself is **P**. | Six-destination shell, reliable Today/Workout action, dense plan cards and active set ledger with previous performance, edit, checkoff and timer. | P0 | Existing session controller; bounded entry read model; one-active-session and replay invariants. |
+| Routine CRUD is plan/day centered; Quick Add is not a freeform session; no routine-share contract. | 25–26 show previews/direct start; freeform entry visible; sharing is **P**. | Save/edit/start named routines, start an empty multi-exercise workout, publish/import routine snapshot with provenance. | P0–P1 | Extend session origin, create immutable share snapshots, authorization and import rules. |
+| Exercise library and Arcana exist; rank data and rank screens do not. | 08–14, 23. | Versioned per-exercise tiers, next-tier bar, rank gallery, overall placement and history. | P1 | New scoring service, projections, recomputation, API/migration, curated exercise modes. |
+| Recovery body map exists, not a ranked muscle map. | 10, 14, 20. | Front/back ranked bodygraph with region details and last-session changes. | P1 | Curated muscle contribution map and persisted rank snapshots. |
+| History and generic goals exist, but no cross-session charts, bodyweight series or exercise-specific target. | 03–04, 20, 23–24. | Period charts and bodyweight/strength goal cards with auditable baselines. | P1 | Paginated aggregates, measurement/goal tables, unit and 1RM rules. |
+| Arcana has stages/evidence, but no general XP, levels, rewards or streak. | 01, 19, 21–22. | Header/profile levels, claimable milestones, training calendar and streaks linked to confirmed evidence. | P1 | XP ledger, reward claims, timezone-aware qualified days. |
+| Friend requests/activity exist, not standings or a complete feed/league. | 05–07, 11, 18. | Friends activity, invitation/search, opt-in friend rankings and qualified leagues. | P2 | Privacy settings, bounded aggregates, abuse safeguards, real participating population. |
+| Meals/macros exist, but no daily calorie/macro budget or meal-section quick add. Photo storage is not food recognition. | 15–17; 27 secondary. | Target/remaining summary, meal groups and direct logging; separate photo candidate review. | P2 | Daily targets, timezone, serving-unit conversion, analysis provider/retention. |
+| Personal food catalog exists, no shared recipe catalog. | 28 secondary. | Searchable recipe cards, detail and confirmed meal import. | P3 | Recipe ownership, nutrition provenance, content moderation. |
+
+## Product rules to implement (Transmute v1, not Liftoff formulas)
+
+All rule output is server-owned, names its `ruleVersion`, input evidence and calculation timestamp, and is persisted as a projection/history. Mock mode uses the same documented rules for demonstrations but is explicitly non-durable. API responses never silently substitute client estimates for saved totals. A deleted/changed source event triggers idempotent recomputation and a correction event or superseded snapshot; history must not count invalidated rank-ups twice. Draft, pending, warm-up, discarded and quick-add evidence are excluded from competitive scoring by default.
+
+1. **Qualified training day/session (A):** a completed session with at least three acknowledged non-warm-up sets. Its local training date is frozen from the user's saved timezone at completion. This definition powers XP, streaks and league eligibility. More inclusive rules are possible, but every display must use the same versioned qualification result. Do not retroactively move a date when a timezone preference changes.
+2. **Per-exercise strength (A):** score only comparable results for the exact canonical exercise ID and tracking mode. Weighted rep movements use the best working-set estimated 1RM in kg: `weightKg × (1 + min(reps, 12) / 30)` for 1–12 reps and positive load. Unweighted rep movements use max completed reps; timed movements use max `durationSeconds`. Exercises needing assisted-load or distance semantics are explicitly unranked until mapped. The first **two qualifying sessions containing that exercise on different training dates** establish its baseline (best of those sessions); after one, show provisional evidence but no tier. Repeated best/baseline ratio gives personal tiers: Bronze `≥1.00`, Silver `≥1.05`, Gold `≥1.15`, Platinum `≥1.30`, Transmuted `≥1.50`; below 1.00 remains Bronze at zero progress. Three subdivisions per tier may be linear thirds. Within a tier, `floor(100 × (ratio − lower)/(next − lower))` is the displayed **Transmute progress points**, clamped to 0–99; the highest tier shows Complete instead of a fictional next target. A tier is **personal progress**, not a population percentile or claim of absolute strength. Show the baseline, metric and rule explanation on detail.
+3. **Overall and muscle ranks (A):** placement requires 10 eligible ranked exercises, reflecting the visible league prerequisite but using our rule. For overall score, average the strongest two ranked exercise ratios per muscle group across at least five distinct mapped groups; groups with insufficient data remain unranked and block placement, with exact progress shown. Curated `exercise_muscle_contributions` maps a canonical exercise to primary/secondary front/back regions; primary weight 1, secondary weight 0.5. A group score is the weighted mean of its top two eligible exercises. Save both group and overall snapshots with previous value, delta, evidence IDs and rule version. Overall tier uses the personal thresholds above. Show a transparent “not enough evidence” state instead of a predicted public standing. A global league, once opted into, is a **separate cohort position** based on verified results, never called a percentile.
+4. **XP/levels/rewards (A):** a qualified completed workout earns 100 XP, each of its first ten working sets 10 XP, an acknowledged personal record 25 XP per exercise (once per session), and a first verified exercise-tier promotion 50 XP; maximum 300 XP per training day. Post idempotent ledger entries keyed to source event + rule version; corrections reverse or replace entries. Level `L` starts at lifetime threshold `100 × (L−1) × L / 2` XP, so level 2 begins at 100 and level 3 at 300. Publish the next threshold and the XP left. Give original Transmute emblems at specified level/milestone IDs with a server claim record; no invented currency balance or store. Arcana evidence can reference the same session but cannot double-award this ledger.
+5. **Streak (A):** one qualified training day contributes at most one mark. Current streak counts consecutive local training dates ending today or yesterday; best is the maximum historical run. Calendar shows qualified, completed-but-not-qualified, rest/no-session and future dates distinctly. A correction or deleted session recomputes the affected sequence. No penalty or shame copy.
+6. **Performance and goals (A):** workout volume is sum of `weightKg × reps` for confirmed working rep sets; timed sets contribute duration, not strength volume. Estimated 1RM is labeled as an estimate. Bodyweight is user-entered dated measurement, never inferred from profile photos. A goal's percentage is `clamp((current − baseline)/(target − baseline), 0, 1)` for either direction, with “baseline/target equal” rejected; disclose start, current, target, deadline and unit. Chart periods and sampling are explicit. Do not derive calories burned from workout duration alone.
+7. **Nutrition (A):** user sets daily calorie and optional protein/carbs/fat targets; the default state is **target unset** with a Set target CTA rather than an arbitrary medical recommendation. Food-only remaining calories = target − confirmed meal calories, and macros use the same rule. Exercise-adjusted remaining is off until a validated energy source and user preference exist. The existing API's `grams` meal field means quantity in the selected food's saved serving unit. Photos produce editable candidates; nothing is logged until confirmed.
+8. **Social standings (A):** friends leaderboard uses qualified XP earned in a calendar month, among mutually accepted, opted-in friends. League participation is opt-in after placement; display cohort size, period, tie rule (XP, then qualified sessions, then first achievement time) and privacy. No synthetic friends, rank positions, reactions or activities. Users can hide activity/leave a cohort; removal revokes access.
+
+These defaults let implementation start. Thresholds, anti-abuse limits and accessibility labels are versioned and can be revised after real-user feedback without rewriting old results silently.
+
+## Proposed backend contracts and ownership
+
+These are **contracts to design and implement** in the sibling Fastify repo, then mirror with Flutter repository interfaces/API and mock adapters. The freeform origin/start portion was added in slice 4 source with migration 011; routine share and all later contracts below remain proposed. Allocate later SQL migration numbers after checking the then-current latest migration. Specify DTO fields and authorization in `API_CONTRACT.md` when implementing; keep existing routes stable. Use indexes/pagination for history. Do not put progression calculations only in Flutter.
+
+| Capability | Proposed server storage/read/write contract | Source and consistency requirements |
+| --- | --- | --- |
+| Routine/freeform/share | Add `workout_sessions.origin` (`plan_day`/`freeform`/`quick_add`) while retaining nullable routine/day references; add `routine_share_snapshots` with token, owner, immutable ordered prescription snapshot, visibility/revocation; `POST /v1/sessions/freeform`, `POST /v1/routines/:id/share`, `GET /v1/routine-shares/:token`, `POST /v1/routine-shares/:token/import`. | Enforce one active session for either active origin. Import copies a named routine; never edits source owner. Share read does not expose private history. Existing plan/day and Quick Add routes remain valid. |
+| Exercise rank and history | `exercise_rank_baselines`, `exercise_rank_snapshots`, `rank_rule_versions`; `GET /v1/ranks/exercises?cursor&query&filters`, `GET /v1/ranks/exercises/:id`, `GET /v1/ranks/analysis`. | Derive only from completed canonical sets, mode and curated metadata. Recompute after source corrections. Return metric, baseline, tier, current/next threshold, progress, evidence and version. |
+| Muscle/overall rank | `exercise_muscle_contributions`, `muscle_rank_snapshots`, `overall_rank_snapshots`; `GET /v1/ranks/overview`, `GET /v1/ranks/bodygraph`, `GET /v1/ranks/history?cursor`. | Curated mappings and front/back SVG region IDs; explain missing coverage; stable history with superseded revisions. |
+| History/measurements/goals | Indexed aggregate read `GET /v1/progress/training?period&metric&cursor`; `bodyweight_measurements` with CRUD; extend goals for bodyweight and exercise-specific estimated 1RM, baseline and deadline. | Aggregates come from confirmed completed sessions; measurement ownership/date uniqueness and edit history; goal percentage computed server side with rule version. |
+| XP/rewards/streak | `xp_ledger`, `user_level_snapshots`, `reward_claims`, `qualified_training_days`, `streak_snapshots`; `GET /v1/progression`, `POST /v1/rewards/:id/claim`, `GET /v1/training-calendar?month`. | Idempotent source keys, reversals, rule version, timezone at completion, entitlement only after claim transaction. Keep Arcana state distinct and cross-link evidence IDs. |
+| Nutrition targets | `daily_nutrition_targets` with effective local date/timezone and optional macro fields; `GET/PUT /v1/nutrition/targets`, `GET /v1/nutrition/days/:date`. | Sum existing confirmed meals in saved serving units; no silent exercise calorie adjustment. A changed target recomputes display without mutating meals. |
+| Photo food candidates | `meal_photo_analysis_jobs`/candidate provenance and retention; `POST /v1/meal-photo-analyses`, `GET /v1/meal-photo-analyses/:id`; confirm via existing food/meal writes after explicit review. | Authenticated image access, file/size limits, deletion, provider cost/rate limit, candidate confidence, no auto-save. Existing meal photo upload is not this feature. |
+| Recipes | `recipes`, `recipe_ingredients`, `recipe_versions`, `recipe_reports`; search/detail/publish/import endpoints under `/v1/recipes`. | Calculated nutrition/servings, attribution, photo ownership, review/moderation before public listing; log via confirmed meal write and keep version snapshot. |
+| Friends/feed/leaderboards | Extend social privacy/opt-in preferences, indexed `activity_events`, period standings snapshots; `GET /v1/friends/activity?cursor`, `GET /v1/leaderboards/friends?period`, `GET /v1/leagues?period`, invitation/share operations. | Only authorized accepted-friend or opt-in cohort data; pagination, block/removal propagation, validated leaderboard inputs, cohort size and period displayed. |
+
+## Phased end-to-end implementation slices
+
+Every slice includes loading, empty, error, retry, disabled and success states as appropriate; phone/tablet/desktop layout; keyboard, semantics, 44dp targets, text scaling and reduced motion. Each ends with a real API path, an equivalent mock path, and focused domain/API/widget checks. The user performs browser review at matching auth/data/theme/viewport states. A slice is complete only when saved results survive reload in API mode and invalid/failed writes do not appear as confirmed.
+
+### Phase 1 — Make training fast and dependable
+
+#### 1. Workout-first shell and Today/Workout entry (P0).
+
+- **References:** [01](references/competitor-2026-10-03/01.jpg), [02](references/competitor-2026-10-03/02.jpg), [25](references/competitor-2026-10-03/25.jpg), [26](references/competitor-2026-10-03/26.jpg).
+- **Layout/workflow:** a six-destination mobile bar (Workout, Today, Ranks, Nutrition, Friends, Profile), with rail/sidebar equivalents; Workout orders Today's Workout → New Workout → Routines, Today orders progression teaser → today's workout → recovery → goal/history → Discover. New destinations can show explicit build states until their slices land.
+- **Frontend:** restructure shell and cards, compact counts/previews, shared persistent header with only available level/streak values, direct Start/Resume.
+- **Backend/persistence:** reuse canonical plan/active-session APIs; add a bounded workout-entry summary if existing `/v1/record` cannot separate it from historical detail.
+- **Rules:** server active session wins; no fabricated estimate or progression number.
+- **Dependencies:** existing session controller and selected plan/day.
+- **Acceptance:** a failed history/recovery read leaves Start/Resume usable; a failed active-session read never offers a conflicting Start; one server session survives reload; all six destinations and back paths are reachable and labeled; recovery failure is independently retryable.
+
+**Slice 1 implementation, 2026-10-03:** The Flutter source now has the six primary destinations on phone, rail and desktop sidebar, plus secondary navigation for existing features. Today has separate For You, Feed and Discovery tabs. For You follows the progression teaser → shared workout entry → recovery → goals → 14-workout summary → Discover order. Workout follows Today's Workout → New Workout → Routines; saved day rows show set and exercise counts, a short exercise preview and direct Start. The shared entry card resumes the canonical active session, starts a recommended saved day, or offers manual day selection when history is unavailable. A failed active-session check blocks Start and offers retry; recovery and history have their own retry states. Ranks and Profile now have navigable, truthful interim screens, with no invented rank, XP or streak data. Quick Add is labeled as a single-exercise log; the multi-exercise empty session remains slice 4.
+
+**Persistence and verification:** This slice reuses `GET /v1/record` active-session state, the existing plan/preference reads, `POST /v1/sessions` with `routineDayId`, and canonical session detail. No new backend schema or endpoint is required for the current entry path; the optional recommendation and recovery reads are separated in Flutter instead of adding a summary endpoint. Focused widget and mock repository tests cover Start → Resume, manual Start while history/recovery fail, blocked Start after an active read failure, one active mock session across repository recreation, and primary navigation at phone/tablet/desktop widths. The Flutter analyzer passes. At the user's explicit request for this task, the local mock web build was also browser-checked at 390×844: onboarding/demo login, Today and Workout entry, Start and Resume were visible and usable. Authenticated API reload and the deployed release bundle remain unverified.
+
+#### 2. Dense active-session ledger (P0).
+
+- **References:** [25](references/competitor-2026-10-03/25.jpg), [26](references/competitor-2026-10-03/26.jpg) for entry/context; the set-row layout itself is **P**, not shown.
+- **Layout/workflow:** exercise switcher, exercise/target/previous performance, compact editable set rows (`previous`, `weight or time`, `reps`, warm-up, completion control), sticky rest/next/finish.
+- **Frontend:** rep and timed layouts, set edit/delete, per-row pending/saved/error text, local timer and session summary.
+- **Backend/persistence:** keep `/v1/sessions/:id/sets`, `/v1/sets/:id`, session rest/completion and `clientOperationId` semantics; add only missing read fields after payload inspection.
+- **Rules:** previous result matches exact exercise and mode; only acknowledged working sets feed progress.
+- **Dependencies:** slice 1 and migration 008 live-state verification.
+- **Acceptance:** add/edit/delete rep and timed sets round-trip; retry cannot duplicate an operation when replay is advertised; blocked pending set prevents Finish; completed history matches confirmed rows; timer resumes from saved deadline; 200% text and keyboard do not hide completion controls.
+
+**Slice 2 implementation, 2026-10-03:** The active workout now presents exercise selection, target and mode-matched previous results, a compact set ledger, explicit warm-up selection, editable/deletable confirmed rows, pending/saved status, and persistent rest/next/finish controls. Rep drafts use weight and reps; timed drafts use duration and a selectable unit. The edit sheet uses the matching mode and retains input on failed saves. Finish is disabled while any row remains pending and the screen explains why. The timer continues from its saved absolute deadline. The API session-detail query in the sibling Fastify repository now returns previous timed durations and filters comparisons to the current mode; no new migration was needed in source, but production still requires migration 008 and the updated API deployment. The mock repository derives the same comparisons from completed sessions. Focused tests cover rep/timed add-edit-delete, confirmed history, queue operation-ID replay, pending Finish, rest restoration, keyboard focus and 200% text; Flutter analysis, API typecheck/build and API tracking tests pass. In the local mock browser at 390×844, Demo Login → Start Workout → log → edit → delete → log → switch to the final movement → Finish showed the expected saved set and completed history. The browser check did not exercise a live API, a full page reload, pending offline replay, or a timed exercise; those paths have focused automated checks. No release bundle was rebuilt or deployed.
+
+#### 3. Routine builder, previews and direct start (P0).
+
+- **References:** [25](references/competitor-2026-10-03/25.jpg), [26](references/competitor-2026-10-03/26.jpg).
+- **Layout/workflow:** named folders/routines; row shows total sets, first exercises with per-exercise count, overflow and direct Start; create/edit opens ordered exercise prescriptions with reps/timed target.
+- **Frontend:** adapt current plan/day editing to a routine-oriented list and detail, search/add exercises, saved/failed edit feedback.
+- **Backend/persistence:** existing plan/day/prescription CRUD, plus a lightweight routine list DTO only if needed for scale.
+- **Rules:** total set count is sum of current prescriptions; preview is server-saved, not draft.
+- **Dependencies:** slices 1–2, exercise catalog.
+- **Acceptance:** create/edit/delete/reorder persists after reload; starting a row sends the exact day ID and matches its preview; errors retain draft input; active session changes every Start to Resume; long names and empty routine folder work.
+- **Status:** complete in Flutter and Fastify source with mock/browser and adapter verification; live API persistence and production deployment unverified. Deletion of routines/folders with workout history is deliberately blocked until history snapshots or archival exist.
+
+**Slice 3 implementation, 2026-10-03:** Flutter Workout now places expandable routine folders below Today/New Workout and shows compact saved routine rows with summed sets, exercise previews, overflow actions, and direct Start. Create opens a folder/name dialog and the exact new routine editor; folder creation can produce an empty folder. The editor supports exercise search/add, ordered prescriptions, reps/timed targets, and routine/exercise reorder. Name and prescription dialogs retain drafts and show a save error until the server acknowledges. Start passes the saved plan-day ID through `ActiveSessionController`; the canonical active session then owns Workout's Resume state. `POST /v1/plans` accepts `empty: true` for Flutter, and `POST /v1/plan-days/:id/reorder` persists routine ordering within a folder; existing exercise reorder and `/v1/record` provide canonical reads. Routine or folder deletion rejects any item referenced by workout history because the current history API joins its labels and prescriptions to those rows; this protects prior records. Mock behavior mirrors the rule. Focused mock/adapter/widget tests and static checks cover the flow. Local mock browser verification at 390×844 covered Demo Login, routine creation, adding an exercise, saving a 4 × 8 prescription, its 4-set Workout preview, direct Start of that exact routine, Today Resume, and an empty folder state. The live API, production schema, and deployed bundle remain unverified; no release bundle was built or deployed. **Next slice: 4, empty multi-exercise workout.**
+
+#### 4. Empty multi-exercise workout (P1).
+
+- **References:** [25](references/competitor-2026-10-03/25.jpg) visibly offers Start Empty Workout; lifecycle is **P**.
+- **Layout/workflow:** one tap starts a blank active session, then add exercises, sets, rest and Finish using the same logger.
+- **Frontend:** distinct freeform entry and origin label, exercise picker in session.
+- **Backend/persistence:** proposed freeform session route and nullable plan-day origin, shared one-active constraint, same set/completion/history writes.
+- **Rules:** completed freeform session qualifies by the same evidence rules; Quick Add remains a separate single-record action.
+- **Dependencies:** slice 2 and migration/contract in backend table.
+- **Acceptance:** freeform start, reload/resume, multiple exercise additions, completion and history all work; concurrent planned/freeform starts yield exactly one active session; discard never earns progress.
+
+**Slice 4 implementation, 2026-10-03:** Flutter Workout now places Start Empty Workout ahead of Generate Workout, with Quick Add retained as a separate single-exercise action. A freeform start opens the existing dense logger, whose exercise picker, set ledger, rest timer, Finish and discard paths are shared with planned sessions. The header labels the freeform origin and shows live exercise and confirmed working-set counts. `SessionRepository.startFreeformSession` is implemented in API and mock adapters, and `ActiveSessionController` owns its start/conflict recovery. The API adds `POST /v1/sessions/freeform`; migration 011 persists origin, backfills historical null-day sessions as `quick_add`, and adds a partial unique index for one active session per user. Both planned and freeform start routes lock the user row and return the existing active ID on conflict. Session detail and `/v1/record` expose the persisted origin and freeform labels; added exercises, sets, completion and history use existing canonical tables and routes. No generated standings or progress are introduced. The existing completion evidence rules apply to either origin; discard only deletes the active session.
+
+**Validation and release dependency:** Focused mock tests cover two added exercises and sets, repository recreation, planned/freeform conflict in both directions, completion/history and discard without an added history entry; API adapter tests cover freeform start, active restoration and conflict mapping from verified fields. Flutter analysis, API typecheck/build, local mock web build and API workout-tracking tests pass. In the local mock browser at 390×844, Workout → Start Empty Workout → add bench and row → log one confirmed set for each → Finish showed an Empty Workout history detail with both saved sets and 2,130 lb volume. Migration 011 and the new API must be applied/deployed together before API-mode freeform start; production schema and authenticated reload are not verified. Before applying migration 011, inspect existing active-session duplicates because its unique index deliberately fails rather than deleting user data. See [BLOCKERS.md](BLOCKERS.md).
+
+#### 5. Routine sharing and import (P1).
+
+- **References:** [26](references/competitor-2026-10-03/26.jpg) overflow is E; sharing is **P**.
+- **Layout/workflow:** Share from routine overflow → review read-only snapshot/link → recipient preview with exercise counts → Import as own editable routine.
+- **Frontend:** share status, copy link, revoked/expired and import confirmation states.
+- **Backend/persistence:** immutable share snapshot/token, access/revocation/import routes in backend table.
+- **Rules:** importing copies prescriptions and attributes source; no public routine feed initially.
+- **Dependencies:** slice 3 and authorization design.
+- **Acceptance:** recipient sees exactly the published snapshot even after source edits; import creates a separate routine; revocation blocks new reads/imports; private workout records never appear in share payload.
+- **Status:** complete in local Flutter and Fastify source; migration 012 and authenticated API-mode/production verification remain outstanding.
+
+**Slice 5 implementation, 2026-10-03:** A routine's overflow now opens Share routine, whose owner review shows the ordered, saved prescription snapshot before publishing. Publishing creates a 30-day, authenticated link-token snapshot; the owner can copy it, view active/revoked/expired status, and revoke it. The token route redirects signed-out recipients to sign in and returns them to the read-only preview afterward. Recipients see the routine's source, folder, ordered movement targets, total sets, and an Import action. Import asks for a destination folder and editable routine name; users without a folder can create one as part of the same flow. The server copies the immutable snapshot into a new routine day, persists `imported_from_share_id`, converts stored owner/recipient display weights through canonical kilograms, and never reads or returns sessions, logged sets, goals, or other private history. Editing either routine after import cannot change the other.
+
+**Validation and release dependency:** Focused mock repository tests cover source edits after publish, exact ordered import, recipient edits, and revoked read/import rejection. API adapter tests verify the exact share/list/read/import/revoke paths and payload fields. Flutter analysis and `git diff --check` pass; the sibling API typecheck, build, and workout-tracking tests pass. A browser check is recorded separately after the local build. Migration `012_routine_share_snapshots.sql` must be inspected and applied to the live database before the API deployment; it is not automatically applied by Coolify. No production bundle is generated or deployed by this slice. **Next slice: 6, Per-exercise ranks, gallery and calculator.**
+
+### Phase 2 — Make strength progress visible and explainable
+
+#### 6. Per-exercise ranks, gallery and calculator (P1).
+
+- **References:** [05](references/competitor-2026-10-03/05.jpg), [08](references/competitor-2026-10-03/08.jpg), [12](references/competitor-2026-10-03/12.jpg), [13](references/competitor-2026-10-03/13.jpg), [23](references/competitor-2026-10-03/23.jpg).
+- **Layout/workflow:** Ranks tab opens searchable/filterable two-column gallery; cards show original tier emblem, exercise, best comparable result, progress points and current-to-next bar; detail explains baseline/next target and evidence. The Today Discover Rank Calculator previews a selected exercise/result against the same published rules.
+- **Frontend:** rank repository/providers, gallery/detail, unsaved calculator preview and post-session rank-up feedback.
+- **Backend/persistence:** rank baseline/snapshot tables, scoring service and paginated APIs above.
+- **Rules:** v1 per-exercise rules above; no tier until two qualifying sessions on different dates.
+- **Dependencies:** slices 2–4 and curated exercise modes.
+- **Acceptance:** a qualifying improvement updates exactly its exercise rank after server completion and reload; warm-up/pending/deleted/uncomparable sets do not; lb/kg switches display only; search/filter preserves canonical IDs; card points/progress and next threshold match returned rule evidence; calculator inputs never alter the saved rank.
+
+**Slice 6 implementation, 2026-10-04:** Ranks now replaces the interim screen with a searchable/filterable gallery, rank detail and unsaved calculator. Cards and details use the original Transmute geometry/emblems and label every tier as personal progress rather than a percentile. The gallery preserves canonical exercise IDs, shows unranked/provisional states instead of fabricated scores, converts canonical e1RM kilograms only at display time, and stacks at larger text sizes. Today Discovery links directly to the calculator. On server-confirmed completion, the API returns newly established or promoted rank updates and the active-session UI acknowledges them after the write succeeds.
+
+**Persistence and verification:** Fastify migration `013_exercise_rank_snapshots.sql` adds versioned current/history snapshot rows and targeted indexes. The scoring service accepts only qualifying completed sessions and excludes warm-up, pending, deleted and incomparable evidence; it keeps reps, timed results and weighted/unweighted metrics separate. It uses the committed UTC completion date for the two-date baseline because the existing account contract has no saved timezone; this must be replaced with a frozen user-local date before slice 11. `GET /v1/exercise-ranks` is paginated and `GET /v1/exercise-ranks/:exerciseId` returns rule evidence. Mock mode implements the same rule without account persistence. Flutter analysis, focused mock/API-adapter tests, a local mock web build, API typecheck/build, and focused API scoring test pass. In the local mock browser at 390×844, Demo Login → Ranks showed the two-column gallery and a provisional detail; Calculator produced a Gold preview for 115 against a 100 baseline without changing saved data; Today → Discovery exposed Rank Calculator. This browser check does not verify live API writes, rank recalculation after a deployed correction, authenticated reload, or production. Migration 013 must be inspected against the live schema and applied before the API deployment. No production bundle was generated or deployed. **Next slice: 7, Ranked bodygraph, overall rank and rank history.**
+
+#### 7. Ranked bodygraph, overall rank and rank history (P1).
+
+- **References:** [08](references/competitor-2026-10-03/08.jpg)–[11](references/competitor-2026-10-03/11.jpg), [14](references/competitor-2026-10-03/14.jpg).
+- **Layout/workflow:** Ranks subnavigation Your Rank → Bodygraph → Leagues → Gallery → Analysis; placement progress and CTA first; front/back selectable bodygraph with group details and last-session changes; rank-over-time and distribution below.
+- **Frontend:** original region SVG, text legend/detail, overall and muscle view models, rank history chart.
+- **Backend/persistence:** curated contribution table, muscle/overall projections and snapshots, paginated rank history.
+- **Rules:** v1 group/overall formulas and 10-exercise/five-group placement above; separate rank map from recovery map.
+- **Dependencies:** slice 6 and curated anatomy IDs.
+- **Acceptance:** adding a qualifying result changes only mapped muscle groups and overall result when eligible; front/back details agree with history; unranked areas have a clear reason; correction/deletion revises snapshots without duplicate rank-ups; no fake global standing or percentile.
+
+#### 8. Training analysis and performance history (P1).
+
+- **References:** [03](references/competitor-2026-10-03/03.jpg), [04](references/competitor-2026-10-03/04.jpg), [13](references/competitor-2026-10-03/13.jpg), [14](references/competitor-2026-10-03/14.jpg), [20](references/competitor-2026-10-03/20.jpg), [23](references/competitor-2026-10-03/23.jpg), [24](references/competitor-2026-10-03/24.jpg).
+- **Layout/workflow:** Today shows Last 14 Workouts compact tiles; Profile shows period selector, Duration/Volume/Reps chart and detail; Ranks Analysis shows rank-up counts/distribution and current-to-next exercise examples.
+- **Frontend:** shared metric tiles, responsive charts, local filters, no-data and drill-down.
+- **Backend/persistence:** indexed aggregate endpoints and stable period pagination, not N session-detail calls.
+- **Rules:** confirmed completed sessions only; unit/period/metric named; rank-ups from versioned history.
+- **Dependencies:** slices 2, 6–7.
+- **Acceptance:** totals reconcile to underlying completed records across 7/14/30-day periods; deleting/correcting evidence refreshes tiles and charts; no-data has text and no invented bars; data loads without fetching an unbounded history list.
+
+#### 9. Bodyweight and strength goals (P1).
+
+- **References:** [03](references/competitor-2026-10-03/03.jpg), [04](references/competitor-2026-10-03/04.jpg), [24](references/competitor-2026-10-03/24.jpg).
+- **Layout/workflow:** Today bodyweight card and Profile strength-goal card show start/current/target/deadline/progress and open a measurement or goal detail/history.
+- **Frontend:** measurement entry/edit, goal setup and clear estimate/source labels.
+- **Backend/persistence:** dated bodyweight CRUD; goal type, exercise/mode linkage, baseline, target, deadline and assessment versions.
+- **Rules:** directional goal fraction above; strength current from confirmed estimated 1RM; no measurement implies “Add weight,” not zero.
+- **Dependencies:** slice 8 and existing goal authorization.
+- **Acceptance:** saved weights and targets survive reload, unit switch does not change stored kg, valid measurement recalculates progress, deleted evidence updates the card, missed deadline remains an honest overdue state.
+
+### Phase 3 — Reward consistent training
+
+#### 10. XP, levels, milestones and rewards (P1).
+
+- **References:** [01](references/competitor-2026-10-03/01.jpg), [19](references/competitor-2026-10-03/19.jpg), [22](references/competitor-2026-10-03/22.jpg).
+- **Layout/workflow:** compact level bar in header; Profile level card shows current/next/total XP, milestone list and claim status; Today quest card links to next attainable action.
+- **Frontend:** progression and rewards repositories, original alchemy emblem art, claim/error animation respecting reduced motion.
+- **Backend/persistence:** XP ledger, level snapshots, claim transactions and versioned rules.
+- **Rules:** v1 XP/threshold/cap above; Arcana may present related evidence but retains its own collection.
+- **Dependencies:** slices 2, 6 and completed-session event processing.
+- **Acceptance:** qualifying completion yields one idempotent XP result on retry/reload; tier-up posts at most one bonus; edits/deletes reverse invalid XP; level threshold and next milestone match ledger; reward is claimable once, and disabled state gives a reason.
+
+#### 11. Training calendar and streaks (P1).
+
+- **References:** [05](references/competitor-2026-10-03/05.jpg), [19](references/competitor-2026-10-03/19.jpg), [21](references/competitor-2026-10-03/21.jpg).
+- **Layout/workflow:** Profile Memories calendar and streak week row; Today Discover links to full month/year training calendar and dated workout.
+- **Frontend:** calendar, best/current streak, rest/qualified legend and timezone setting explanation.
+- **Backend/persistence:** qualified-day and streak projections with completion-time timezone snapshot.
+- **Rules:** v1 qualification and streak above; no penalty or hard feed gate.
+- **Dependencies:** slices 2 and 10 event ledger.
+- **Acceptance:** two qualifying local consecutive days yield streak 2; multiple sessions in a day count once; timezone change does not shift prior marks; correction/deletion recomputes current/best; empty calendar and partial current week are accurate.
+
+### Phase 4 — Build daily nutrition depth
+
+#### 12. Daily targets and meal diary (P2).
+
+- **References:** [15](references/competitor-2026-10-03/15.jpg)–[17](references/competitor-2026-10-03/17.jpg), [27](references/competitor-2026-10-03/27.jpg) secondary.
+- **Layout/workflow:** date arrows, target/food/remaining and macro view above Add Meal; Recently Logged and Breakfast/Lunch/Dinner/Snack/Uncategorized sections with direct add rows.
+- **Frontend:** target editor, concise ring/number hierarchy, meal-type preselection and confirmed totals.
+- **Backend/persistence:** daily calorie/macro target effective dates and day summary endpoint; existing meal CRUD.
+- **Rules:** food-only remaining and serving-unit semantics above; unset target has explicit CTA.
+- **Dependencies:** current food/meal contract and local-date validation.
+- **Acceptance:** category add creates the chosen type/date; food amount and macros reconcile to saved serving unit; target change updates remaining after reload; failed save keeps draft and totals unchanged; negative remaining is labeled accurately.
+
+#### 13. Photo-assisted food candidate review (P2, separate integration).
+
+- **References:** [15](references/competitor-2026-10-03/15.jpg) advertises a picture flow; actual recognition UI is **P**.
+- **Layout/workflow:** Add Meal → Take/choose photo → analysis progress → editable food/portion candidates with confidence/source → confirm or manual search → saved meal and optional photo.
+- **Frontend:** permission/upload/retry/review states; no silent commit.
+- **Backend/persistence:** authenticated analysis job and provider adapter, candidate provenance, retention/deletion, cost/rate limits; existing meal writes and photo storage.
+- **Rules:** image output is a suggestion; user confirms calories/macros and serving, or discards.
+- **Dependencies:** slice 12 and a provider/retention decision below.
+- **Acceptance:** no meal appears before confirmation; accepted candidate produces the reviewed values after reload; wrong/failed/timeout analysis has manual entry; photo deletion and access controls work; logs exclude raw image and private nutrition content.
+
+#### 14. Recipe discovery and log (P3).
+
+- **References:** [28](references/competitor-2026-10-03/28.jpg) secondary.
+- **Layout/workflow:** Nutrition discovery search, image-led compact cards with title/servings/author; detail shows ingredients and per-serving nutrition; Log opens editable portion review.
+- **Frontend:** search/filter/detail and nutrition import UI in Transmute themes.
+- **Backend/persistence:** versioned recipe/ingredient/media model, searchable published catalog, report/moderation, confirmed meal import.
+- **Rules:** display nutrition provenance and recipe version; no crowd recipe is treated as verified by default.
+- **Dependencies:** slice 12, media/privacy policy.
+- **Acceptance:** search reaches real published recipes; logging a portion saves reproducible macros and source version; edited/removed public recipes do not rewrite existing meals; unapproved content stays private.
+
+### Phase 5 — Connect real people and real standings
+
+#### 15. Friends activity, invitations and leaderboards (P2).
+
+- **References:** [05](references/competitor-2026-10-03/05.jpg)–[07](references/competitor-2026-10-03/07.jpg), [09](references/competitor-2026-10-03/09.jpg), [11](references/competitor-2026-10-03/11.jpg), [18](references/competitor-2026-10-03/18.jpg).
+- **Layout/workflow:** Today Feed with friend workout activity and true empty state; Friends search/invite and Leaderboards; Ranks Leagues after real placement, with period/cohort/eligibility.
+- **Frontend:** feed cards, friend list/search/invite, standings and opt-in/privacy controls.
+- **Backend/persistence:** paginated authorized activity and standings, invitation/opt-in settings, cohort snapshots, revocation and abuse limits.
+- **Rules:** monthly verified XP and tie rule above; 10 ranked exercises for league eligibility; no synthetic entries or unearned standing.
+- **Dependencies:** slices 6–7, 10–11, existing friendship lifecycle.
+- **Acceptance:** accepted opt-in friends appear with correct current-period XP; unaccepted/opted-out/removed users never leak activity or position; a real eligible cohort displays size/period/ties; empty league/feed explains eligibility without fake people; updated workout corrections change standings after recomputation.
+
+## Product decisions and defaults
+
+The following need the user's product choice before the dependent integration is committed; the proposed defaults let earlier slices proceed. Everything else above (screen order, repository layout, draft/error states, scoring details within v1, original asset design) is routine implementation work, subject to test/review rather than repeated permission prompts.
+
+| Decision needed | Proposed default | When it matters |
+| --- | --- | --- |
+| Social visibility and public leagues | Private by default; friend activity and league participation each require opt-in; no public profile search beyond invitation identifier. | Slice 15 privacy schema and copy. |
+| Food-photo analysis provider, image retention and cost | Use a reviewed provider adapter; short-lived analysis original, user-controlled saved photo; manual logging remains first-class. Do not select a vendor or transmit images without this decision. | Slice 13 integration. |
+| Exercise calories in remaining budget | Food-only target by default; add exercise energy only after a verified data source and explicit user toggle. | Slice 12 if adjustment is desired. |
+| User-published recipes | Curated/approved catalog first; require author permission, reporting and moderation before public submissions. | Slice 14 publishing. |
+| Monetization/currency/referrals | No fake coin balance, store, subscription lock or referral rewards; build progression for all users first. | Any later commercial slice. |
+
+## Delivery and release gate
+
+For each phase, inspect the sibling API's current migrations and live schema before changing contracts; implement server rules and authorized queries, then Flutter domain/API/mock adapters, then screen and focused tests. Preserve unrelated working-tree edits. Do not treat a source-only build as a production UI: Docker serves checked-in `release/web`, which requires `scripts/build_web_release.sh` and a separately authorized commit/push/deployment. The user owns browser verification under AGENTS.md; static/widget/API evidence and deployment state must be reported separately. Prior local mock browser checks for slices 1–4 were authorized in earlier requests and do not establish live API or production behavior.
+
+**Continuation point:** Slices **1–6 are implemented in local Flutter/Fastify source** as recorded above; production migration/deployment and authenticated API-mode verification remain outstanding. The next incomplete slice in dependency order is **7, Ranked bodygraph, overall rank and rank history**. Stop after that slice when implementing the plan.

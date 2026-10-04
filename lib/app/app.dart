@@ -12,14 +12,17 @@ import '../features/authentication/presentation/pre_login_onboarding_screen.dart
 import '../features/authentication/presentation/welcome_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/exercise_library/presentation/exercise_library_screen.dart';
+import '../features/feature_hubs/presentation/feature_hub_screens.dart';
 import '../features/fasting/presentation/fasting_screen.dart';
 import '../features/goals/presentation/goals_screen.dart';
 import '../features/not_found/presentation/not_found_screen.dart';
 import '../features/nutrition/presentation/nutrition_screen.dart';
 import '../features/planning/presentation/planning_screen.dart';
 import '../features/progress/presentation/progress_screen.dart';
+import '../features/ranks/presentation/ranks_screens.dart';
 import '../features/workout_history/presentation/history_screens.dart';
 import '../features/workout_plans/presentation/plan_screens.dart';
+import '../features/workout_plans/presentation/routine_share_screens.dart';
 import '../shared/design_system/design_system.dart';
 import '../features/design_library/presentation/design_library_screen.dart';
 
@@ -48,11 +51,19 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
           return null;
         final loggedIn = _auth.status == AuthStatus.signedIn;
         final loading = _auth.status == AuthStatus.loading;
+        final shareRoute = state.matchedLocation.startsWith('/routine-shares/');
         final publicRoute =
-            state.matchedLocation == '/' || state.matchedLocation == '/login';
+            state.matchedLocation == '/' ||
+            state.matchedLocation == '/login' ||
+            shareRoute;
         if (loading) return publicRoute ? null : '/';
+        if (!loggedIn && shareRoute) {
+          return '/login?next=${Uri.encodeComponent(state.uri.toString())}';
+        }
         if (!loggedIn && !publicRoute) return '/';
         if (loggedIn && publicRoute) {
+          final next = state.uri.queryParameters['next'];
+          if (next != null && next.startsWith('/routine-shares/')) return next;
           return _auth.freshRegistration ? '/welcome' : '/dashboard';
         }
         return null;
@@ -73,6 +84,23 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
         ),
         GoRoute(path: '/welcome', builder: (_, _) => const WelcomeScreen()),
         GoRoute(path: '/dashboard', builder: (_, _) => const DashboardScreen()),
+        GoRoute(
+          path: '/ranks',
+          builder: (_, _) => const RanksScreen(),
+          routes: [
+            GoRoute(
+              path: 'calculator',
+              builder: (_, _) => const RankCalculatorScreen(),
+            ),
+            GoRoute(
+              path: ':exerciseId',
+              builder: (_, state) => RankDetailScreen(
+                exerciseId: state.pathParameters['exerciseId']!,
+              ),
+            ),
+          ],
+        ),
+        GoRoute(path: '/profile', builder: (_, _) => const ProfileHubScreen()),
         GoRoute(
           path: '/exercises',
           builder: (_, _) => const ExerciseLibraryScreen(),
@@ -97,13 +125,29 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
         ),
         GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
         GoRoute(
+          path: '/routine-shares/:token',
+          builder: (_, state) =>
+              RoutineSharePreviewScreen(token: state.pathParameters['token']!),
+        ),
+        GoRoute(
           path: '/plans',
           builder: (_, _) => const PlanListScreen(),
           routes: [
             GoRoute(
               path: ':planId',
-              builder: (_, state) =>
-                  PlanDetailScreen(planId: state.pathParameters['planId']!),
+              builder: (_, state) => PlanDetailScreen(
+                planId: state.pathParameters['planId']!,
+                initialDayId: state.uri.queryParameters['dayId'],
+              ),
+              routes: [
+                GoRoute(
+                  path: 'share/:dayId',
+                  builder: (_, state) => RoutineShareReviewScreen(
+                    planId: state.pathParameters['planId']!,
+                    dayId: state.pathParameters['dayId']!,
+                  ),
+                ),
+              ],
             ),
           ],
         ),

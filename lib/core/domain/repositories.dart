@@ -52,6 +52,11 @@ abstract class PlanRepository {
   Future<WorkoutPlanDay> addDay(String planId, String name);
   Future<WorkoutPlanDay> renameDay(String planId, String dayId, String name);
   Future<void> deleteDay(String planId, String dayId);
+  Future<WorkoutPlanDay> reorderDay(
+    String planId,
+    String dayId,
+    ReorderDirection direction,
+  );
   Future<PlanExercise> addExerciseToDay(
     String planId,
     String dayId,
@@ -61,6 +66,12 @@ abstract class PlanRepository {
     String planId,
     String dayId,
     String planExerciseId,
+  );
+  Future<PlanExercise> reorderExerciseInDay(
+    String planId,
+    String dayId,
+    String planExerciseId,
+    ReorderDirection direction,
   );
   Future<PlanExercise> updatePrescription(
     String planId,
@@ -92,12 +103,22 @@ abstract class PlanRepository {
     double? targetWeightKg,
   });
   Future<List<Exercise>> searchExercises(String query);
+  Future<List<RoutineShare>> listRoutineShares(String routineDayId);
+  Future<RoutineShare> createRoutineShare(String routineDayId);
+  Future<void> revokeRoutineShare(String token);
+  Future<RoutineShareSnapshot> getRoutineShare(String token);
+  Future<WorkoutPlanDay> importRoutineShare(
+    String token, {
+    required String planId,
+    String? name,
+  });
 }
 
 abstract class SessionRepository {
   Future<WorkoutSession?> activeSession();
   Future<WorkoutSession> getSession(String id);
   Future<WorkoutSession> startSession(String planId, [String? planDayId]);
+  Future<WorkoutSession> startFreeformSession();
   Future<WorkoutSession> updateRest(String id, DateTime? restEndsAt);
   Future<SessionExercise> addExercise(String sessionId, String exerciseId);
   Future<SessionExercise> importCalistreeExercise(
@@ -126,6 +147,22 @@ abstract class SessionRepository {
   Future<void> discard(String id);
   Future<void> deleteCompletedSession(String id);
   Future<List<CompletedSessionSummary>> completedHistory();
+}
+
+abstract class ExerciseRankRepository {
+  Future<List<ExerciseRank>> listRanks({
+    String query = '',
+    ExerciseTrackingMode? mode,
+  });
+  Future<ExerciseRank> getRank(String exerciseId);
+
+  /// Runs the documented rule locally for exploration only; it never writes.
+  ExerciseRank preview({
+    required Exercise exercise,
+    required ExerciseTrackingMode mode,
+    required double value,
+    double? baselineValue,
+  });
 }
 
 abstract class QuickAddRepository {

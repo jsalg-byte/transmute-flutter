@@ -1,5 +1,41 @@
 # Shared Design System
 
+## Expanded product direction (2026-10-03)
+
+The shared library is the **foundation**, not a limit on the larger experience
+in [COMPETITOR_UPGRADE_PLAN.md](COMPETITOR_UPGRADE_PLAN.md) and
+[UI_SPEC.md](UI_SPEC.md). The target has a denser, workout-first shell, a
+prominent progression header, rank gallery/bodygraph, training charts, meal
+diary, and social standings. Those surfaces should look and feel like one
+Transmute product across every saved palette and light/dark choice. Liftoff's
+hierarchy and information density are reference patterns; its badges,
+illustrations, mascot, branding, and exact colors are not assets to use.
+
+Extend tokens and shared components before adding feature-local styling:
+
+| New shared pattern | Design intent and required behavior |
+| --- | --- |
+| Progress header and level track | Compact level/XP/streak values with source-backed labels, semantic progress, and graceful absence before the progression API exists. |
+| Rank badge and tier track | Original alchemical emblems, readable tier name, current/next threshold, text progress and versioned rule explanation. Maintain a common silhouette across tiers; color is supplemental. |
+| Ranked bodygraph | Original front/back vector with stable region IDs, selected-region state, legend and an equivalent text list. Keep recovery and rank color semantics distinct. |
+| Compact workout/routine/set rows | Dense numeric alignment, visible previous result and saved/pending/error state, large hit areas despite tighter visual spacing. |
+| Metric tile and period chart | Unit, metric, period, source and no-data text; use local filters and text summaries as chart alternatives. |
+| Meal/day and social cards | Direct actions adjacent to the relevant section; provenance, privacy and loading state visible before a user acts. |
+
+Keep the current Ledger geometry and Spectral/editorial plus sans typography
+as Transmute's default; Soft and the existing palette choices remain valid.
+The upgrade may change screen composition, sizing and density substantially
+where the new hierarchy requires it. Build original alchemy-inspired vectors
+for ranks, milestones and body regions; use clear fitness words such as Ranks,
+Level and Streak rather than hiding those systems behind Arcana terms. Arcana
+can link to the same verified workout evidence without replacing them.
+
+All patterns need loading, empty, error, pending, saved, disabled and reduced
+motion states as relevant. Use 44dp touch areas, readable contrast, keyboard
+focus, `Semantics`, and 200% text reflow. A compressed card must not compress
+its tap target or truncate its primary metric. The user performs browser
+verification; component tests and analyzer results are separate evidence.
+
 The first version centralizes existing Transmute components without changing
 workout behavior or introducing a new account preference contract.
 

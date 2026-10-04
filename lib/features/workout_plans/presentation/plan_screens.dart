@@ -7,6 +7,7 @@ import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
 import '../../../shared/widgets/app_shell.dart';
+import 'routine_dialogs.dart';
 
 class PlanListScreen extends ConsumerWidget {
   const PlanListScreen({super.key});
@@ -17,7 +18,7 @@ class PlanListScreen extends ConsumerWidget {
     final active = ref.watch(activeSessionProvider);
     final compact = MediaQuery.sizeOf(context).width < 600;
     return AppShell(
-      title: 'Workout plans',
+      title: 'Routine folders',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -25,12 +26,20 @@ class PlanListScreen extends ConsumerWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Plans', style: Theme.of(context).textTheme.titleLarge),
+                Text(
+                  'Routine folders',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
                 const SizedBox(height: 6),
                 ElevatedButton.icon(
-                  onPressed: () => _newPlan(context, ref),
+                  onPressed: () => _newFolder(context, ref),
                   icon: const Icon(Icons.add),
-                  label: const Text('New plan'),
+                  label: const Text('New folder'),
+                ),
+                TextButton.icon(
+                  onPressed: () => _newPlan(context, ref),
+                  icon: const Icon(Icons.auto_awesome_outlined),
+                  label: const Text('Create or generate plan'),
                 ),
               ],
             )
@@ -39,17 +48,22 @@ class PlanListScreen extends ConsumerWidget {
               children: [
                 Expanded(
                   child: Text(
-                    'Workout plans',
+                    'Routine folders',
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
-                ElevatedButton.icon(
+                TextButton.icon(
                   onPressed: () => _newPlan(context, ref),
+                  icon: const Icon(Icons.auto_awesome_outlined),
+                  label: const Text('Create or generate plan'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _newFolder(context, ref),
                   icon: const Icon(Icons.add),
-                  label: const Text('New plan'),
+                  label: const Text('New folder'),
                 ),
               ],
             ),
@@ -91,6 +105,18 @@ class PlanListScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _newFolder(BuildContext context, WidgetRef ref) async {
+    final folder = await showRoutineNameDialog<WorkoutPlan>(
+      context: context,
+      title: 'New routine folder',
+      label: 'Folder name',
+      onSave: (name) => ref.read(planRepositoryProvider).createPlan(name),
+    );
+    if (folder == null) return;
+    ref.invalidate(plansProvider);
+    if (context.mounted) context.go('/plans/${folder.id}');
   }
 
   Future<void> _newPlan(BuildContext context, WidgetRef ref) async {
@@ -331,7 +357,9 @@ class _PlanList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (items.isEmpty)
       return const Center(
-        child: Text('Create a plan to start building your next session.'),
+        child: Text(
+          'Create a folder, then add a routine to build your next session.',
+        ),
       );
     return LayoutBuilder(
       builder: (context, box) {
@@ -379,7 +407,7 @@ class _PlanList extends StatelessWidget {
                       ),
                       const Spacer(),
                       Text(
-                        '${plan.days.length} days · ${plan.exerciseCount} exercises',
+                        '${plan.days.length} routines · ${plan.exerciseCount} exercises',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall,
@@ -397,7 +425,7 @@ class _PlanList extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        '${plan.days.length} training days · ${plan.exerciseCount} exercises',
+                        '${plan.days.length} routines · ${plan.exerciseCount} exercises',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: 10),
@@ -405,7 +433,7 @@ class _PlanList extends StatelessWidget {
                         alignment: Alignment.bottomRight,
                         child: ElevatedButton(
                           onPressed: () => context.go('/plans/${plan.id}'),
-                          child: const Text('Open plan'),
+                          child: const Text('Open folder'),
                         ),
                       ),
                     ],
@@ -421,8 +449,9 @@ class _PlanList extends StatelessWidget {
 }
 
 class PlanDetailScreen extends ConsumerStatefulWidget {
-  const PlanDetailScreen({super.key, required this.planId});
+  const PlanDetailScreen({super.key, required this.planId, this.initialDayId});
   final String planId;
+  final String? initialDayId;
   @override
   ConsumerState<PlanDetailScreen> createState() => _PlanDetailScreenState();
 }
@@ -431,12 +460,27 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
   String? _dayId;
   bool _settingActivePlan = false;
   @override
+  void initState() {
+    super.initState();
+    _dayId = widget.initialDayId;
+  }
+
+  @override
+  void didUpdateWidget(covariant PlanDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.planId != widget.planId ||
+        oldWidget.initialDayId != widget.initialDayId) {
+      _dayId = widget.initialDayId;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final plan = ref.watch(planProvider(widget.planId));
     final active = ref.watch(activeSessionProvider).value;
     final preferences = ref.watch(preferencesProvider);
     return AppShell(
-      title: 'Plan details',
+      title: 'Routines',
       child: plan.when(
         skipLoadingOnRefresh: true,
         data: (value) {
@@ -529,10 +573,17 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
               if (value.days.isEmpty)
                 Expanded(
                   child: Center(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _addDay(value),
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add first training day'),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('This routine folder is empty.'),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: () => _addDay(value),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add first routine'),
+                        ),
+                      ],
                     ),
                   ),
                 )
@@ -552,7 +603,7 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
                         ),
                       ActionChip(
                         avatar: const Icon(Icons.add),
-                        label: const Text('Add day'),
+                        label: const Text('Add routine'),
                         onPressed: () => _addDay(value),
                       ),
                     ],
@@ -605,47 +656,35 @@ class _PlanDetailScreenState extends ConsumerState<PlanDetailScreen> {
   }
 
   Future<void> _addDay(WorkoutPlan plan) async {
-    final name = await _textDialog(
-      context,
-      title: 'Add training day',
-      label: 'Day name',
-      action: 'Add',
+    final day = await showRoutineNameDialog<WorkoutPlanDay>(
+      context: context,
+      title: 'Add routine',
+      label: 'Routine name',
+      onSave: (name) => ref.read(planRepositoryProvider).addDay(plan.id, name),
     );
-    if (name == null) return;
-    try {
-      final day = await ref.read(planRepositoryProvider).addDay(plan.id, name);
-      _refresh();
-      // Select only after the refreshed plan contains the new day. Otherwise
-      // the retained pre-refresh plan can reset _dayId to its first day.
-      await ref.read(planProvider(plan.id).future);
-      if (mounted) setState(() => _dayId = day.id);
-    } on AppFailure catch (error) {
-      if (mounted) _notice(context, error.message);
-    }
+    if (day == null) return;
+    _refresh();
+    await ref.read(planProvider(plan.id).future);
+    if (mounted) setState(() => _dayId = day.id);
   }
 
   Future<void> _renamePlan(WorkoutPlan plan) async {
-    final name = await _textDialog(
-      context,
-      title: 'Rename workout plan',
-      label: 'Workout plan name',
+    final saved = await showRoutineNameDialog<WorkoutPlan>(
+      context: context,
+      title: 'Rename routine folder',
+      label: 'Folder name',
       initial: plan.name,
-      action: 'Save',
+      onSave: (name) =>
+          ref.read(planRepositoryProvider).renamePlan(plan.id, name),
     );
-    if (name == null) return;
-    try {
-      await ref.read(planRepositoryProvider).renamePlan(plan.id, name);
-      _refresh();
-    } on AppFailure catch (error) {
-      if (mounted) _notice(context, error.message);
-    }
+    if (saved != null) _refresh();
   }
 
   Future<void> _deletePlan(WorkoutPlan plan) async {
     final yes = await _confirm(
       context,
       'Delete this workout plan?',
-      'Completed workout evidence stays intact. An active plan cannot be deleted.',
+      'Folders used by workout history cannot be deleted. Rename this folder to keep that history intact.',
     );
     if (!yes) return;
     try {
@@ -699,9 +738,34 @@ class _DayEditor extends ConsumerWidget {
           PopupMenuButton<String>(
             tooltip: 'Training day options',
             onSelected: (action) async {
+              if (action == 'share') {
+                context.go('/plans/${plan.id}/share/${day.id}');
+                return;
+              }
               if (action == 'delete') await _deleteDay(context, ref);
+              if (action == 'up')
+                await _moveDay(context, ref, ReorderDirection.up);
+              if (action == 'down')
+                await _moveDay(context, ref, ReorderDirection.down);
             },
-            itemBuilder: (_) => const [
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'share',
+                child: ListTile(
+                  leading: Icon(Icons.ios_share_outlined),
+                  title: Text('Share routine'),
+                ),
+              ),
+              if (plan.days.first.id != day.id)
+                const PopupMenuItem(
+                  value: 'up',
+                  child: Text('Move routine up'),
+                ),
+              if (plan.days.last.id != day.id)
+                const PopupMenuItem(
+                  value: 'down',
+                  child: Text('Move routine down'),
+                ),
               PopupMenuItem(
                 value: 'delete',
                 child: ListTile(
@@ -729,6 +793,8 @@ class _DayEditor extends ConsumerWidget {
           day: day,
           entry: entry,
           refresh: refresh,
+          canMoveUp: day.exercises.first.id != entry.id,
+          canMoveDown: day.exercises.last.id != entry.id,
         ),
       ),
       Padding(
@@ -743,7 +809,9 @@ class _DayEditor extends ConsumerWidget {
       Align(
         alignment: Alignment.centerRight,
         child: ElevatedButton.icon(
-          onPressed: active == null ? start : () => context.go('/session'),
+          onPressed: active == null
+              ? (day.exercises.isEmpty ? null : start)
+              : () => context.go('/session'),
           icon: Icon(active == null ? Icons.play_arrow : Icons.fitness_center),
           label: Text(active == null ? 'Start ${day.name}' : 'Resume workout'),
         ),
@@ -751,16 +819,26 @@ class _DayEditor extends ConsumerWidget {
     ],
   );
   Future<void> _renameDay(BuildContext context, WidgetRef ref) async {
-    final name = await _textDialog(
-      context,
-      title: 'Rename training day',
-      label: 'Day name',
+    final saved = await showRoutineNameDialog<WorkoutPlanDay>(
+      context: context,
+      title: 'Rename routine',
+      label: 'Routine name',
       initial: day.name,
-      action: 'Save',
+      onSave: (name) =>
+          ref.read(planRepositoryProvider).renameDay(plan.id, day.id, name),
     );
-    if (name == null) return;
+    if (saved != null) refresh();
+  }
+
+  Future<void> _moveDay(
+    BuildContext context,
+    WidgetRef ref,
+    ReorderDirection direction,
+  ) async {
     try {
-      await ref.read(planRepositoryProvider).renameDay(plan.id, day.id, name);
+      await ref
+          .read(planRepositoryProvider)
+          .reorderDay(plan.id, day.id, direction);
       refresh();
     } on AppFailure catch (error) {
       if (context.mounted) _notice(context, error.message);
@@ -815,11 +893,15 @@ class _PrescriptionCard extends ConsumerWidget {
     required this.day,
     required this.entry,
     required this.refresh,
+    required this.canMoveUp,
+    required this.canMoveDown,
   });
   final WorkoutPlan plan;
   final WorkoutPlanDay day;
   final PlanExercise entry;
   final VoidCallback refresh;
+  final bool canMoveUp;
+  final bool canMoveDown;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unit =
@@ -832,26 +914,48 @@ class _PrescriptionCard extends ConsumerWidget {
         subtitle: Text(
           '${entry.exercise.muscleGroup ?? entry.exercise.category} · ${entry.targetSets} × ${entry.trackingMode == ExerciseTrackingMode.timed ? _formatPrescriptionDuration(entry.targetDurationSeconds) : '${entry.targetReps} reps'}${entry.trackingMode == ExerciseTrackingMode.reps && entry.targetWeightKg != null ? ' at ${displayWeight(entry.targetWeightKg!, unit)}' : ''}${entry.previousPerformance == null ? '' : '\nPrevious: ${displayWeight(entry.previousPerformance!.weightKg, unit)} × ${entry.previousPerformance!.reps}'}',
         ),
-        trailing: Wrap(
-          children: [
-            IconButton(
-              tooltip: 'Edit prescription',
-              icon: const Icon(Icons.tune),
-              onPressed: () => _edit(context, ref, unit),
-            ),
-            IconButton(
-              tooltip: 'Remove from day',
-              icon: const Icon(Icons.remove_circle_outline),
-              onPressed: () async {
-                try {
-                  await ref
-                      .read(planRepositoryProvider)
-                      .removeExerciseFromDay(plan.id, day.id, entry.id);
-                  refresh();
-                } on AppFailure catch (error) {
-                  if (context.mounted) _notice(context, error.message);
-                }
-              },
+        trailing: PopupMenuButton<String>(
+          tooltip: 'Options for ${entry.exercise.name}',
+          onSelected: (action) async {
+            if (action == 'edit') return _edit(context, ref, unit);
+            if (action == 'up' || action == 'down') {
+              try {
+                await ref
+                    .read(planRepositoryProvider)
+                    .reorderExerciseInDay(
+                      plan.id,
+                      day.id,
+                      entry.id,
+                      action == 'up'
+                          ? ReorderDirection.up
+                          : ReorderDirection.down,
+                    );
+                refresh();
+              } on AppFailure catch (error) {
+                if (context.mounted) _notice(context, error.message);
+              }
+              return;
+            }
+            if (action == 'remove') {
+              try {
+                await ref
+                    .read(planRepositoryProvider)
+                    .removeExerciseFromDay(plan.id, day.id, entry.id);
+                refresh();
+              } on AppFailure catch (error) {
+                if (context.mounted) _notice(context, error.message);
+              }
+            }
+          },
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'edit', child: Text('Edit targets')),
+            if (canMoveUp)
+              const PopupMenuItem(value: 'up', child: Text('Move up')),
+            if (canMoveDown)
+              const PopupMenuItem(value: 'down', child: Text('Move down')),
+            const PopupMenuItem(
+              value: 'remove',
+              child: Text('Remove exercise'),
             ),
           ],
         ),
@@ -864,27 +968,26 @@ class _PrescriptionCard extends ConsumerWidget {
     WidgetRef ref,
     WeightUnit unit,
   ) async {
-    final result = await _prescriptionDialog(context, entry, unit);
-    if (result == null) return;
-    try {
-      await ref
-          .read(planRepositoryProvider)
-          .updatePrescription(
-            plan.id,
-            day.id,
-            entry.id,
-            targetSets: result.sets,
-            targetReps: result.reps,
-            trackingMode: result.mode,
-            targetDurationSeconds: result.durationSeconds,
-            targetWeightKg: result.weight == null
-                ? null
-                : toKg(result.weight!, unit),
-          );
-      refresh();
-    } on AppFailure catch (error) {
-      if (context.mounted) _notice(context, error.message);
-    }
+    await _prescriptionDialog(
+      context,
+      entry,
+      unit,
+      onSave: (sets, reps, mode, durationSeconds, weight) async {
+        await ref
+            .read(planRepositoryProvider)
+            .updatePrescription(
+              plan.id,
+              day.id,
+              entry.id,
+              targetSets: sets,
+              targetReps: reps,
+              trackingMode: mode,
+              targetDurationSeconds: durationSeconds,
+              targetWeightKg: weight == null ? null : toKg(weight, unit),
+            );
+        refresh();
+      },
+    );
   }
 }
 
@@ -1191,76 +1294,6 @@ Future<({String url, String? sourceName})?> _demoDialog(
   return result;
 }
 
-Future<String?> _textDialog(
-  BuildContext context, {
-  required String title,
-  required String label,
-  required String action,
-  String? initial,
-}) async {
-  return showDialog<String>(
-    context: context,
-    builder: (_) => _TextEntryDialog(
-      title: title,
-      label: label,
-      action: action,
-      initial: initial,
-    ),
-  );
-}
-
-class _TextEntryDialog extends StatefulWidget {
-  const _TextEntryDialog({
-    required this.title,
-    required this.label,
-    required this.action,
-    this.initial,
-  });
-
-  final String title;
-  final String label;
-  final String action;
-  final String? initial;
-
-  @override
-  State<_TextEntryDialog> createState() => _TextEntryDialogState();
-}
-
-class _TextEntryDialogState extends State<_TextEntryDialog> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.initial,
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.title),
-    content: TextField(
-      controller: _controller,
-      autofocus: true,
-      decoration: InputDecoration(labelText: widget.label),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      ElevatedButton(
-        onPressed: () {
-          final value = _controller.text.trim();
-          if (value.isNotEmpty) Navigator.pop(context, value);
-        },
-        child: Text(widget.action),
-      ),
-    ],
-  );
-}
-
 Future<bool> _confirm(BuildContext context, String title, String body) async =>
     await showDialog<bool>(
       context: context,
@@ -1291,28 +1324,27 @@ String _formatPrescriptionDuration(int? seconds) => seconds == null
     ? '${seconds ~/ 60} min'
     : '${seconds}s';
 
-Future<
-  ({
-    int sets,
-    int reps,
-    ExerciseTrackingMode mode,
-    int? durationSeconds,
-    double? weight,
-  })?
->
-_prescriptionDialog(
+Future<void> _prescriptionDialog(
   BuildContext context,
   PlanExercise entry,
-  WeightUnit unit,
-) async => showDialog(
+  WeightUnit unit, {
+  required Future<void> Function(int, int, ExerciseTrackingMode, int?, double?)
+  onSave,
+}) async => showDialog(
   context: context,
-  builder: (_) => _PrescriptionDialog(entry: entry, unit: unit),
+  builder: (_) => _PrescriptionDialog(entry: entry, unit: unit, onSave: onSave),
 );
 
 class _PrescriptionDialog extends StatefulWidget {
-  const _PrescriptionDialog({required this.entry, required this.unit});
+  const _PrescriptionDialog({
+    required this.entry,
+    required this.unit,
+    required this.onSave,
+  });
   final PlanExercise entry;
   final WeightUnit unit;
+  final Future<void> Function(int, int, ExerciseTrackingMode, int?, double?)
+  onSave;
 
   @override
   State<_PrescriptionDialog> createState() => _PrescriptionDialogState();
@@ -1336,6 +1368,8 @@ class _PrescriptionDialogState extends State<_PrescriptionDialog> {
               .toStringAsFixed(1),
   );
   late ExerciseTrackingMode _mode = widget.entry.trackingMode;
+  bool _saving = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -1430,19 +1464,30 @@ class _PrescriptionDialogState extends State<_PrescriptionDialog> {
                 ),
               ],
             ),
+          if (_error != null)
+            Semantics(
+              liveRegion: true,
+              child: Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
         ],
       ),
     ),
     actions: [
       TextButton(
-        onPressed: () => Navigator.pop(context),
+        onPressed: _saving ? null : () => Navigator.pop(context),
         child: const Text('Cancel'),
       ),
-      ElevatedButton(onPressed: _save, child: const Text('Save')),
+      ElevatedButton(
+        onPressed: _saving ? null : _save,
+        child: Text(_saving ? 'Saving…' : 'Save'),
+      ),
     ],
   );
 
-  void _save() {
+  Future<void> _save() async {
     final sets = int.tryParse(_sets.text);
     final reps = int.tryParse(_reps.text);
     final durationValue = double.tryParse(_duration.text);
@@ -1452,23 +1497,55 @@ class _PrescriptionDialogState extends State<_PrescriptionDialog> {
     final weight = _weight.text.trim().isEmpty
         ? null
         : double.tryParse(_weight.text);
-    if (sets == null || sets < 1 || sets > 20) return;
+    if (_mode == ExerciseTrackingMode.reps &&
+        _weight.text.trim().isNotEmpty &&
+        weight == null) {
+      setState(() => _error = 'Enter a valid target weight or leave it blank.');
+      return;
+    }
+    if (sets == null || sets < 1 || sets > 20) {
+      setState(() => _error = 'Sets must be between 1 and 20.');
+      return;
+    }
     if (_mode == ExerciseTrackingMode.reps &&
         (reps == null ||
             reps < 1 ||
             reps > 50 ||
-            (weight != null && weight < 0)))
+            (weight != null && weight < 0))) {
+      setState(() => _error = 'Enter 1–50 reps and a nonnegative weight.');
       return;
+    }
     if (_mode == ExerciseTrackingMode.timed &&
-        (duration == null || duration < 1 || duration > 86400))
+        (duration == null || duration < 1 || duration > 86400)) {
+      setState(
+        () => _error = 'Duration must be between 1 second and 24 hours.',
+      );
       return;
-    Navigator.pop(context, (
-      sets: sets,
-      reps: reps ?? widget.entry.targetReps,
-      mode: _mode,
-      durationSeconds: _mode == ExerciseTrackingMode.timed ? duration : null,
-      weight: weight,
-    ));
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(
+        sets,
+        reps ?? widget.entry.targetReps,
+        _mode,
+        _mode == ExerciseTrackingMode.timed ? duration : null,
+        weight,
+      );
+      if (mounted) Navigator.pop(context);
+    } on AppFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (_) {
+      if (mounted)
+        setState(
+          () => _error =
+              'Could not save. Your targets are still here; try again.',
+        );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   String _durationValue(int seconds) {

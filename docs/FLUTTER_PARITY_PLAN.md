@@ -1,5 +1,11 @@
 # Flutter parity plan
 
+> **Historical parity snapshot:** this tracks the earlier Expo-to-Flutter
+> effort. The expanded product target and ordered end-to-end slices are in
+> [COMPETITOR_UPGRADE_PLAN.md](COMPETITOR_UPGRADE_PLAN.md). Verify current
+> source and the implemented API contract before treating a status below as
+> current; parity with the earlier app is not the new feature ceiling.
+
 The first focused demo established authentication, a persistent active
 workout, set logging, a local rest timer, completed history, and mock/API
 repository seams. This plan expands it in coherent product increments without

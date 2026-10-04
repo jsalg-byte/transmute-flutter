@@ -1,117 +1,38 @@
-# Transmute Flutter demonstration: UI contract
+# Transmute target UI specification
 
-## Visual direction
+**Target, 2026-10-03.** This replaces the early three-tab demo UI target. Slices 1–4 have established the six-destination shell, workout-first entry, dense active logging, saved routine rows/editor and freeform workouts in Flutter source; later progression, nutrition and social sections remain targets until their [upgrade slices](COMPETITOR_UPGRADE_PLAN.md) ship. The 28 screenshot observations and proposed behavior are distinguished in that plan.
 
-Use the Transmute default light theme as the demo baseline: private training
-ledger, square-edged cards/buttons, warm paper surface, dark ink, muted
-blue-oxide accent, and restrained alchemical identity. Use iconography, not
-emoji. Do not copy external franchise artwork.
+## Experience and navigation
 
-## Tokens
+Transmute should have the reference's task clarity and information density without copying its brand. Use a **six-destination** phone bar in this order: Workout, Today, Ranks, Nutrition, Friends, Profile. Tablet uses a rail and desktop a sidebar with the same destinations and route identity. Active destination has a label and indicator, not color alone. Keep History reachable from Today/Profile/Workout completion, Plans and Routines from Workout, Arcana from progression/Profile, and existing Recovery, Fasting, Goals, Exercises and Settings via contextual shortcuts or secondary navigation. Deep links return to a sensible parent.
 
-| Token | Value | Use |
-| --- | --- | --- |
-| `surface` | `#F4EBD8` | App background. |
-| `raised` | `#FCF7EC` | Cards, fields, dialogs. |
-| `ink` | `#171821` | Headlines and primary buttons. |
-| `body` | `#292B35` | Body copy. |
-| `muted` | `#605D63` | Supporting copy. |
-| `divider` | `#D9CEB9` | Borders/separators. |
-| `oxide` | `#6D79A0` | Links, selected navigation, focus ring. |
-| `destructive` | `#A33B36` | Destructive action/error emphasis. |
-| `gold` | `#D1A742` | Sparing evidence/highlight use. |
-| `success` | `#3E745C` | Set/session completion confirmation. |
+A compact progress header may show real level, XP toward next level and streak; it must not show a currency balance, rank or friend count without a saved source. During staged delivery, unfinished destinations show honest availability and a path back, not mock numbers. Today has three local tabs: For You, Feed and Discovery, with distinct purposes. Ranks has Your Rank, Bodygraph, Leagues, Gallery and Analysis. Horizontal tab lists scroll with clear selected state and semantic tab labels.
 
-Use Material 3 with a custom `ColorScheme` derived from these tokens. Minimum
-touch target is 44x44dp. Cards, buttons, and inputs use a 1dp square corner
-border; do not use pill shapes except compact status chips.
+## Screen hierarchy and density
 
-## Typography and spacing
-
-| Role | Font/size/weight | Notes |
-| --- | --- | --- |
-| Display | Georgia or platform serif, 32/38, 700 | Page/session headings. |
-| Heading | system sans, 20/26, 700 | Card headings. |
-| Body | system sans, 16/24, 400 | Default content. |
-| Label | system sans, 12/16, 700, 1.2px tracking | Uppercase ledger labels. |
-| Button | system sans, 15/20, 700 | Never all caps unless a compact label. |
-
-Base spacing scale: `4, 8, 12, 16, 24, 32, 48`. Page padding is 16dp on
-mobile, 24dp tablet, and 32dp desktop. Content max width is 1180dp.
-
-## Navigation
-
-| Width | Structure | Exact items |
-| --- | --- | --- |
-| `<600dp` | Bottom `NavigationBar` | Plans, Workout, History. Workout routes to active session or plans with an inline no-active state. |
-| `600–1023dp` | `NavigationRail` | Same three items and logout at the bottom. |
-| `>=1024dp` | Persistent 240dp sidebar | Wordmark, same three items, active-session indicator, logout. |
-
-Active navigation is visible by label color plus a left/upper oxide indicator;
-never color alone. The content route title is always present in the body, not
-only in navigation chrome.
-
-## Component states
-
-| Component | Required states |
+| Screen | Mobile section order and visible controls |
 | --- | --- |
-| Button | default, hover (desktop), focus-visible, pressed, disabled, loading. |
-| Text field | default, hover, focused oxide border, invalid destructive border/message, disabled. |
-| Plan/session card | default, hover/focus, selected where applicable, loading skeleton. |
-| Async panel | loading skeleton, empty explanation, error + retry, success. |
-| Set row | pending optimistic, saved, retry-needed, editing, read-only completed. |
-| Rest timer | idle, running, elapsed, paused/reset. |
+| **Workout home** | Today's named workout/Resume card with sets and estimated duration if sourced → New Workout (Start Empty Workout, Generate Workout, separate Quick Add one exercise) → Routines heading with add/folder → compact routine rows (name, total sets, first 2–3 exercises with set counts, more count, overflow, direct Start). Empty starts a freeform active session in the same logger; sharing remains slice 5. |
+| **Active session** | Session title and sync state, plus explicit FREEFORM label and exercise/working-set counts for an empty-origin session → exercise navigator or Add Movement empty state → target and previous comparable performance → dense set ledger with ordinal, per-set previous, weight/reps or duration, warm-up, Log control, Saved/Pending sync feedback and edit/delete on confirmed rows → persistent rest and next/finish controls. At narrow widths, saved-row status and actions stack without horizontal scrolling. Pending sets keep Finish disabled with a reason and a retry action. |
+| **Today / For You** | Level/streak and next milestone → today's workout → recovery map/explanation → bodyweight/strength goal → last 14 workouts metrics → Discover shortcuts. Optional sections load independently; Start/Resume remains usable. |
+| **Ranks** | Your Rank: large personal tier, placement count, CTA, standings/history. Bodygraph: front/back map, selected muscle details, last-session deltas. Leagues: eligibility/cohort. Gallery: search/filter and two-column rank cards. Analysis: average tiers, next targets, rank-up counts and filtered distribution. |
+| **Nutrition** | Local-day navigation → target/food/remaining and macro summary → Add Meal → Recently Logged → meal-type sections and add rows → photo/recipe entry points. If no target, show Set target and confirmed food totals. |
+| **Friends** | Leaderboards entry → friend search/invite → accepted/pending friend list or helpful empty state → authorized activity. Feed and standings name their time period and privacy state. |
+| **Profile** | Identity/rank/level → shortcut grid → completed-day calendar → 7/14/30-day body/training summary and selectable duration/volume/reps → streak → level/rewards → goal/history previews. Hide a section only when genuinely irrelevant; otherwise explain zero/locked data. |
+| **Recipe discovery** | Search above image-led cards with title, servings, creator/curation status → detail with ingredients and per-serving nutrition → editable log confirmation. Secondary reference; use Transmute visual tokens. |
 
-Show progress in the action that is waiting; do not block unrelated read-only
-navigation while a set mutation is pending.
+## Components and measurements
 
-## Dialog and form rules
+Use shared `TransmutePanel`, `TransmuteButton`, fields and state panels, then add reusable `ProgressHeader`, `MetricTile`, `RankBadge`, `ProgressTrack`, `CompactRoutineRow`, `SetLedgerRow`, `BodyRegionMap`, `PeriodChart` and `MealSection` as slices ship. A dense card still needs a clear title, unit, date/period, primary value, action and data state. Compact rows use 8–12dp internal gaps; major sections 24–32dp; columns align numerals and unit labels. On phones, two-up metric/rank cards are allowed when each remains readable and tappable; stack at large text sizes. Charts have text tables or summaries. Never convey a rank, recovery state, streak or save status only by color or artwork.
 
-- Add-exercise dialog is modal, labelled `Add exercise`, initially focuses the
-  search field, traps focus, supports Escape, and returns focus on close.
-- Discard dialog is destructive and requires explicit `Discard workout`; its
-  safe option is `Keep workout` and receives initial focus.
-- Finish has a confirmation only if there are zero logged sets. Otherwise it is
-  a direct action with a progress state.
-- Form errors appear beneath their field and in a polite live region. Network
-  errors appear at panel level with an explicit retry.
-- Numeric keyboard/input accepts decimal display values then converts to/from
-  `weightKg`. Preserve raw invalid text until corrected.
+Display weights in the saved user unit but calculate and persist kg. Show the comparison mode for timed/rep ranks, the baseline and next tier on detail, and estimated 1RM as an estimate. “Remaining” is explicit about whether exercise energy is included. A loading, no evidence, unranked, ineligible, private, failed, pending and success state must each have distinct text and action. Saved data should never be visually confused with an optimistic draft.
 
-## Layout rules
+## Responsive and accessible behavior
 
-- Plan list: one column below 600dp; two columns from 600–1023dp; three columns
-  at 1024dp+ when cards remain at least 280dp wide.
-- Plan detail: prescription list is one column on mobile; at desktop, place a
-  300dp summary/start panel beside the list.
-- Active session: one column under 1024dp. At desktop, put movement navigator
-  and sticky action/timer column beside the 640dp set ledger. Do not hide sets
-  behind horizontal scrolling.
-- History: list at small/medium widths; desktop may use a two-column list plus
-  detail pane only when a session is selected.
-- Use `SafeArea`, scrollable content, and inset-aware sticky action bars. No
-  text or actions may be obscured by navigation/keyboard.
+Use current theme/palette and shared geometry; do not impose one platform's native visual style on every target. Mobile keeps primary actions above the fold and sticky actions above keyboard/navigation insets. Tablet and desktop may use a detail pane and chart/summary columns, while preserving the same section order. Support 375dp, 768dp and 1440dp review widths, 200% text, logical focus, Tab/Shift-Tab/Enter/Space/Escape, labeled icon controls, 44dp minimum targets, WCAG AA contrast and `MediaQuery.disableAnimations`.
 
-## Accessibility and interaction
+Set inputs identify exercise, set number, value and unit to assistive technology. Bodygraph regions have selectable text alternatives and a list of the same group results. Rank progress exposes current, next and percentage in text. Calendar days announce date and qualification state. Live announcements describe server confirmation, errors and timer completion without repeatedly reading an entire card. Forms keep drafts on validation/network failure; destructive actions explain consequences.
 
-- Meet WCAG 2.1 AA contrast; verify `oxide` link/focus treatment against
-  `surface` and use `ink` text where contrast requires it.
-- Every icon-only control has a semantic label. Set fields include exercise and
-  set ordinal in their accessible label.
-- Support Tab/Shift-Tab, Enter/Space, Escape, mouse, trackpad, and touch.
-- Announce optimistic completion, mutation failure, timer elapsed, and route
-  heading changes to assistive technology.
-- Respect text scaling through at least 200%; wrap/reflow rather than clip.
+## Verification evidence
 
-## Screenshot checklist
-
-Capture after implementation, in mock mode, with no debug overlays:
-
-1. 375x812: plan list with bottom navigation.
-2. 375x812: active session with a logged set and running rest timer.
-3. 768x1024: plan detail with navigation rail.
-4. 1440x900: active session desktop two-column layout/sidebar.
-5. 1440x900: completed-session detail/history.
-
-Store them under `docs/screenshots/` with descriptive filenames. They are a
-verification artifact, not design input to invent behavior.
+Automated checks cover navigation, state transitions, contract mapping, responsive widget layouts and semantics. The user owns browser verification. Capture the same route, auth/data state, theme and viewport in local API or deployed mode; do not compare a signed-in mock view with a deployed onboarding view. Record source commit and `release/web` bundle version for production review. The screenshots in [the reference inventory](COMPETITOR_UPGRADE_PLAN.md#screen-by-screen-reference-inventory) are design evidence, not UI assets.

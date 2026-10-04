@@ -47,6 +47,7 @@ void main() {
     expect(reps.textInputAction, TextInputAction.done);
 
     await tester.ensureVisible(fields.at(0));
+    await tester.pumpAndSettle();
     await tester.tap(fields.at(0));
     await tester.enterText(fields.at(0), '95');
     expect(
@@ -114,6 +115,8 @@ void main() {
       tester.widget<TextField>(durationField).decoration?.suffixText,
       'sec',
     );
+    await tester.ensureVisible(find.byTooltip('Duration unit').first);
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Duration unit').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('min').last);
@@ -129,6 +132,233 @@ void main() {
         .getSession(session.id);
     expect(saved.exercises.first.sets.single.durationSeconds, 120);
     expect(find.text('2 min'), findsOneWidget);
+
+    await tester.ensureVisible(find.byTooltip('Edit set 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Edit set 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Duration'), findsOneWidget);
+    expect(find.text('Weight (kg)'), findsNothing);
+    await tester.enterText(find.byType(TextField).last, '1.5');
+    await tester.tap(find.text('Save changes'));
+    await tester.pumpAndSettle();
+    var updated = await container
+        .read(sessionRepositoryProvider)
+        .getSession(session.id);
+    expect(updated.exercises.first.sets.single.durationSeconds, 90);
+
+    await tester.ensureVisible(find.byTooltip('Delete set 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Delete set 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete set').last);
+    await tester.pumpAndSettle();
+    updated = await container
+        .read(sessionRepositoryProvider)
+        .getSession(session.id);
+    expect(updated.exercises.first.sets, isEmpty);
+    await container.read(activeSessionProvider.notifier).discard();
+  });
+
+  testWidgets('rep ledger logs, edits, deletes, and completes confirmed sets', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final container = ProviderContainer(
+      overrides: [
+        sessionRepositoryProvider.overrideWith(
+          (ref) => _OnlineMockSessionRepository(ref.read(mockStoreProvider)),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final session = await container
+        .read(activeSessionProvider.notifier)
+        .start('upper-a', 'upper-a-day-1');
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const ActiveSessionScreen()),
+        GoRoute(path: '/dashboard', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/plans', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/session', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/history', builder: (_, _) => const SizedBox()),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Warm-up').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Warm-up').first);
+    await tester.ensureVisible(find.text('Log').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Log').first);
+    await tester.pumpAndSettle();
+    var saved = await container
+        .read(sessionRepositoryProvider)
+        .getSession(session.id);
+    expect(saved.exercises.first.sets.single.isWarmup, isTrue);
+    expect(saved.workingSetCount, 0);
+    expect(find.text('Saved'), findsOneWidget);
+
+    await tester.ensureVisible(find.byTooltip('Edit set 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Edit set 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Warm-up set'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save changes'));
+    await tester.pumpAndSettle();
+    saved = await container
+        .read(sessionRepositoryProvider)
+        .getSession(session.id);
+    expect(saved.exercises.first.sets.single.isWarmup, isFalse);
+    expect(saved.workingSetCount, 1);
+
+    await tester.ensureVisible(find.byTooltip('Delete set 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Delete set 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete set').last);
+    await tester.pumpAndSettle();
+    saved = await container
+        .read(sessionRepositoryProvider)
+        .getSession(session.id);
+    expect(saved.exercises.first.sets, isEmpty);
+
+    final newSet = await container
+        .read(sessionRepositoryProvider)
+        .createSet(session.exercises.first.id, 40, 8);
+    expect(newSet.set.isWarmup, isFalse);
+    final completed = await container
+        .read(activeSessionProvider.notifier)
+        .complete();
+    expect(completed.workingSetCount, 1);
+    final history = await container
+        .read(sessionRepositoryProvider)
+        .completedHistory();
+    expect(history.first.id, completed.id);
+    expect(history.first.workingSetCount, 1);
+  });
+
+  testWidgets('pending set blocks Finish and remains visibly unsynced', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final session = await container
+        .read(activeSessionProvider.notifier)
+        .start('upper-a', 'upper-a-day-1');
+    final exercise = session.exercises.first;
+    container.read(mockStoreProvider).active = session.copyWith(
+      exercises: [
+        exercise.copyWith(
+          sets: [
+            LoggedSet(
+              id: 'pending-operation',
+              sessionExerciseId: exercise.id,
+              setOrder: 1,
+              weightKg: 40,
+              reps: 8,
+              completedAt: DateTime.now(),
+              pending: true,
+            ),
+          ],
+        ),
+        ...session.exercises.skip(1),
+      ],
+    );
+    await container.read(activeSessionProvider.notifier).refresh();
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const ActiveSessionScreen()),
+        GoRoute(path: '/dashboard', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/plans', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/session', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/history', builder: (_, _) => const SizedBox()),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pending sync'), findsOneWidget);
+    expect(
+      find.text(
+        '1 set is saved on this device and must sync before finishing.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Finish'))
+          .onPressed,
+      isNull,
+    );
+    await container.read(activeSessionProvider.notifier).discard();
+  });
+
+  testWidgets('200 percent text keeps ledger and finish control available', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final session = await container
+        .read(activeSessionProvider.notifier)
+        .start('upper-a', 'upper-a-day-1');
+    await container
+        .read(sessionRepositoryProvider)
+        .createSet(session.exercises.first.id, 40, 8);
+    await container.read(activeSessionProvider.notifier).refresh();
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const ActiveSessionScreen()),
+        GoRoute(path: '/dashboard', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/plans', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/session', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/history', builder: (_, _) => const SizedBox()),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: router,
+          builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(
+            size: const Size(390, 844),
+            textScaler: const TextScaler.linear(2),
+          ),
+            child: child!,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('SET LEDGER'), findsOneWidget);
+    expect(find.byTooltip('Edit set 1'), findsOneWidget);
+    expect(find.text('Next Movement'), findsWidgets);
+    expect(tester.takeException(), isNull);
     await container.read(activeSessionProvider.notifier).discard();
   });
 
@@ -297,10 +527,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Edit set'));
+    await tester.ensureVisible(find.byTooltip('Edit set 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Edit set 1'));
     await tester.pumpAndSettle();
     expect(find.text('Edit set 1'), findsOneWidget);
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save changes'));
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);

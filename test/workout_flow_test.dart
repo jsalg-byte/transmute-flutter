@@ -4,6 +4,73 @@ import 'package:transmute_flutter/core/domain/models.dart';
 import 'package:transmute_flutter/core/domain/repositories.dart';
 
 void main() {
+  test(
+    'freeform workout restores, logs two exercises, and enters history',
+    () async {
+      final store = MockStore();
+      final sessions = MockSessionRepository(store);
+      final initialHistoryCount = (await sessions.completedHistory()).length;
+      final started = await sessions.startFreeformSession();
+      expect(started.origin, WorkoutSessionOrigin.freeform);
+      expect(started.planDayId, isNull);
+      expect(started.exercises, isEmpty);
+
+      final bench = await sessions.addExercise(started.id, 'bench');
+      final row = await sessions.addExercise(started.id, 'row');
+      await sessions.createSet(bench.id, 50, 8);
+      await sessions.createSet(row.id, 40, 10);
+
+      final restored = (await MockSessionRepository(store).activeSession())!;
+      expect(restored.id, started.id);
+      expect(restored.exercises.map((exercise) => exercise.exerciseId), [
+        'bench',
+        'row',
+      ]);
+      expect(restored.workingSetCount, 2);
+      await expectLater(
+        MockSessionRepository(store).startSession('upper-a'),
+        throwsA(
+          isA<AppFailure>().having(
+            (failure) => failure.code,
+            'code',
+            'active_session_exists',
+          ),
+        ),
+      );
+
+      await sessions.complete(started.id);
+      expect(await sessions.activeSession(), isNull);
+      expect(
+        (await sessions.completedHistory()).first.planName,
+        'Empty Workout',
+      );
+      final next = await sessions.startFreeformSession();
+      final repeated = await sessions.addExercise(next.id, 'bench');
+      expect(repeated.previousPerformance?.reps, 8);
+      await sessions.discard(next.id);
+      expect(
+        (await sessions.completedHistory()),
+        hasLength(initialHistoryCount + 1),
+      );
+      expect(await sessions.activeSession(), isNull);
+    },
+  );
+
+  test('planned and freeform starts share the one-active constraint', () async {
+    final sessions = MockSessionRepository(MockStore());
+    final planned = await sessions.startSession('upper-a');
+    await expectLater(
+      sessions.startFreeformSession(),
+      throwsA(
+        isA<AppFailure>().having(
+          (failure) => failure.activeSessionId,
+          'activeSessionId',
+          planned.id,
+        ),
+      ),
+    );
+  });
+
   test('timed duration units convert to the API seconds contract', () {
     expect(TimedDurationUnit.minutes.toSeconds(1.5), 90);
     expect(TimedDurationUnit.hours.toSeconds(2), 7200);
@@ -32,6 +99,41 @@ void main() {
     );
     final plan = await MockPlanRepository(store).getPlan('upper-a');
     expect(plan.exercises.first.previousPerformance!.sessionId, completed.id);
+  });
+
+  test('starting a saved day restores the same active session', () async {
+    final store = MockStore();
+    final firstRepository = MockSessionRepository(store);
+    final plan = await MockPlanRepository(store).getPlan('upper-a');
+    final day = plan.days.first;
+
+    final started = await firstRepository.startSession(plan.id, day.id);
+    final restored = await MockSessionRepository(store).activeSession();
+
+    expect(restored?.id, started.id);
+    expect(restored?.planDayId, day.id);
+    await expectLater(
+      MockSessionRepository(store).startSession(plan.id, day.id),
+      throwsA(
+        isA<AppFailure>().having(
+          (failure) => failure.code,
+          'code',
+          'active_session_exists',
+        ),
+      ),
+    );
+    expect((await firstRepository.activeSession())?.id, started.id);
+  });
+
+  test('rest deadline survives session repository recreation', () async {
+    final store = MockStore();
+    final firstRepository = MockSessionRepository(store);
+    final session = await firstRepository.startSession('upper-a');
+    final deadline = DateTime.now().add(const Duration(seconds: 90));
+    await firstRepository.updateRest(session.id, deadline);
+
+    final restored = await MockSessionRepository(store).activeSession();
+    expect(restored?.restEndsAt, deadline);
   });
 
   test('mock working set reports a verified personal record', () async {
@@ -78,6 +180,54 @@ void main() {
     },
   );
 
+  test('timed previous results use the exact exercise and mode', () async {
+    final store = MockStore();
+    final plans = MockPlanRepository(store);
+    final plan = await plans.getPlan('upper-a');
+    final day = plan.days.first;
+    final entry = day.exercises.first;
+    await plans.updatePrescription(
+      plan.id,
+      day.id,
+      entry.id,
+      targetSets: 1,
+      targetReps: entry.targetReps,
+      trackingMode: ExerciseTrackingMode.timed,
+      targetDurationSeconds: 45,
+    );
+    final sessions = MockSessionRepository(store);
+    final first = await sessions.startSession(plan.id, day.id);
+    await sessions.createSet(
+      first.exercises.first.id,
+      0,
+      1,
+      durationSeconds: 55,
+    );
+    await sessions.complete(first.id);
+
+    final next = await sessions.startSession(plan.id, day.id);
+    expect(next.exercises.first.previousPerformance?.durationSeconds, 55);
+    expect(next.exercises.first.previousPerformance?.sessionId, first.id);
+    await sessions.discard(next.id);
+
+    await plans.updatePrescription(
+      plan.id,
+      day.id,
+      entry.id,
+      targetSets: 1,
+      targetReps: 8,
+      trackingMode: ExerciseTrackingMode.reps,
+      targetWeightKg: 40,
+    );
+    final repsSession = await sessions.startSession(plan.id, day.id);
+    expect(
+      repsSession.exercises.first.previousPerformances.where(
+        (result) => result.durationSeconds != null,
+      ),
+      isEmpty,
+    );
+  });
+
   test('mock plan builder creates a day and uses its prescriptions', () async {
     final store = MockStore();
     final plans = MockPlanRepository(store);
@@ -103,6 +253,87 @@ void main() {
     expect(session.planDayName, 'Pull');
     expect(session.exercises.single.targetWeightKg, 50);
   });
+
+  test(
+    'routine folder, order, preview and exact direct start persist',
+    () async {
+      final store = MockStore();
+      final plans = MockPlanRepository(store);
+      final folder = await plans.createPlan('Strength cycle');
+      expect(folder.days, isEmpty);
+      final push = await plans.addDay(folder.id, 'Push');
+      final pull = await plans.addDay(folder.id, 'Pull');
+      final bench = (await plans.searchExercises('bench')).first;
+      final row = (await plans.searchExercises('row')).first;
+      final benchEntry = await plans.addExerciseToDay(
+        folder.id,
+        push.id,
+        bench.id,
+      );
+      final rowEntry = await plans.addExerciseToDay(folder.id, push.id, row.id);
+      await plans.updatePrescription(
+        folder.id,
+        push.id,
+        benchEntry.id,
+        targetSets: 4,
+        targetReps: 8,
+      );
+      await plans.updatePrescription(
+        folder.id,
+        push.id,
+        rowEntry.id,
+        targetSets: 2,
+        targetReps: 10,
+      );
+      await plans.reorderExerciseInDay(
+        folder.id,
+        push.id,
+        rowEntry.id,
+        ReorderDirection.up,
+      );
+      await plans.reorderDay(folder.id, pull.id, ReorderDirection.up);
+
+      final reloaded = await MockPlanRepository(store).getPlan(folder.id);
+      expect(reloaded.days.map((day) => day.id), [pull.id, push.id]);
+      expect(reloaded.days.last.exercises.map((entry) => entry.id), [
+        rowEntry.id,
+        benchEntry.id,
+      ]);
+      expect(
+        reloaded.days.last.exercises.fold<int>(
+          0,
+          (sum, entry) => sum + entry.targetSets,
+        ),
+        6,
+      );
+
+      final session = await MockSessionRepository(
+        store,
+      ).startSession(folder.id, push.id);
+      expect(session.planDayId, push.id);
+      expect(session.exercises.map((exercise) => exercise.exerciseId), [
+        row.id,
+        bench.id,
+      ]);
+      await expectLater(
+        plans.deleteDay(folder.id, push.id),
+        throwsA(
+          isA<AppFailure>().having(
+            (failure) => failure.code,
+            'code',
+            'day_active',
+          ),
+        ),
+      );
+      await MockSessionRepository(store).discard(session.id);
+      await plans.deleteDay(folder.id, push.id);
+      await plans.deleteDay(folder.id, pull.id);
+      expect(
+        (await MockPlanRepository(store).getPlan(folder.id)).days,
+        isEmpty,
+      );
+    },
+  );
 
   test('mock exercise demo update persists into plan detail', () async {
     final store = MockStore();

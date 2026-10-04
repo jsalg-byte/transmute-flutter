@@ -1,5 +1,21 @@
 # Active-session state transition specification
 
+## Implemented `/v1` planned and freeform starts
+
+The active Flutter/Expo adapter uses `POST /v1/sessions {routineDayId}` for a
+saved day and `POST /v1/sessions/freeform` for an empty workout. Both start
+routes serialize on the authenticated user row and reject a second active
+session with 409 `active_session_exists` and `activeSessionId`; migration 011
+adds the database unique index. An empty session has `origin=freeform` and null
+routine/day IDs, then uses the same add-exercise, set, rest, completion and
+discard controller as a planned session. `GET /v1/record` locates the active
+ID and `GET /v1/sessions/:id` restores origin and exercises after reload.
+Completing writes a completed history record; discarding deletes the active
+session and adds no completion event. Quick Add directly creates a completed
+single-record session with `origin=quick_add` and never occupies the active
+slot. The older focused-demo routes below are historical specification
+material, not implemented production endpoints.
+
 ## State machine
 
 ```mermaid

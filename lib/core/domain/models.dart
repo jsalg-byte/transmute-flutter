@@ -586,6 +586,66 @@ class Exercise {
   final String? demoSourceName;
 }
 
+enum ExerciseRankMetric { estimatedOneRepMaxKg, maxReps, maxDurationSeconds }
+
+enum ExerciseRankTier { bronze, silver, gold, platinum, transmuted }
+
+class ExerciseRankEvidence {
+  const ExerciseRankEvidence({
+    required this.sessionId,
+    required this.completedAt,
+    required this.value,
+  });
+  final String sessionId;
+  final DateTime completedAt;
+  final double value;
+}
+
+class ExerciseRankUpdate {
+  const ExerciseRankUpdate({
+    required this.exerciseId,
+    required this.tier,
+    required this.established,
+  });
+  final String exerciseId;
+  final ExerciseRankTier tier;
+  final bool established;
+}
+
+/// A server-owned, personal comparison for one canonical exercise and mode.
+/// It deliberately never represents population standing or a percentile.
+class ExerciseRank {
+  const ExerciseRank({
+    required this.exercise,
+    this.trackingMode,
+    this.metric,
+    this.baselineValue,
+    this.bestValue,
+    this.tier,
+    this.subdivision,
+    this.progressPoints,
+    this.nextThreshold,
+    this.ruleVersion,
+    this.calculatedAt,
+    this.evidence = const [],
+  });
+  final Exercise exercise;
+  final ExerciseTrackingMode? trackingMode;
+  final ExerciseRankMetric? metric;
+  final double? baselineValue;
+  final double? bestValue;
+  final ExerciseRankTier? tier;
+  final int? subdivision;
+  final int? progressPoints;
+  final double? nextThreshold;
+  final int? ruleVersion;
+  final DateTime? calculatedAt;
+  final List<ExerciseRankEvidence> evidence;
+
+  bool get isRanked => tier != null && baselineValue != null;
+  bool get isProvisional => bestValue != null && !isRanked;
+}
+
 class CatalogExercise {
   const CatalogExercise({required this.name, required this.slug});
   final String name;
@@ -629,15 +689,19 @@ class PreviousPerformance {
     required this.weightKg,
     required this.reps,
     this.setOrder = 1,
+    this.durationSeconds,
   });
   final String sessionId;
   final DateTime completedAt;
   final double weightKg;
   final int reps;
   final int setOrder;
+  final int? durationSeconds;
 }
 
 enum ExerciseTrackingMode { reps, timed }
+
+enum ReorderDirection { up, down }
 
 class PlanExercise {
   const PlanExercise({
@@ -695,6 +759,76 @@ class WorkoutPlanDay {
   final String name;
   final int sortOrder;
   final List<PlanExercise> exercises;
+}
+
+/// An immutable, token-addressable copy of a saved routine.  It intentionally
+/// contains only routine prescriptions and public exercise metadata; workout
+/// history, goals, and active-session state never travel with a share.
+class RoutineShare {
+  const RoutineShare({
+    required this.id,
+    required this.token,
+    required this.routineDayId,
+    required this.status,
+    required this.createdAt,
+    required this.expiresAt,
+    required this.snapshot,
+  });
+
+  final String id;
+  final String token;
+  final String routineDayId;
+  final RoutineShareStatus status;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+  final RoutineShareSnapshot snapshot;
+
+  bool get isActive => status == RoutineShareStatus.active;
+}
+
+enum RoutineShareStatus { active, revoked, expired }
+
+class RoutineShareSnapshot {
+  const RoutineShareSnapshot({
+    required this.routineName,
+    required this.folderName,
+    required this.exercises,
+    this.ownerName,
+    this.ownerUsername,
+  });
+
+  final String routineName;
+  final String folderName;
+  final String? ownerName;
+  final String? ownerUsername;
+  final List<RoutineShareExercise> exercises;
+
+  int get totalSets =>
+      exercises.fold(0, (total, exercise) => total + exercise.targetSets);
+}
+
+class RoutineShareExercise {
+  const RoutineShareExercise({
+    required this.exerciseId,
+    required this.name,
+    required this.category,
+    required this.targetSets,
+    required this.targetReps,
+    required this.trackingMode,
+    this.muscleGroup,
+    this.targetDurationSeconds,
+    this.targetWeightKg,
+  });
+
+  final String exerciseId;
+  final String name;
+  final String category;
+  final String? muscleGroup;
+  final int targetSets;
+  final int targetReps;
+  final ExerciseTrackingMode trackingMode;
+  final int? targetDurationSeconds;
+  final double? targetWeightKg;
 }
 
 class LoggedSet {
@@ -911,6 +1045,8 @@ class SessionExercise {
   );
 }
 
+enum WorkoutSessionOrigin { planDay, freeform, quickAdd }
+
 class WorkoutSession {
   const WorkoutSession({
     required this.id,
@@ -922,20 +1058,24 @@ class WorkoutSession {
     required this.startedAt,
     required this.exercises,
     required this.updatedAt,
+    this.origin = WorkoutSessionOrigin.planDay,
     this.completedAt,
     this.discardedAt,
     this.restEndsAt,
+    this.rankUpdates = const [],
   });
   final String id;
-  final String planId;
+  final String? planId;
   final String planName;
-  final String planDayId;
+  final String? planDayId;
   final String planDayName;
+  final WorkoutSessionOrigin origin;
   final SessionStatus status;
   final DateTime startedAt;
   final DateTime? completedAt;
   final DateTime? discardedAt;
   final DateTime? restEndsAt;
+  final List<ExerciseRankUpdate> rankUpdates;
   final List<SessionExercise> exercises;
   final DateTime updatedAt;
   int get workingSetCount => exercises.fold(
@@ -961,17 +1101,20 @@ class WorkoutSession {
     bool clearRest = false,
     List<SessionExercise>? exercises,
     DateTime? updatedAt,
+    List<ExerciseRankUpdate>? rankUpdates,
   }) => WorkoutSession(
     id: id,
     planId: planId,
     planName: planName,
     planDayId: planDayId,
     planDayName: planDayName,
+    origin: origin,
     status: status ?? this.status,
     startedAt: startedAt,
     completedAt: completedAt ?? this.completedAt,
     discardedAt: discardedAt ?? this.discardedAt,
     restEndsAt: clearRest ? null : (restEndsAt ?? this.restEndsAt),
+    rankUpdates: rankUpdates ?? this.rankUpdates,
     exercises: exercises ?? this.exercises,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -991,8 +1134,8 @@ class CompletedSessionSummary {
     required this.totalVolumeKg,
   });
   final String id;
-  final String planId;
-  final String planDayId;
+  final String? planId;
+  final String? planDayId;
   final String planName;
   final String planDayName;
   final DateTime startedAt;

@@ -136,7 +136,7 @@ class _HistoryItem extends StatelessWidget {
     child: ListTile(
       title: Text(item.planName, style: Theme.of(context).textTheme.titleLarge),
       subtitle: Text(
-        '${item.planDayName} · ${_date(item.completedAt)} · ${item.durationSeconds ~/ 60} min · ${item.workingSetCount} working sets\n${displayWeight(item.totalVolumeKg, unit)} total volume',
+        '${item.planDayName} · ${_date(item.completedAt)} · ${item.durationSeconds ~/ 60} min · ${item.workingSetCount} working ${item.workingSetCount == 1 ? 'set' : 'sets'}\n${displayWeight(item.totalVolumeKg, unit)} total volume',
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -288,7 +288,7 @@ class _CompletedDetail extends ConsumerWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Completed ${_date(session.completedAt!)} · ${session.duration.inMinutes} min · ${session.workingSetCount} working sets',
+          'Completed ${_date(session.completedAt!)} · ${session.duration.inMinutes} min · ${session.workingSetCount} working ${session.workingSetCount == 1 ? 'set' : 'sets'}',
         ),
         const SizedBox(height: 16),
         Card(

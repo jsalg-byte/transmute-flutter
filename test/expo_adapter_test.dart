@@ -12,6 +12,152 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   FlutterSecureStorage.setMockInitialValues({});
 
+  test(
+    'freeform adapter uses the dedicated route and restores origin',
+    () async {
+      final paths = <String>[];
+      final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'));
+      dio.httpClientAdapter = _StubAdapter((options) {
+        paths.add(options.path);
+        if (options.path == '/v1/sessions/freeform') {
+          expect(options.method, 'POST');
+          return {
+            'session': {
+              'id': 'freeform-1',
+              'origin': 'freeform',
+              'startedAt': '2026-10-03T12:00:00Z',
+            },
+          };
+        }
+        if (options.path == '/v1/record') {
+          return {
+            'dashboard': {
+              'activeSession': {'id': 'freeform-1', 'origin': 'freeform'},
+            },
+          };
+        }
+        if (options.path == '/v1/sessions/freeform-1') {
+          return {
+            'session': {
+              'id': 'freeform-1',
+              'status': 'active',
+              'origin': 'freeform',
+              'startedAt': '2026-10-03T12:00:00Z',
+              'endedAt': null,
+              'routineName': null,
+              'dayName': null,
+              'weightUnit': 'lbs',
+            },
+            'exercises': <Map<String, dynamic>>[],
+            'sets': <Map<String, dynamic>>[],
+            'previousPerformances': <Map<String, dynamic>>[],
+          };
+        }
+        throw StateError('Unexpected ${options.method} ${options.path}');
+      });
+      final first = ApiSessionRepository(
+        dio,
+        RestTimerStore(const FlutterSecureStorage()),
+      );
+      final started = await first.startFreeformSession();
+      final restored = await ApiSessionRepository(
+        dio,
+        RestTimerStore(const FlutterSecureStorage()),
+      ).activeSession();
+      expect(started.origin, WorkoutSessionOrigin.freeform);
+      expect(started.planDayId, isNull);
+      expect(started.planName, 'Empty Workout');
+      expect(restored?.id, started.id);
+      expect(restored?.origin, WorkoutSessionOrigin.freeform);
+      expect(paths, [
+        '/v1/sessions/freeform',
+        '/v1/sessions/freeform-1',
+        '/v1/record',
+        '/v1/sessions/freeform-1',
+      ]);
+    },
+  );
+
+  test('exercise rank adapter uses canonical rank paths and fields', () async {
+    final paths = <String>[];
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'));
+    dio.httpClientAdapter = _StubAdapter((options) {
+      paths.add(options.path);
+      final rank = {
+        'exerciseId': 'rank-bench',
+        'exerciseName': 'Bench press',
+        'category': 'strength',
+        'muscleGroup': 'Chest',
+        'trackingMode': 'reps',
+        'metric': 'estimated_1rm_kg',
+        'baselineValue': 100,
+        'bestValue': 115,
+        'tier': 'Gold',
+        'subdivision': 1,
+        'progressPoints': 0,
+        'nextThreshold': 130,
+        'ruleVersion': 1,
+        'calculatedAt': '2026-10-04T12:00:00Z',
+      };
+      if (options.path == '/v1/exercise-ranks')
+        return {
+          'ranks': [rank],
+        };
+      if (options.path == '/v1/exercise-ranks/rank-bench')
+        return {
+          'rank': {
+            ...rank,
+            'evidence': [
+              {
+                'sessionId': 'session-a',
+                'completedAt': '2026-10-03T12:00:00Z',
+                'value': 115,
+              },
+            ],
+          },
+        };
+      throw StateError('Unexpected ${options.path}');
+    });
+    final repository = ApiExerciseRankRepository(dio);
+    final list = await repository.listRanks(query: 'bench');
+    final detail = await repository.getRank('rank-bench');
+    expect(list.single.exercise.id, 'rank-bench');
+    expect(detail.tier, ExerciseRankTier.gold);
+    expect(detail.evidence.single.sessionId, 'session-a');
+    expect(paths, ['/v1/exercise-ranks', '/v1/exercise-ranks/rank-bench']);
+  });
+
+  test(
+    'freeform start exposes the existing active session on conflict',
+    () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'));
+      dio.httpClientAdapter = _StatusAdapter({
+        'code': 'active_session_exists',
+        'error': 'Resume your existing workout.',
+        'activeSessionId': 'existing-1',
+      }, 409);
+      await expectLater(
+        ApiSessionRepository(
+          dio,
+          RestTimerStore(const FlutterSecureStorage()),
+        ).startFreeformSession(),
+        throwsA(
+          isA<AppFailure>()
+              .having(
+                (failure) => failure.code,
+                'code',
+                'active_session_exists',
+              )
+              .having(
+                (failure) => failure.activeSessionId,
+                'active ID',
+                'existing-1',
+              ),
+        ),
+      );
+    },
+  );
+
   test('Expo plan adapter maps the aggregate record into plan days', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'));
     dio.httpClientAdapter = _StubAdapter((options) {
@@ -68,6 +214,163 @@ void main() {
       'https://media.example.test/bench.gif',
     );
   });
+
+  test(
+    'routine adapter creates an empty folder and reads canonical reordered days',
+    () async {
+      final paths = <String>[];
+      final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'));
+      dio.httpClientAdapter = _StubAdapter((options) {
+        paths.add(options.path);
+        if (options.path == '/v1/plans') {
+          expect(options.data, {'name': 'New cycle', 'empty': true});
+          return {
+            'plan': {'id': 'plan-new', 'name': 'New cycle', 'days': []},
+          };
+        }
+        if (options.path == '/v1/plan-days/day-2/reorder') {
+          expect(options.data, {'direction': 'up'});
+          return {'id': 'day-2'};
+        }
+        expect(options.path, '/v1/record');
+        return {
+          'workoutPlans': [
+            {
+              'id': 'plan-new',
+              'name': 'New cycle',
+              'createdAt': '2026-10-03T12:00:00Z',
+              'days': paths.contains('/v1/plan-days/day-2/reorder')
+                  ? [
+                      {
+                        'id': 'day-2',
+                        'name': 'Pull',
+                        'sortOrder': 0,
+                        'exercises': [],
+                      },
+                      {
+                        'id': 'day-1',
+                        'name': 'Push',
+                        'sortOrder': 1,
+                        'exercises': [],
+                      },
+                    ]
+                  : [],
+            },
+          ],
+          'exercises': [],
+          'settings': {'weight_unit': 'kg'},
+        };
+      });
+      final plans = ApiPlanRepository(dio);
+      final created = await plans.createPlan('New cycle');
+      expect(created.id, 'plan-new');
+      expect(created.days, isEmpty);
+      final reordered = await plans.reorderDay(
+        'plan-new',
+        'day-2',
+        ReorderDirection.up,
+      );
+      expect(reordered.name, 'Pull');
+      expect(paths, [
+        '/v1/plans',
+        '/v1/record',
+        '/v1/plan-days/day-2/reorder',
+        '/v1/record',
+      ]);
+    },
+  );
+
+  test(
+    'routine share adapter uses immutable share endpoints and fields',
+    () async {
+      final paths = <String>[];
+      const snapshot = {
+        'routineName': 'Upper strength',
+        'folderName': 'Upper A',
+        'ownerName': 'Demo Alchemist',
+        'ownerUsername': 'demo',
+        'exercises': [
+          {
+            'exerciseId': 'bench-1',
+            'name': 'Bench press',
+            'category': 'strength',
+            'muscleGroup': 'Chest',
+            'targetSets': 3,
+            'targetReps': 8,
+            'trackingMode': 'reps',
+            'targetDurationSeconds': null,
+            'targetWeightKg': 61.235,
+          },
+        ],
+      };
+      final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'));
+      dio.httpClientAdapter = _StubAdapter((options) {
+        paths.add('${options.method} ${options.path}');
+        if (options.method == 'POST' && options.path == '/v1/routine-shares') {
+          expect(options.data, {'routineDayId': 'day-1'});
+          return {
+            'share': {
+              'id': 'share-1',
+              'token': 'share-token-12345678901234567890',
+              'routineDayId': 'day-1',
+              'status': 'active',
+              'createdAt': '2026-10-03T12:00:00Z',
+              'expiresAt': '2026-11-02T12:00:00Z',
+              'snapshot': snapshot,
+            },
+          };
+        }
+        if (options.method == 'GET' && options.path == '/v1/routine-shares') {
+          expect(options.queryParameters, {'routineDayId': 'day-1'});
+          return {'shares': const []};
+        }
+        if (options.method == 'GET' &&
+            options.path ==
+                '/v1/routine-shares/share-token-12345678901234567890') {
+          return {'share': snapshot};
+        }
+        if (options.method == 'POST' &&
+            options.path ==
+                '/v1/routine-shares/share-token-12345678901234567890/import') {
+          expect(options.data, {
+            'routineId': 'folder-1',
+            'name': 'Recipient copy',
+          });
+          return {
+            'day': {
+              'id': 'copy-1',
+              'name': 'Recipient copy',
+              'sortOrder': 2,
+              'sourceShareToken': 'share-token-12345678901234567890',
+            },
+          };
+        }
+        if (options.method == 'DELETE') return const <String, dynamic>{};
+        throw StateError('Unexpected ${options.method} ${options.path}');
+      });
+      final repository = ApiPlanRepository(dio);
+      final created = await repository.createRoutineShare('day-1');
+      final preview = await repository.getRoutineShare(created.token);
+      final imported = await repository.importRoutineShare(
+        created.token,
+        planId: 'folder-1',
+        name: 'Recipient copy',
+      );
+      await repository.revokeRoutineShare(created.token);
+      await repository.listRoutineShares('day-1');
+
+      expect(created.snapshot.totalSets, 3);
+      expect(preview.exercises.single.targetWeightKg, 61.235);
+      expect(imported.id, 'copy-1');
+      expect(paths, [
+        'POST /v1/routine-shares',
+        'GET /v1/routine-shares/share-token-12345678901234567890',
+        'POST /v1/routine-shares/share-token-12345678901234567890/import',
+        'DELETE /v1/routine-shares/share-token-12345678901234567890',
+        'GET /v1/routine-shares',
+      ]);
+    },
+  );
 
   test(
     'Expo adapter exposes conflicts as non-retryable domain failures',
@@ -151,17 +454,50 @@ void main() {
       expect(postedSet!['weight'], 135);
       expect(result.set.weightKg, closeTo(61.235, .001));
 
-      await repository.createSet(
-        'entry-1',
-        0,
-        1,
-        durationSeconds: 45,
-      );
+      await repository.createSet('entry-1', 0, 1, durationSeconds: 45);
       expect(postedSet!['durationSeconds'], 45);
       expect(postedSet!.containsKey('reps'), isFalse);
       expect(postedSet!.containsKey('weight'), isFalse);
     },
   );
+
+  test('timed previous performance maps only the saved duration', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.example.test'));
+    dio.httpClientAdapter = _StubAdapter((options) {
+      if (options.path == '/v1/record') {
+        return {
+          'dashboard': {
+            'activeSession': {'id': 'session-1'},
+          },
+        };
+      }
+      if (options.path == '/v1/sessions/session-1') {
+        final body = _poundSession();
+        (body['exercises'] as List).single['trackingMode'] = 'timed';
+        (body['exercises'] as List).single['targetDurationSeconds'] = 45;
+        body['sets'] = <Map<String, dynamic>>[];
+        body['previousPerformances'] = [
+          {
+            'exerciseId': 'entry-1',
+            'startedAt': '2026-08-18T12:00:00.000Z',
+            'order': 1,
+            'weight': null,
+            'reps': 1,
+            'durationSeconds': 60,
+          },
+        ];
+        return body;
+      }
+      throw StateError('Unexpected ${options.method} ${options.path}');
+    });
+
+    final session = (await ApiSessionRepository(
+      dio,
+      RestTimerStore(const FlutterSecureStorage()),
+    ).activeSession())!;
+    expect(session.exercises.single.trackingMode, ExerciseTrackingMode.timed);
+    expect(session.exercises.single.previousPerformance?.durationSeconds, 60);
+  });
 
   test('a set-sync request refreshes an expired access token once', () async {
     FlutterSecureStorage.setMockInitialValues({});

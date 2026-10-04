@@ -75,6 +75,11 @@ The responsive shell uses bottom navigation below 600dp, a navigation rail from
 
 ## Architecture
 
+For an AI-agent/contributor quick start, read [`AGENTS.md`](AGENTS.md) and the
+short [`docs/README.md`](docs/README.md) map first. The source-of-truth guide is
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); release-specific instructions
+are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 - `lib/core/domain`: immutable domain concepts and repository interfaces.
 - `lib/core/data`: mock repositories and fixtures for the full running loop.
 - `lib/core/api`: Dio REST adapter, secure token storage, and Freezed DTO type.

@@ -1,5 +1,11 @@
 # Implementation checklist and surface map
 
+> **Historical checklist:** use the implemented Expo adapter contract in
+> [API_CONTRACT.md](API_CONTRACT.md) for current routes; the focused-demo
+> endpoint tables are retired. The expanded target and new backend contracts
+> are planned in [COMPETITOR_UPGRADE_PLAN.md](COMPETITOR_UPGRADE_PLAN.md).
+> Checked items below do not mean the expanded features are complete.
+
 - [x] Contract operations verified: login, refresh/logout/me, plans/catalog,
   active-session discovery/start/read, session exercises/sets/rest/complete/
   discard, and completed history are all explicitly specified.

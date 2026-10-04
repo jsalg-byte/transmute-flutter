@@ -117,6 +117,24 @@ final sessionRepositoryProvider = Provider<SessionRepository>(
           RestTimerStore(ref.watch(secureStoreProvider).storage),
         ),
 );
+final exerciseRankRepositoryProvider = Provider<ExerciseRankRepository>(
+  (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
+      ? MockExerciseRankRepository(ref.watch(mockStoreProvider))
+      : ApiExerciseRankRepository(ref.watch(dioProvider)),
+);
+final exerciseRanksProvider =
+    FutureProvider.family<
+      List<ExerciseRank>,
+      ({String query, ExerciseTrackingMode? mode})
+    >(
+      (ref, filters) => ref
+          .watch(exerciseRankRepositoryProvider)
+          .listRanks(query: filters.query, mode: filters.mode),
+    );
+final exerciseRankProvider = FutureProvider.family<ExerciseRank, String>(
+  (ref, exerciseId) =>
+      ref.watch(exerciseRankRepositoryProvider).getRank(exerciseId),
+);
 final quickAddRepositoryProvider = Provider<QuickAddRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockQuickAddRepository(ref.watch(mockStoreProvider))
@@ -586,7 +604,6 @@ class DailyOverview {
     required this.lastCompletedPlanWorkout,
     required this.nextWorkout,
     required this.activeSession,
-    required this.completedSessions,
     required this.readiness,
   });
   final List<WorkoutPlan> plans;
@@ -594,41 +611,85 @@ class DailyOverview {
   final CompletedSessionSummary? lastCompletedPlanWorkout;
   final ({WorkoutPlan plan, WorkoutPlanDay day})? nextWorkout;
   final WorkoutSession? activeSession;
-  final List<WorkoutSession> completedSessions;
   final List<RecoveryGroup> readiness;
 }
 
-final dailyOverviewProvider = FutureProvider<DailyOverview>((ref) async {
-  final plans = await ref.watch(planRepositoryProvider).listPlans();
-  final preferences = await ref.watch(preferencesRepositoryProvider).read();
-  final orderedPlans = preferences.activePlanId == null
-      ? plans
-      : [
-          ...plans.where((plan) => plan.id == preferences.activePlanId),
-          ...plans.where((plan) => plan.id != preferences.activePlanId),
-        ];
-  final active = await ref.watch(sessionRepositoryProvider).activeSession();
+/// The data needed to choose a workout, independent of history and recovery.
+/// Both the workout home and Today use this read model while the active-session
+/// controller remains the sole source for Start/Resume state and writes.
+class WorkoutEntry {
+  const WorkoutEntry({required this.plans, required this.activePlanId});
+
+  final List<WorkoutPlan> plans;
+  final String? activePlanId;
+
+  WorkoutPlan? get activePlan =>
+      plans.where((plan) => plan.id == activePlanId).firstOrNull;
+}
+
+final workoutEntryProvider = FutureProvider<WorkoutEntry>((ref) async {
+  final plansFuture = ref.watch(plansProvider.future);
+  final preferencesFuture = ref.watch(preferencesProvider.future);
+  final plans = await plansFuture;
+  final preferences = await preferencesFuture;
+  return WorkoutEntry(
+    plans: preferences.activePlanId == null
+        ? plans
+        : [
+            ...plans.where((plan) => plan.id == preferences.activePlanId),
+            ...plans.where((plan) => plan.id != preferences.activePlanId),
+          ],
+    activePlanId: preferences.activePlanId,
+  );
+});
+
+/// A recommendation is optional context. If its history read fails, the
+/// workout entry card still has the saved plan days for manual selection.
+final nextWorkoutRecommendationProvider =
+    FutureProvider<({WorkoutPlan plan, WorkoutPlanDay day})?>((ref) async {
+      final entryFuture = ref.watch(workoutEntryProvider.future);
+      final historyFuture = ref.watch(historyProvider.future);
+      final entry = await entryFuture;
+      final history = await historyFuture;
+      return nextPlannedWorkout(
+        plans: entry.plans,
+        activePlanId: entry.activePlanId,
+        history: history,
+      );
+    });
+
+final recoveryOverviewProvider = FutureProvider<List<RecoveryGroup>>((
+  ref,
+) async {
   final summaries = await ref.watch(historyProvider.future);
+  if (summaries.isEmpty) return const [];
   final sessions = await Future.wait(
     summaries
         .take(20)
         .map((item) => ref.read(sessionRepositoryProvider).getSession(item.id)),
   );
+  return deriveRecovery(sessions);
+});
+
+final dailyOverviewProvider = FutureProvider<DailyOverview>((ref) async {
+  final entry = await ref.watch(workoutEntryProvider.future);
+  final active = await ref.watch(activeSessionProvider.future);
+  final summaries = await ref.watch(historyProvider.future);
+  final readiness = await ref.watch(recoveryOverviewProvider.future);
   return DailyOverview(
-    plans: orderedPlans,
-    activePlanId: preferences.activePlanId,
+    plans: entry.plans,
+    activePlanId: entry.activePlanId,
     lastCompletedPlanWorkout: lastCompletedWorkoutForPlan(
       history: summaries,
-      planId: preferences.activePlanId,
+      planId: entry.activePlanId,
     ),
     nextWorkout: nextPlannedWorkout(
-      plans: plans,
-      activePlanId: preferences.activePlanId,
+      plans: entry.plans,
+      activePlanId: entry.activePlanId,
       history: summaries,
     ),
     activeSession: active,
-    completedSessions: sessions,
-    readiness: deriveRecovery(sessions),
+    readiness: readiness,
   );
 });
 
@@ -718,10 +779,19 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
   }
 
   Future<WorkoutSession> start(String planId, String planDayId) async {
+    return _start(
+      () => ref.read(sessionRepositoryProvider).startSession(planId, planDayId),
+    );
+  }
+
+  Future<WorkoutSession> startFreeform() =>
+      _start(() => ref.read(sessionRepositoryProvider).startFreeformSession());
+
+  Future<WorkoutSession> _start(
+    Future<WorkoutSession> Function() create,
+  ) async {
     try {
-      final session = await ref
-          .read(sessionRepositoryProvider)
-          .startSession(planId, planDayId);
+      final session = await create();
       _offlineSyncAvailable = await ref
           .read(sessionRepositoryProvider)
           .supportsOfflineSetSync();
@@ -742,13 +812,15 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
   Future<void> setRest(DateTime? deadline) async {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(
-      current.copyWith(restEndsAt: deadline, clearRest: deadline == null),
-    );
-    state = await AsyncValue.guard(
-      () =>
-          ref.read(sessionRepositoryProvider).updateRest(current.id, deadline),
-    );
+    try {
+      final saved = await ref
+          .read(sessionRepositoryProvider)
+          .updateRest(current.id, deadline);
+      state = AsyncData(saved);
+    } catch (_) {
+      state = AsyncData(current);
+      rethrow;
+    }
   }
 
   Future<void> addExercise(String exerciseId) async {
@@ -939,6 +1011,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     state = const AsyncData(null);
     ref.invalidate(historyProvider);
     ref.invalidate(lastPerformedPlanDayProvider);
+    ref.invalidate(exerciseRanksProvider);
     return result;
   }
 

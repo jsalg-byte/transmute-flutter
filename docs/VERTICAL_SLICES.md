@@ -1,5 +1,11 @@
 # Transmute Flutter parity matrix
 
+> **Historical delivery map:** the new product roadmap is
+> [COMPETITOR_UPGRADE_PLAN.md](COMPETITOR_UPGRADE_PLAN.md) and
+> [PRODUCT_LAUNCH_ROADMAP.md](PRODUCT_LAUNCH_ROADMAP.md). The older slice
+> statuses below describe an earlier implementation target, not exclusions
+> from ranks, XP, streaks, nutrition, social or visual expansion.
+
 This is the delivery map for expanding the focused Flutter demo toward the
 existing Transmute product. A slice is not considered complete merely because
 the Expo product has an endpoint: Flutter needs a deliberate domain contract,

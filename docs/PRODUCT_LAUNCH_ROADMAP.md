@@ -1,233 +1,34 @@
-# Transmute Flutter: product-launch roadmap
+# Transmute product and launch roadmap
 
-## Purpose
+**Target roadmap, 2026-10-03.** The previous integration-only roadmap reflected an earlier, narrower product goal. [COMPETITOR_UPGRADE_PLAN.md](COMPETITOR_UPGRADE_PLAN.md) supplies the 28-image inventory, feature contracts, versioned rules and acceptance criteria for each numbered slice; [COMPETITOR_REFERENCE_HANDOFF.md](COMPETITOR_REFERENCE_HANDOFF.md) preserves screenshot-derived detail for text-only implementation. Slices 1–4 are implemented in local Flutter/Fastify source with the specific validation noted in the plan. Authenticated API reload, production schema and deployed-bundle verification remain open. Slice 5 and later systems remain planned.
 
-This roadmap turns the existing Flutter feature work into a complete,
-release-ready Transmute product. It deliberately puts integration before new
-feature expansion: several feature screens and `/v1` adapters already exist,
-but the router and navigation currently expose only the core workout loop.
+## Delivery phases
 
-## Launch definition
+| Phase | Slices and user-visible outcome | Exit gate |
+| --- | --- | --- |
+| **1. Training foundation** | **1** workout-first shell and Today/Workout; **2** dense active-session logging; **3** routine builder/previews/direct start; **4** freeform multi-exercise sessions; **5** routine sharing/import. | A real account can plan or start immediately, save/edit sets and resume/reload without data loss; a recipient can import a safe routine snapshot. The six primary destinations exist with accurate interim states. |
+| **2. Strength intelligence** | **6** per-exercise ranks/gallery; **7** muscle bodygraph, overall rank and history; **8** training analytics/charts; **9** bodyweight/strength goals. | Rank results and goals derive from confirmed evidence with published v1 rules; corrections update projections; bodygraph and charts reconcile to source records. |
+| **3. Training progression** | **10** XP, levels, milestones/rewards; **11** streaks/calendar. | A qualified workout updates the persisted ledger, level, reward eligibility and local training day exactly once, including after retry or correction. Arcana remains available beside these systems. |
+| **4. Nutrition depth** | **12** user-set daily targets and meal diary; **13** reviewed photo-assisted candidate logging; **14** recipe discovery/detail/logging. | Daily calories/macros reconcile to saved servings and targets; photo suggestions require confirmation; recipe nutrition has provenance. |
+| **5. Social competition** | **15** friends activity, invitations, friend leaderboard and eligible leagues. | Opt-in users see real authorized friend/cohort data and a named period/size; removal or opt-out revokes visibility; no synthetic standings. |
 
-Transmute is ready to launch when a real user can:
+Within a phase, each slice is independently reviewable from screen to server persistence. Phase 1 goes first because training must be reliable before it generates ranks, XP, goals and social scores. Phase 2 supplies ranking evidence before Phase 3 and Phase 5 award or compare it. The meal diary may be built in parallel with later strength work only when API ownership and migration coordination are clear; visual shells alone are not a release milestone.
 
-1. create an account or sign in;
-2. discover every supported record area from product navigation;
-3. complete each supported create/read/update/delete flow against the live
-   API without misleading local success states;
-4. use the product on a phone, tablet, and desktop browser; and
-5. recover safely from session expiry, bad input, uploads, and temporary
-   network failures.
+## Cross-cutting engineering gates
 
-The local `Demo Login` remains a separate, non-production-data preview path.
-It is useful for sales, QA, and onboarding, but it does not replace real API
-validation.
+- Before each backend slice, inspect the sibling Fastify repository, next migration number, actual production schema, affected records and API payload. Existing SQL files do not prove a migration is live. Add exact DTOs to [API_CONTRACT.md](API_CONTRACT.md) when implementing; retired demo routes stay retired.
+- Keep all feature reads/writes behind Flutter domain repositories, API and mock adapters, and Riverpod providers. New scoring rules run on the server with idempotent source events, versioned snapshots, pagination and correction paths. Maintain one active session, stable operation IDs and pending-set capability gating.
+- For each slice, verify focused unit/adapter/widget tests and the pinned FVM analyzer. Validate negative paths: unauthorized access, failed/pending writes, duplicate replay, missing evidence, retry, empty state and source correction. The user performs browser and device verification; record its result separately from automated checks.
+- Compare the same account/auth state, route, viewport and theme, noting mock/local API/deployed API mode and source/release-bundle versions. A production deployment is a separate authorized operation: Docker serves checked-in `release/web`, generated by `scripts/build_web_release.sh`, not just `build/web` or local source.
+- Preserve current theme/palette choices and use original Transmute assets. Update shared tokens/components before screen-local variants. Check keyboard/semantics, 200% text, 44dp targets and reduced motion on every new surface.
 
----
+## Release sequence after feature phases
 
-## Milestone 0 — establish the release baseline
+1. **Integration environment:** migrate and verify exact API schema, deploy backend contract first, then create the matching Flutter API-mode build in a staging environment. Do not write credentials into Dart defines or a public bundle.
+2. **Real-account acceptance:** exercise every feature's saved and failure path, including large record pagination, data correction, privacy revocation and media permissions. User-owned browser/device verification supplies visual acceptance against the reference hierarchy.
+3. **Release candidate:** run FVM analysis/tests/build, produce and review `release/web`, freeze source/API migration versions, record known issues and rollback steps. Commit/push/deploy only when requested.
+4. **Staged rollout:** dogfood with consented accounts, then a closed cohort and public promotion when core workout and progression data are trustworthy. Measure completion/save failures, rank recomputation lag, nutrition reconciliation and social privacy failures, not just page views.
 
-**Outcome:** the team agrees on what will ship and can reproduce the build.
+## Decisions that require product input
 
-**Engineering status (2026-08-18):** `flutter analyze`, the full test suite,
-and the release web build pass. The Android release APK and unsigned iOS
-release app also compile. This milestone stays open because this directory is
-not currently a Git repository with a release-candidate SHA, no stable hosting
-target has been selected, and real-account QA is still required.
-
-- [ ] Freeze a release-candidate commit SHA and record the API environment,
-  public web URL, and supported platforms.
-- [ ] Update stale documentation: the checkout currently has `android/` and
-  `ios/` directories, so the older “no mobile host projects” blocker must be
-  re-verified rather than carried forward.
-- [ ] Create a non-production real API test account and seed enough data to
-  exercise plans, sessions, nutrition, media, preferences, friends, and
-  history.
-- [ ] Confirm the production API CORS allowlist contains the final web domain;
-  do not rely on a temporary tunnel for launch.
-- [x] Run and record `flutter analyze`, `flutter test`, and `flutter build
-  web` from the release candidate.
-
-**Exit gate:** a named candidate build, environment configuration, test user,
-and repeatable build evidence exist.
-
-## Milestone 1 — connect the existing product surfaces
-
-**Outcome:** no implemented feature is stranded behind an unregistered route.
-
-**Engineering status (2026-08-18):** complete in source. All listed routes
-are registered, the Arcana redirect is removed, the workout-record/share and
-shared-friend detail routes are registered, and the responsive secondary menu
-now exposes the full feature inventory. `flutter analyze`, the full test
-suite, and the release web build pass. User-owned browser/device verification
-remains the final acceptance evidence for this milestone.
-
-### Add the missing routes
-
-- [x] `/exercises` — Exercise library.
-- [x] `/nutrition` — Food catalog, meal record, barcode, label intake, and
-  meal media.
-- [x] `/progress` — Photo timeline/calendar and edit/delete detail.
-- [x] `/fasting` — Active fast and history.
-- [x] `/goals` and `/planning` — Goals, assessments, training blocks, and
-  weekly review.
-- [x] `/arcana` — Collection, evidence, pins, and reconciliation; remove the
-  current dashboard redirect.
-- [x] `/friends` and `/friends/sessions/:id` — Requests, activity, and
-  privacy-gated shared workout evidence.
-- [x] `/settings` — Units, active plan, palette, theme mode, and account
-  actions.
-
-### Make the routes discoverable
-
-- [x] Keep the compact primary navigation focused on Today, Plans, Workout,
-  and History.
-- [x] Expand the secondary destination menu into clear groups: **Record**
-  (Nutrition, Progress, Fasting), **Growth** (Goals, Planning, Arcana), and
-  **Account** (Friends, Settings).
-- [x] Ensure every dashboard recommendation and recent-record destination has
-  a registered route and a useful back path.
-- [x] Apply protected-route behavior consistently: signed-out visitors go to
-  login; expired sessions clear private state and explain the next action.
-
-**Exit gate:** every screen listed above is reachable from navigation, direct
-links resolve, and dashboard actions never land on a not-found screen.
-
-## Milestone 2 — prove real API behavior end to end
-
-**Outcome:** the production adapter is verified against server responses, not
-just mocks and fixture tests.
-
-- [ ] Authentication: registration, normal login, restore, refresh, logout,
-  invalid credentials, duplicate username, and expired refresh token.
-- [ ] Training: plan/day/prescription CRUD, catalog import, assistant
-  draft/review/import, one-active-session conflict, session edits, working and
-  warm-up sets, rest deadline, completion, discard, and personal-record
-  feedback.
-- [ ] Record: nutrition serving calculations, meal CRUD, meal photo upload,
-  barcode lookup, label parse review, progress presign/upload/edit/delete,
-  fasting lifecycle, recovery check-in, goals, planning, and weekly review.
-- [ ] Social and progression: friend lifecycle, revoked shared-session access,
-  Arcana read/pin/reconcile, and preferences persistence.
-- [ ] Verify negative paths for 401, 404, 409, validation, upload expiry,
-  network loss, and API 5xx errors. Confirm that failed mutations never
-  appear as saved.
-
-**Exit gate:** a recorded QA matrix shows each shipping mutation succeeding
-and each important failure producing an honest recovery state.
-
-## Milestone 3 — close launch-critical feature gaps
-
-**Outcome:** the product is coherent at normal personal-record scale.
-
-### Required before public launch
-
-- [ ] Account profile edit if the API contract is approved; otherwise remove
-  any implication that identity details are editable.
-- [ ] Pagination or bounded loading strategy for large workout and meal
-  history.
-- [ ] Reliable upload UX: progress and meal-photo retries, expired signed URL
-  handling, compression/size messaging, and clear permission fallbacks.
-- [ ] Accessibility pass: labels, focus order, color-independent recovery
-  states, touch targets, dialog scroll behavior, and text scaling.
-- [ ] Empty-state, error-state, and deletion-confirmation review across every
-  route.
-
-### Schedule after launch unless product strategy changes
-
-- [ ] Per-plan rest prescriptions (requires API support).
-- [ ] Nutrition-adherence trend (requires an audited target contract).
-- [ ] Visual progress comparison, fasting presets/day linking, friend feed
-  filtering, full Arcana artwork/journal shortcuts, and goal/block/day links.
-- [ ] Server-owned Daily Transmutation recommendation. The current
-  deterministic evidence-based rule is safe to ship.
-- [ ] Offline mutation queueing. Do not add it before idempotency and conflict
-  rules are designed and server-supported.
-- [ ] Upgrade or replace `mobile_scanner` before the next Flutter toolchain
-  upgrade; the current Android release build succeeds but warns that the
-  plugin still applies the legacy Kotlin Gradle Plugin.
-
-**Exit gate:** there is no known P0/P1 flow break, data-loss path, or
-inaccessible required action.
-
-## Milestone 4 — release engineering and observability
-
-**Outcome:** a production incident can be detected, understood, and rolled
-back safely.
-
-**Engineering status (2026-08-18):** a production `Dockerfile`, Nginx
-deep-link fallback, `/healthz` endpoint, and Coolify deployment instructions
-are present. The local Docker daemon is unavailable, so the container smoke
-test must run in the selected deployment environment before promotion.
-
-- [ ] Build a stable HTTPS web deployment with separate staging and production
-  configuration; remove the temporary tunnel from any release instructions.
-- [ ] Configure API CORS only for real approved origins.
-- [ ] Add privacy-conscious crash/error reporting and API failure telemetry;
-  exclude credentials, tokens, raw health notes, and image data.
-- [ ] Define health checks, dashboards, alert thresholds, a rollback procedure,
-  and a small support runbook for login/upload failures.
-- [ ] Review account security: token storage, logout/revocation, rate limits,
-  brute-force protection, upload authorization, and least-privilege signed
-  URLs.
-- [ ] Add a release checklist with versioning, changelog, migration notes, and
-  rollback owner.
-
-**Exit gate:** staging is production-like, production is observable, and a
-rollback rehearsal succeeds.
-
-## Milestone 5 — device and store readiness
-
-**Outcome:** the supported delivery targets are intentionally validated.
-
-**Engineering status (2026-08-18):** Android release compilation succeeded
-with `build/app/outputs/flutter-apk/app-release.apk`; unsigned iOS release
-compilation succeeded with `build/ios/iphoneos/Runner.app`. iOS camera and
-photo-library usage descriptions are present, and the merged Android release
-manifest includes camera permission. Signing, physical-device testing, and
-store configuration remain open.
-
-- [ ] Browser acceptance at phone, tablet, and desktop breakpoints with real
-  accounts and real media permissions.
-- [ ] Verify Android and iOS host projects, dependency builds, app identifiers,
-  icons, privacy manifests, camera/photo permissions, and secure storage.
-- [ ] Run on at least one physical Android device and iPhone: login, session
-  logging, camera scan, image upload, external demo media, logout, and resume.
-- [ ] Decide the launch target: responsive web only, installable PWA, app
-  stores, or a staged combination. Do not begin store submission until this
-  decision, signing, and privacy copy are final.
-
-**Exit gate:** every promised platform has a successful signed or deployable
-release artifact and device QA evidence.
-
-## Milestone 6 — staged launch
-
-**Outcome:** ship with controlled feedback and a clear promotion decision.
-
-- [ ] Internal dogfood: team accounts, seeded workflows, and daily issue
-  triage.
-- [ ] Closed beta: small invited cohort; monitor activation, successful
-  workouts, retained records, upload failures, and auth failures.
-- [ ] Fix only verified P0/P1 issues in the release-candidate branch; keep the
-  candidate SHA frozen otherwise.
-- [ ] Publish release notes, support contact, privacy terms, and known
-  limitations.
-- [ ] Promote to public launch after the beta gate is met; monitor closely for
-  the first 48 hours and retain rollback readiness.
-
-**Exit gate:** product owner approves promotion with no unresolved launch
-blocker and a verified rollback path.
-
----
-
-## Recommended delivery order
-
-1. Milestone 0 — release baseline.
-2. Milestone 1 — route and navigation integration.
-3. Milestone 2 — real API QA while fixing routing defects.
-4. Milestone 3 — launch-critical hardening only.
-5. Milestone 4 and 5 in parallel where responsibilities permit.
-6. Milestone 6 — dogfood, beta, then public release.
-
-This sequence prevents adding more feature surface before users can discover
-and reliably use the functionality already implemented.
+Social opt-in/privacy, photo-analysis provider and retention, exercise-calorie adjustment, user-published recipe moderation, and any currency/subscription/referral economy are detailed with defaults in [the upgrade plan](COMPETITOR_UPGRADE_PLAN.md). Routine layout, original visual assets, initial transparent scoring thresholds and implementation details are engineering choices that can proceed within the documented rules. No product decision is needed merely because a model, endpoint or migration is missing.

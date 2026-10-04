@@ -47,9 +47,7 @@ class _DesktopScrollSurfaceState extends State<_DesktopScrollSurface> {
   );
 }
 
-/// The desktop shell intentionally follows the existing Transmute web client:
-/// a quiet wordmark header and a full, textual navigation strip. Compact
-/// breakpoints retain Material navigation for touch-first use.
+/// One workout-first destination map across phone, tablet and desktop.
 class AppShell extends ConsumerWidget {
   const AppShell({
     super.key,
@@ -63,33 +61,30 @@ class AppShell extends ConsumerWidget {
   final double? desktopContentMaxWidth;
 
   static const _primary = <_ShellDestination>[
-    _ShellDestination('Dashboard', '/dashboard'),
-    _ShellDestination('Workout Plans', '/plans'),
-    _ShellDestination('Workout', '/session'),
-    _ShellDestination('Sessions', '/history'),
-  ];
-
-  static const _compact = <_ShellDestination>[
-    _ShellDestination('Home', '/dashboard', Icons.home_outlined),
+    _ShellDestination('Workout', '/session', Icons.fitness_center_outlined),
+    _ShellDestination('Today', '/dashboard', Icons.home_outlined),
+    _ShellDestination('Ranks', '/ranks', Icons.workspace_premium_outlined),
     _ShellDestination('Nutrition', '/nutrition', Icons.restaurant_outlined),
-    _ShellDestination('Workout', '/session', Icons.fitness_center),
+    _ShellDestination('Friends', '/friends', Icons.people_outline),
+    _ShellDestination('Profile', '/profile', Icons.person_outline),
   ];
 
-  static const _record = <_ShellDestination>[
+  static const _training = <_ShellDestination>[
+    _ShellDestination('Workout plans', '/plans'),
     _ShellDestination('Exercise library', '/exercises'),
-    _ShellDestination('Nutrition', '/nutrition'),
-    _ShellDestination('Progress', '/progress'),
+    _ShellDestination('Workout history', '/history'),
+  ];
+
+  static const _growth = <_ShellDestination>[
+    _ShellDestination('Arcana', '/arcana'),
+    _ShellDestination('Goals', '/goals'),
+    _ShellDestination('Planning', '/planning'),
+    _ShellDestination('Progress photos', '/progress'),
     _ShellDestination('Fasting', '/fasting'),
   ];
 
   static const _account = <_ShellDestination>[
     _ShellDestination('Settings', '/settings'),
-  ];
-
-  static const _desktopDestinations = <_ShellDestination>[
-    ..._primary,
-    ..._record,
-    ..._account,
   ];
 
   @override
@@ -103,83 +98,80 @@ class AppShell extends ConsumerWidget {
   Widget _desktop(BuildContext context, WidgetRef ref, String location) {
     final palette = TransmutePalette.of(context);
     return Scaffold(
-      body: _DesktopScrollSurface(
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1180),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 14, 0, 18),
-                    child: Row(
-                      children: [
-                        InkWell(
-                          onTap: () => context.go('/dashboard'),
-                          child: const _Wordmark(),
-                        ),
-                        const Spacer(),
-                        _ThemeSwitch(ref: ref),
-                        const SizedBox(width: 16),
-                        TextButton(
-                          onPressed: () => ref
-                              .read(authControllerProvider.notifier)
-                              .logout(),
-                          style: TextButton.styleFrom(
-                            foregroundColor: palette.ink,
-                            textStyle: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                          child: const Text('Sign out'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Divider(height: 1, color: palette.divider),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Wrap(
-                        spacing: 24,
-                        runSpacing: 16,
-                        children: [
-                          for (final destination in _desktopDestinations)
-                            _DesktopNavItem(
-                              destination: destination,
-                              selected: _isSelected(
-                                location,
-                                destination.route,
-                              ),
-                            ),
-                        ],
+      body: SafeArea(
+        child: Row(
+          children: [
+            SizedBox(
+              width: 226,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    InkWell(
+                      onTap: () => context.go('/dashboard'),
+                      child: const Padding(
+                        padding: EdgeInsets.only(bottom: 20),
+                        child: _Wordmark(compact: true),
                       ),
                     ),
-                  ),
-                  Divider(height: 1, color: palette.divider),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(0, 28, 0, 24),
-                      child: Align(
-                        alignment: Alignment.topLeft,
-                        child: desktopContentMaxWidth == null
-                            ? child
-                            : ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxWidth: desktopContentMaxWidth!,
+                    Divider(color: palette.divider),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            for (final destination in _primary)
+                              _DesktopNavItem(
+                                destination: destination,
+                                selected: _isSelected(
+                                  location,
+                                  destination.route,
                                 ),
-                                child: child,
                               ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    TextButton.icon(
+                      onPressed: () => _showNavigationSheet(
+                        context,
+                        ref,
+                        includePrimary: false,
+                      ),
+                      icon: const Icon(Icons.grid_view_outlined),
+                      label: const Text('More destinations'),
+                    ),
+                    const SizedBox(height: 8),
+                    _ThemeSwitch(ref: ref),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () =>
+                          ref.read(authControllerProvider.notifier).logout(),
+                      child: const Text('Sign out'),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
+            VerticalDivider(width: 1, color: palette.divider),
+            Expanded(
+              child: _DesktopScrollSurface(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(30, 28, 30, 24),
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: desktopContentMaxWidth ?? 1180,
+                      ),
+                      child: child,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -191,10 +183,10 @@ class AppShell extends ConsumerWidget {
     String location,
     double width,
   ) {
-    final compactIndex = _compact.indexWhere(
+    final selectedIndex = _primary.indexWhere(
       (item) => _isSelected(location, item.route),
     );
-    final selectedIndex = compactIndex >= 0 ? compactIndex : _compact.length;
+    final safeIndex = selectedIndex < 0 ? 1 : selectedIndex;
     final content = SafeArea(
       child: Padding(
         padding: EdgeInsets.all(width < 600 ? 16 : 24),
@@ -209,21 +201,15 @@ class AppShell extends ConsumerWidget {
         ),
         body: content,
         bottomNavigationBar: NavigationBar(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: (index) {
-            if (index == _compact.length) {
-              _showMoreSheet(context, ref);
-              return;
-            }
-            context.go(_compact[index].route);
-          },
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          selectedIndex: safeIndex,
+          onDestinationSelected: (index) => context.go(_primary[index].route),
           destinations: [
-            for (final item in _compact)
-              NavigationDestination(icon: Icon(item.icon), label: item.label),
-            const NavigationDestination(
-              icon: Icon(Icons.more_horiz),
-              label: 'More',
-            ),
+            for (final item in _primary)
+              NavigationDestination(
+                icon: Icon(item.icon, size: 21),
+                label: item.label,
+              ),
           ],
         ),
       );
@@ -232,15 +218,15 @@ class AppShell extends ConsumerWidget {
       body: Row(
         children: [
           NavigationRail(
-            selectedIndex: compactIndex < 0 ? 0 : compactIndex,
-            onDestinationSelected: (index) => context.go(_compact[index].route),
+            selectedIndex: safeIndex,
+            onDestinationSelected: (index) => context.go(_primary[index].route),
             labelType: NavigationRailLabelType.all,
             leading: const Padding(
               padding: EdgeInsets.only(top: 16),
               child: _Wordmark(compact: true),
             ),
             destinations: [
-              for (final item in _compact)
+              for (final item in _primary)
                 NavigationRailDestination(
                   icon: Icon(item.icon),
                   label: Text(item.label),
@@ -266,7 +252,21 @@ class AppShell extends ConsumerWidget {
   }
 
   static bool _isSelected(String location, String route) {
-    if (route == '/dashboard') return location == route;
+    if (route == '/session') {
+      return location == '/session' ||
+          location.startsWith('/plans') ||
+          location.startsWith('/exercises');
+    }
+    if (route == '/profile') {
+      return location == '/profile' ||
+          location.startsWith('/history') ||
+          location.startsWith('/arcana') ||
+          location.startsWith('/goals') ||
+          location.startsWith('/planning') ||
+          location.startsWith('/progress') ||
+          location.startsWith('/settings') ||
+          location.startsWith('/fasting');
+    }
     return location == route || location.startsWith('$route/');
   }
 
@@ -276,32 +276,20 @@ class AppShell extends ConsumerWidget {
     onPressed: () => _showNavigationSheet(context, ref),
   );
 
-  void _showMoreSheet(BuildContext context, WidgetRef ref) {
-    _showNavigationSheet(context, ref, includePrimary: false);
-  }
-
   void _showNavigationSheet(
     BuildContext context,
     WidgetRef ref, {
     bool includePrimary = true,
   }) {
-    final record = includePrimary
-        ? _record
-        : _record.where((item) => item.route != '/nutrition').toList();
-    final workout = includePrimary
-        ? _primary
-        : const [
-            _ShellDestination('Workout plans', '/plans'),
-            _ShellDestination('Sessions', '/history'),
-          ];
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) => _CompactNavigationMenu(
         sections: [
-          _MenuSection('WORKOUT', workout),
-          _MenuSection('RECORD', record),
+          if (includePrimary) _MenuSection('PRIMARY', _primary),
+          _MenuSection('TRAINING', _training),
+          _MenuSection('GROWTH', _growth),
           _MenuSection('ACCOUNT', _account),
         ],
         onSelect: (route) {
@@ -454,24 +442,47 @@ class _DesktopNavItem extends StatelessWidget {
   final bool selected;
 
   @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: () => context.go(destination.route),
-    child: Padding(
-      padding: EdgeInsets.zero,
-      child: Text(
-        destination.label,
-        style: TextStyle(
-          color: selected
-              ? TransmutePalette.of(context).ink
-              : TransmutePalette.of(context).muted,
-          fontSize: 15,
-          fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
-          decoration: selected ? TextDecoration.underline : null,
-          decorationThickness: 2,
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: selected
+            ? Color.lerp(palette.surface, palette.oxide, 0.18)
+            : Colors.transparent,
+        child: InkWell(
+          onTap: () => context.go(destination.route),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    destination.icon,
+                    size: 20,
+                    color: selected ? palette.ink : palette.muted,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      destination.label,
+                      style: TextStyle(
+                        color: selected ? palette.ink : palette.muted,
+                        fontWeight: selected
+                            ? FontWeight.w800
+                            : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _Wordmark extends StatelessWidget {

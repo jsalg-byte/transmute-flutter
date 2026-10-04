@@ -37,51 +37,42 @@ void main() {
       });
     },
   );
-  testWidgets(
-    'Begin session selects a training day and opens the active workout',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(900, 1200));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      final router = GoRouter(
-        routes: [
-          GoRoute(path: '/', builder: (_, _) => const DashboardScreen()),
-          GoRoute(
-            path: '/session',
-            builder: (_, _) => const Scaffold(
-              body: Center(child: Text('Active workout destination')),
-            ),
+  testWidgets('Today starts the recommended day and then offers Resume', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const DashboardScreen()),
+        GoRoute(
+          path: '/session',
+          builder: (_, _) => const Scaffold(
+            body: Center(child: Text('Active workout destination')),
           ),
-          GoRoute(path: '/plans', builder: (_, _) => const SizedBox()),
-          GoRoute(path: '/history', builder: (_, _) => const SizedBox()),
-          GoRoute(path: '/dashboard', builder: (_, _) => const SizedBox()),
-        ],
-      );
-      await tester.pumpWidget(
-        ProviderScope(child: MaterialApp.router(routerConfig: router)),
-      );
-      await tester.pumpAndSettle();
+        ),
+        GoRoute(path: '/plans', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/history', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/dashboard', builder: (_, _) => const SizedBox()),
+      ],
+    );
+    await tester.pumpWidget(
+      ProviderScope(child: MaterialApp.router(routerConfig: router)),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.text('Record today’s recovery'), findsNothing);
-      expect(find.text('DAILY TRANSMUTATION'), findsNothing);
+    expect(find.text('Record today’s recovery'), findsNothing);
+    expect(find.text('DAILY TRANSMUTATION'), findsNothing);
 
-      expect(find.text("Today's Workout"), findsOneWidget);
-      expect(find.text('Upper strength'), findsOneWidget);
-      final beginSession = find.text('Start Workout');
-      await tester.tap(beginSession);
-      await tester.pumpAndSettle();
-
-      expect(find.text('What are you training today?'), findsOneWidget);
-      expect(
-        find.widgetWithText(OutlinedButton, 'Upper strength'),
-        findsOneWidget,
-      );
-      expect(find.textContaining('Last performed'), findsOneWidget);
-      expect(find.text('Lower strength'), findsNothing);
-
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Upper strength'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Active workout destination'), findsOneWidget);
-    },
-  );
+    expect(find.text("Today's Workout"), findsOneWidget);
+    expect(find.text('Upper strength'), findsOneWidget);
+    expect(find.byType(Divider), findsNothing);
+    final beginSession = find.text('Start Workout');
+    await tester.tap(beginSession);
+    await tester.pumpAndSettle();
+    expect(find.text('Active workout destination'), findsOneWidget);
+    router.go('/');
+    await tester.pumpAndSettle();
+    expect(find.text('Resume Workout'), findsOneWidget);
+  });
 }

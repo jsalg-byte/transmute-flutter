@@ -28,44 +28,50 @@ Flutter bootstrap and application URLs so browsers cannot reuse an old bundle
 after a deployment.
 
 For API changes that add schema requirements, apply and verify the matching
-numbered migration in `/Users/mzootfb/Sites/transmute-mobile/api/migrations/`
-before deploying the API code. In particular, timed plan/session tracking
-requires `008_timed_exercises.sql`; Coolify does not run it automatically.
-Deploy the API migration and compatible API code before promoting a Flutter
-bundle that uses the new fields.
+numbered migration in the sibling `transmute-mobile/api/migrations/` repo
+(locally `/Users/mzootfb/Sites/transmute-mobile/api/migrations/`) before
+deploying the API code. Coolify does not run migrations automatically. Deploy
+the migration and compatible API code before promoting a Flutter bundle that
+uses new fields.
 
 The approved Flutter production origin is `https://transmute.mzootfb.xyz`.
 Configure the Fastify API's `CORS_ORIGINS` runtime variable to contain that
 exact value. Do not add wildcard origins and do not leave the temporary
 `trycloudflare.com` URL in production configuration.
 
-## Coolify deployment
+## Current production topology and release order
 
-1. Create a **new** application for this Flutter project; do not replace the
-   existing Expo web application without an explicit migration decision.
-2. Select **Dockerfile** as the build pack, set base directory to `/`, and use
-   `/Dockerfile`.
-3. No Coolify environment variables are required; the committed release bundle
-   is built with the public API URL before it is pushed.
-4. In the generated `Domains for transmute-flutter` field, set
-   `https://transmute.mzootfb.xyz`. Coolify will route it to port 80 and
-   manage HTTPS; do not manually enable editable container labels.
-5. Point the DNS `A`/`AAAA` record for `transmute.mzootfb.xyz` at the Coolify
-   server, then wait for DNS propagation before deployment.
-6. Add `https://transmute.mzootfb.xyz` to the API's `CORS_ORIGINS`, deploy the
-   API setting, then deploy this app.
+- Flutter web: this repository, `release/web`, Dockerfile/Nginx, public origin
+  `https://transmute.mzootfb.xyz`.
+- API: sibling `/Users/mzootfb/Sites/transmute-mobile`, Fastify service at
+  `https://api.transmute.mzootfb.xyz`; the sibling Expo app is a separate client.
+- Coolify watches the production Git branches. A pushed source commit can
+  deploy, but Flutter changes are only visible when the same commit contains a
+  freshly generated `release/web` bundle.
 
-The repository now contains every non-secret application setting. DNS records,
-the Coolify resource/domain entry, and the API runtime CORS setting remain
-external control-plane changes because they belong to the deployment account,
-not a source checkout.
+For a release that changes both API and Flutter, apply and verify the required
+API migration first, push/deploy the API, then run
+`./scripts/build_web_release.sh` and push the Flutter source plus bundle. Do not
+assume that migration files have been applied just because they exist in Git;
+inspect the live schema and affected catalog/data. Migrations 008 (timed
+prescriptions/session tracking), 009 (shared exercise demos), and 010 (bundled
+reverse-curl demo mapping) were verified applied to production on 2026-10-03;
+recheck before any later release. Production CORS and secrets stay in the API's
+Coolify runtime settings, not in Dart defines or the web bundle.
+
+After push, verify the running container image revisions match the commits,
+check the API health plus affected schema/data, and confirm the served Flutter
+index references the current cache version and required assets. The user owns
+interactive browser verification; a healthy container or successful static
+build is not visual QA.
 
 ## Pre-promotion checks
 
 - `flutter analyze`
 - `flutter test`
-- `flutter build web --dart-define=TRANSMUTE_REPOSITORY_MODE=api --dart-define=TRANSMUTE_API_BASE_URL=<public-api-url>`
-- `GET /healthz` returns `200`.
+- `./scripts/build_web_release.sh` succeeds and includes the new assets.
+- The web container health check (`/healthz`) and API health (`/health`) return
+  `200`; also verify affected authenticated API behavior/schema, not health alone.
 - Direct navigation to `/plans`, `/nutrition`, `/progress`, `/friends`, and
   `/history/<session-id>/share` returns the Flutter shell rather than a 404.
 - A real account can sign in, refresh, sign out, and perform representative

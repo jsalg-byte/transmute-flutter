@@ -13,8 +13,10 @@ import '../../../core/providers.dart';
 import '../../../shared/design_system/design_system.dart';
 import '../../../shared/theme/transmute_palette.dart';
 import '../../../shared/widgets/app_shell.dart';
+import '../../../shared/widgets/workout_launch_card.dart';
 import '../../../shared/widgets/exercise_video_controller.dart';
 import '../../quick_add/presentation/quick_add_dialog.dart';
+import '../../workout_plans/presentation/routine_dialogs.dart';
 
 class ActiveSessionScreen extends ConsumerWidget {
   const ActiveSessionScreen({super.key});
@@ -55,111 +57,216 @@ class _WorkoutHome extends ConsumerStatefulWidget {
 
 class _WorkoutHomeState extends ConsumerState<_WorkoutHome> {
   String? _startingDayId;
+  bool _startingFreeform = false;
 
   @override
   Widget build(BuildContext context) {
-    final overview = ref.watch(dailyOverviewProvider);
+    final entry = ref.watch(workoutEntryProvider);
     final compact = MediaQuery.sizeOf(context).width < 600;
-    return overview.when(
-      skipLoadingOnRefresh: true,
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (_, _) => TransmuteStatePanel(
-        kind: TransmuteStateKind.error,
-        title: 'Could not load workouts',
-        message: 'Your plan list is unavailable right now.',
-        action: TransmuteButton(
-          label: 'Retry',
-          icon: Icons.refresh,
-          onPressed: () => ref.invalidate(dailyOverviewProvider),
+    return ListView(
+      padding: EdgeInsets.only(bottom: compact ? 24 : 32),
+      children: [
+        _WorkoutSectionHeading(
+          title: "Today's Workout",
+          trailing: const SizedBox.shrink(),
         ),
-      ),
-      data: (data) {
-        final next = data.nextWorkout;
-        final palette = TransmutePalette.of(context);
-        return ListView(
-          padding: EdgeInsets.only(bottom: compact ? 24 : 32),
-          children: [
-            _WorkoutEyebrow('TODAY\'S WORKOUT'),
-            const SizedBox(height: 8),
-            _NextWorkoutPanel(
-              plan: next?.plan,
-              day: next?.day,
-              activePlanId: data.activePlanId,
-              plans: data.plans,
-              busy: next != null && _startingDayId == next.day.id,
-              onStart: next == null ? null : () => _start(next.plan, next.day),
+        const SizedBox(height: 10),
+        const WorkoutLaunchCard(),
+        const SizedBox(height: 28),
+        _WorkoutSectionHeading(
+          title: 'New Workout',
+          trailing: const SizedBox.shrink(),
+        ),
+        const SizedBox(height: 10),
+        _NewWorkoutAction(
+          icon: Icons.fitness_center_outlined,
+          title: _startingFreeform
+              ? 'Starting workout…'
+              : 'Start Empty Workout',
+          subtitle: 'Choose exercises and log as you train.',
+          onTap: _startFreeform,
+        ),
+        const SizedBox(height: 8),
+        _NewWorkoutAction(
+          icon: Icons.edit_note_outlined,
+          title: 'Generate Workout',
+          subtitle: 'Build a routine manually or with plan assist.',
+          onTap: () => context.go('/plans'),
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => showDialog<void>(
+              context: context,
+              builder: (_) => const QuickAddWorkoutDialog(),
             ),
-            const SizedBox(height: 24),
-            _WorkoutSectionHeading(
-              title: 'New workout',
-              trailing: const SizedBox.shrink(),
-            ),
-            const SizedBox(height: 10),
-            _NewWorkoutAction(
-              icon: Icons.add_circle_outline,
-              title: 'Quick Add workout',
-              subtitle: 'Log one exercise without changing your plan.',
-              onTap: () => showDialog<void>(
-                context: context,
-                builder: (_) => const QuickAddWorkoutDialog(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            _NewWorkoutAction(
-              icon: Icons.edit_note_outlined,
-              title: 'Create or generate a plan',
-              subtitle: 'Build a routine manually or with plan assist.',
-              onTap: () => context.go('/plans'),
-            ),
-            const SizedBox(height: 24),
-            _WorkoutSectionHeading(
-              title: 'Routines',
-              trailing: TextButton.icon(
+            icon: const Icon(Icons.bolt_outlined),
+            label: const Text('Quick Add one exercise'),
+          ),
+        ),
+        const SizedBox(height: 28),
+        _WorkoutSectionHeading(
+          title: 'Routines',
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Manage routine folders',
                 onPressed: () => context.go('/plans'),
-                icon: const Icon(Icons.add, size: 20),
-                label: const Text('New plan'),
+                icon: const Icon(Icons.folder_outlined),
               ),
+              IconButton(
+                tooltip: 'Create a routine',
+                onPressed: entry.asData == null
+                    ? null
+                    : () => _createRoutine(entry.asData!.value.plans),
+                icon: const Icon(Icons.add),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        entry.when(
+          skipLoadingOnRefresh: true,
+          loading: () => const TransmuteStatePanel(
+            kind: TransmuteStateKind.loading,
+            title: 'Loading routines',
+          ),
+          error: (_, _) => TransmuteStatePanel(
+            kind: TransmuteStateKind.error,
+            title: 'Routines unavailable',
+            message: 'Retry to view and start your saved training days.',
+            action: TransmuteButton(
+              label: 'Retry routines',
+              icon: Icons.refresh,
+              onPressed: () => ref.invalidate(workoutEntryProvider),
             ),
-            const SizedBox(height: 8),
-            if (data.plans.isEmpty)
-              TransmuteStatePanel(
-                kind: TransmuteStateKind.empty,
-                title: 'No routines yet',
-                message: 'Create a plan to organize your training days.',
-                action: TransmuteButton(
-                  label: 'Create a plan',
-                  icon: Icons.add,
-                  onPressed: () => context.go('/plans'),
-                ),
-              )
-            else
-              for (final plan in data.plans)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _RoutinePanel(
-                    plan: plan,
-                    isActive: plan.id == data.activePlanId,
-                    startingDayId: _startingDayId,
-                    onStart: (day) => _start(plan, day),
-                    onOpen: () => context.go('/plans/${plan.id}'),
+          ),
+          data: (data) => data.plans.isEmpty
+              ? TransmuteStatePanel(
+                  kind: TransmuteStateKind.empty,
+                  title: 'No routines yet',
+                  message:
+                      'Create a routine and add exercises from the library.',
+                  action: TransmuteButton(
+                    label: 'Create a routine',
+                    icon: Icons.add,
+                    onPressed: () => _createRoutine(const []),
                   ),
+                )
+              : Column(
+                  children: [
+                    for (final plan in data.plans)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _RoutinePanel(
+                          plan: plan,
+                          isActive: plan.id == data.activePlanId,
+                          startingDayId: _startingDayId,
+                          onStart: (day) => _start(plan, day),
+                          onOpen: () => context.go('/plans/${plan.id}'),
+                          onCreate: () => _createRoutine(data.plans, plan.id),
+                          onOpenDay: (day) =>
+                              context.go('/plans/${plan.id}?dayId=${day.id}'),
+                          onRename: (day) => _renameRoutine(plan, day),
+                          onDelete: (day) => _deleteRoutine(plan, day),
+                          onMove: (day, direction) =>
+                              _moveRoutine(plan, day, direction),
+                        ),
+                      ),
+                  ],
                 ),
-            const SizedBox(height: 4),
-            Divider(color: palette.divider),
-            const SizedBox(height: 12),
-            TextButton.icon(
-              onPressed: () => context.go('/history'),
-              icon: const Icon(Icons.history),
-              label: const Text('View workout history'),
-            ),
-          ],
-        );
-      },
+        ),
+        const SizedBox(height: 12),
+        TextButton.icon(
+          onPressed: () => context.go('/history'),
+          icon: const Icon(Icons.history),
+          label: const Text('View workout history'),
+        ),
+      ],
     );
   }
 
+  Future<void> _createRoutine(
+    List<WorkoutPlan> folders, [
+    String? folderId,
+  ]) async {
+    final location = await showCreateRoutineDialog(
+      context: context,
+      repository: ref.read(planRepositoryProvider),
+      folders: folders,
+      initialFolderId: folderId,
+    );
+    if (!mounted) return;
+    ref.invalidate(plansProvider);
+    if (location == null) return;
+    context.go('/plans/${location.planId}?dayId=${location.dayId}');
+  }
+
+  Future<void> _renameRoutine(WorkoutPlan plan, WorkoutPlanDay day) async {
+    final saved = await showRoutineNameDialog<WorkoutPlanDay>(
+      context: context,
+      title: 'Rename routine',
+      label: 'Routine name',
+      initial: day.name,
+      onSave: (name) =>
+          ref.read(planRepositoryProvider).renameDay(plan.id, day.id, name),
+    );
+    if (saved != null) ref.invalidate(plansProvider);
+  }
+
+  Future<void> _deleteRoutine(WorkoutPlan plan, WorkoutPlanDay day) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Delete ${day.name}?'),
+        content: const Text(
+          'This removes the saved routine and its prescriptions.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(planRepositoryProvider).deleteDay(plan.id, day.id);
+      ref.invalidate(plansProvider);
+    } on AppFailure catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
+  Future<void> _moveRoutine(
+    WorkoutPlan plan,
+    WorkoutPlanDay day,
+    ReorderDirection direction,
+  ) async {
+    try {
+      await ref
+          .read(planRepositoryProvider)
+          .reorderDay(plan.id, day.id, direction);
+      ref.invalidate(plansProvider);
+    } on AppFailure catch (error) {
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
   Future<void> _start(WorkoutPlan plan, WorkoutPlanDay day) async {
-    if (_startingDayId != null) return;
+    if (_startingDayId != null || _startingFreeform) return;
     setState(() => _startingDayId = day.id);
     try {
       await ref.read(activeSessionProvider.notifier).start(plan.id, day.id);
@@ -168,113 +275,42 @@ class _WorkoutHomeState extends ConsumerState<_WorkoutHome> {
       if (!mounted) return;
       if (error.code == 'active_session_exists') {
         await ref.read(activeSessionProvider.notifier).refresh();
-        if (mounted) context.go('/session');
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        if (!mounted) return;
+        if (ref.read(activeSessionProvider).asData?.value != null) {
+          context.go('/session');
+          return;
+        }
       }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
     } finally {
       if (mounted) setState(() => _startingDayId = null);
     }
   }
-}
 
-class _NextWorkoutPanel extends StatelessWidget {
-  const _NextWorkoutPanel({
-    required this.plan,
-    required this.day,
-    required this.activePlanId,
-    required this.plans,
-    required this.busy,
-    required this.onStart,
-  });
-
-  final WorkoutPlan? plan;
-  final WorkoutPlanDay? day;
-  final String? activePlanId;
-  final List<WorkoutPlan> plans;
-  final bool busy;
-  final VoidCallback? onStart;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = TransmutePalette.of(context);
-    final activePlan = plans
-        .where((item) => item.id == activePlanId)
-        .firstOrNull;
-    final label = day != null
-        ? 'NEXT UP'
-        : activePlan == null
-        ? 'A PLAN FOR TODAY'
-        : 'READY WHEN YOU ARE';
-    final title =
-        day?.name ??
-        (activePlan == null ? 'Choose a workout plan' : 'Add a training day');
-    final subtitle = day != null
-        ? plan!.name
-        : activePlan == null
-        ? 'Set a routine as active to see the next day here.'
-        : '${activePlan.name} is active, but has no days yet.';
-    final exerciseCount = day?.exercises.length ?? 0;
-    final prescribedSets = day?.exercises.fold<int>(
-      0,
-      (total, exercise) => total + exercise.targetSets,
-    );
-    final actionLabel = day != null
-        ? 'Start Workout'
-        : activePlan == null
-        ? 'Browse plans'
-        : 'Open active plan';
-    return Card(
-      color: palette.raised,
-      child: Padding(
-        padding: const EdgeInsets.all(DesignSpace.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.fitness_center, size: 18, color: palette.steel),
-                const SizedBox(width: DesignSpace.sm),
-                _WorkoutEyebrow(label),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(title, style: Theme.of(context).textTheme.headlineSmall),
-            const SizedBox(height: 4),
-            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
-            if (day != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                '$exerciseCount ${exerciseCount == 1 ? 'exercise' : 'exercises'} · $prescribedSets planned sets',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: palette.muted),
-              ),
-            ],
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              child: TransmuteButton(
-                label: actionLabel,
-                icon: day == null ? Icons.play_arrow : Icons.arrow_forward,
-                loading: busy,
-                onPressed: day == null
-                    ? () {
-                        if (activePlan == null) {
-                          context.go('/plans');
-                        } else {
-                          context.go('/plans/${activePlan.id}');
-                        }
-                      }
-                    : onStart,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _startFreeform() async {
+    if (_startingFreeform || _startingDayId != null) return;
+    setState(() => _startingFreeform = true);
+    try {
+      await ref.read(activeSessionProvider.notifier).startFreeform();
+      if (mounted) context.go('/session');
+    } on AppFailure catch (error) {
+      if (!mounted) return;
+      if (error.code == 'active_session_exists') {
+        await ref.read(activeSessionProvider.notifier).refresh();
+        if (!mounted) return;
+        if (ref.read(activeSessionProvider).asData?.value != null) {
+          context.go('/session');
+          return;
+        }
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => _startingFreeform = false);
+    }
   }
 }
 
@@ -326,6 +362,11 @@ class _RoutinePanel extends StatelessWidget {
     required this.startingDayId,
     required this.onStart,
     required this.onOpen,
+    required this.onCreate,
+    required this.onOpenDay,
+    required this.onRename,
+    required this.onDelete,
+    required this.onMove,
   });
 
   final WorkoutPlan plan;
@@ -333,6 +374,11 @@ class _RoutinePanel extends StatelessWidget {
   final String? startingDayId;
   final ValueChanged<WorkoutPlanDay> onStart;
   final VoidCallback onOpen;
+  final VoidCallback onCreate;
+  final ValueChanged<WorkoutPlanDay> onOpenDay;
+  final ValueChanged<WorkoutPlanDay> onRename;
+  final ValueChanged<WorkoutPlanDay> onDelete;
+  final void Function(WorkoutPlanDay, ReorderDirection) onMove;
 
   @override
   Widget build(BuildContext context) {
@@ -356,30 +402,42 @@ class _RoutinePanel extends StatelessWidget {
             color: isActive ? palette.steel : palette.muted,
           ),
         ),
-        initiallyExpanded: isActive,
+        initiallyExpanded: true,
         children: [
           if (plan.days.isEmpty)
             TransmuteListRow(
               title: 'No training days yet',
-              subtitle: 'Open this plan to add a day.',
+              subtitle: 'Add a routine to this folder.',
               leading: const Icon(Icons.event_note_outlined),
-              onTap: onOpen,
+              onTap: onCreate,
             )
           else
-            for (final day in plan.days)
+            for (var index = 0; index < plan.days.length; index++)
               _RoutineDayRow(
-                day: day,
-                busy: startingDayId == day.id,
+                day: plan.days[index],
+                busy: startingDayId == plan.days[index].id,
                 disabled: startingDayId != null,
-                onStart: () => onStart(day),
+                onStart: () => onStart(plan.days[index]),
+                onOpen: () => onOpenDay(plan.days[index]),
+                onRename: () => onRename(plan.days[index]),
+                onDelete: () => onDelete(plan.days[index]),
+                onMoveUp: index == 0
+                    ? null
+                    : () => onMove(plan.days[index], ReorderDirection.up),
+                onMoveDown: index == plan.days.length - 1
+                    ? null
+                    : () => onMove(plan.days[index], ReorderDirection.down),
               ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: onOpen,
-              icon: const Icon(Icons.open_in_new, size: 18),
-              label: const Text('View plan'),
-            ),
+          Wrap(
+            alignment: WrapAlignment.end,
+            children: [
+              TextButton(onPressed: onOpen, child: const Text('Manage folder')),
+              TextButton.icon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Add routine'),
+              ),
+            ],
           ),
         ],
       ),
@@ -393,91 +451,146 @@ class _RoutineDayRow extends StatelessWidget {
     required this.busy,
     required this.disabled,
     required this.onStart,
+    required this.onOpen,
+    required this.onRename,
+    required this.onDelete,
+    required this.onMoveUp,
+    required this.onMoveDown,
   });
 
   final WorkoutPlanDay day;
   final bool busy;
   final bool disabled;
   final VoidCallback onStart;
+  final VoidCallback onOpen;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
-    final preview = day.exercises.take(3).map((item) => item.exercise.name);
     final sets = day.exercises.fold<int>(
       0,
       (total, exercise) => total + exercise.targetSets,
     );
-    final previewText = preview.join(' · ');
+    final summary = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          day.name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: DesignSpace.xs),
+        Text(
+          '$sets sets · ${day.exercises.length} ${day.exercises.length == 1 ? 'exercise' : 'exercises'}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+    final startButton = OutlinedButton(
+      onPressed: disabled || day.exercises.isEmpty ? null : onStart,
+      child: busy
+          ? const SizedBox.square(
+              dimension: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Text('Start'),
+    );
+    final menu = PopupMenuButton<String>(
+      tooltip: 'Options for ${day.name}',
+      onSelected: (action) {
+        switch (action) {
+          case 'edit':
+            onOpen();
+          case 'rename':
+            onRename();
+          case 'up':
+            onMoveUp?.call();
+          case 'down':
+            onMoveDown?.call();
+          case 'delete':
+            onDelete();
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(value: 'edit', child: Text('Edit routine')),
+        const PopupMenuItem(value: 'rename', child: Text('Rename')),
+        if (onMoveUp != null)
+          const PopupMenuItem(value: 'up', child: Text('Move up')),
+        if (onMoveDown != null)
+          const PopupMenuItem(value: 'down', child: Text('Move down')),
+        const PopupMenuItem(value: 'delete', child: Text('Delete')),
+      ],
+    );
     return Padding(
-      padding: const EdgeInsets.only(top: DesignSpace.md),
+      padding: const EdgeInsets.only(top: DesignSpace.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      day.name,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: DesignSpace.xs),
-                    Text(
-                      '${day.exercises.length} ${day.exercises.length == 1 ? 'exercise' : 'exercises'} · $sets sets',
+          LayoutBuilder(
+            builder: (context, constraints) => constraints.maxWidth < 240
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(child: summary),
+                          menu,
+                        ],
+                      ),
+                      startButton,
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: summary),
+                      const SizedBox(width: DesignSpace.sm),
+                      menu,
+                      startButton,
+                    ],
+                  ),
+          ),
+          for (final exercise in day.exercises.take(3))
+            Padding(
+              padding: const EdgeInsets.only(top: DesignSpace.xs),
+              child: Row(
+                children: [
+                  const Icon(Icons.fitness_center, size: 15),
+                  const SizedBox(width: DesignSpace.sm),
+                  Expanded(
+                    child: Text(
+                      exercise.exercise.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                  ],
-                ),
+                  ),
+                  Text(
+                    '${exercise.targetSets} sets',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
-              const SizedBox(width: DesignSpace.sm),
-              OutlinedButton(
-                onPressed: disabled ? null : onStart,
-                child: busy
-                    ? const SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Start'),
-              ),
-            ],
-          ),
-          if (previewText.isNotEmpty) ...[
-            const SizedBox(height: DesignSpace.xs),
-            Text(
-              previewText,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
             ),
-          ],
           if (day.exercises.length > 3)
             Text(
               'and ${day.exercises.length - 3} more',
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+          if (day.exercises.isEmpty)
+            TextButton(
+              onPressed: onOpen,
+              child: const Text('Add exercises to start'),
             ),
           const Divider(height: DesignSpace.xl),
         ],
       ),
     );
   }
-}
-
-class _WorkoutEyebrow extends StatelessWidget {
-  const _WorkoutEyebrow(this.text);
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Text(
-    text,
-    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-      letterSpacing: 1.2,
-      fontWeight: FontWeight.w700,
-      color: TransmutePalette.of(context).muted,
-    ),
-  );
 }
 
 class _SessionBody extends ConsumerStatefulWidget {
@@ -560,12 +673,18 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
             ? null
             : TransmuteButton(
                 onPressed: isFinalMovement
-                    ? () => _finish(context, ref, session)
+                    ? pendingCount > 0
+                          ? null
+                          : () => _finish(context, ref, session)
                     : () => _selectMovement(_movementIndex + 1),
                 icon: isFinalMovement
                     ? Icons.check_circle_outline
                     : Icons.arrow_forward,
-                label: isFinalMovement ? 'Finish Workout' : 'Next Movement',
+                label: isFinalMovement
+                    ? pendingCount > 0
+                          ? 'Sync sets to finish'
+                          : 'Finish Workout'
+                    : 'Next Movement',
               );
         final movement = selected == null
             ? _EmptyMovementState(
@@ -584,7 +703,6 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                     : () => _selectMovement(_movementIndex + 1),
                 onStepSelected: _selectMovement,
                 onAdd: () => _chooseExercise(context, ref, session),
-                action: action!,
               )
             : _CompactMovementLayout(
                 exercise: selected,
@@ -598,39 +716,50 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                     : () => _selectMovement(_movementIndex + 1),
                 onStepSelected: _selectMovement,
                 onAdd: () => _chooseExercise(context, ref, session),
-                action: action!,
               );
         return Stack(
           children: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        session.planName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: compact ? 22 : 26,
-                          fontWeight: FontWeight.bold,
-                        ),
+                Text(
+                  session.planName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: compact ? 22 : 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                if (session.origin == WorkoutSessionOrigin.freeform)
+                  Text(
+                    'FREEFORM · ${session.exercises.length} ${session.exercises.length == 1 ? 'exercise' : 'exercises'} · ${session.workingSetCount} ${session.workingSetCount == 1 ? 'working set' : 'working sets'}',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: TransmutePalette.of(context).muted,
+                    ),
+                  ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      if (pendingCount > 0)
+                        _PendingSyncIndicator(pendingCount: pendingCount),
+                      TextButton(
+                        onPressed: pendingCount > 0
+                            ? null
+                            : () => _finish(context, ref, session),
+                        child: const Text('Finish'),
                       ),
-                    ),
-                    if (pendingCount > 0)
-                      _PendingSyncIndicator(pendingCount: pendingCount),
-                    TextButton(
-                      onPressed: () => _finish(context, ref, session),
-                      child: const Text('Finish'),
-                    ),
-                    IconButton(
-                      tooltip: 'Discard Workout',
-                      onPressed: () => _discard(context, ref, session),
-                      color: const Color(0xffA33B36),
-                      icon: const Icon(Icons.delete_outline),
-                    ),
-                  ],
+                      IconButton(
+                        tooltip: 'Discard Workout',
+                        onPressed: () => _discard(context, ref, session),
+                        color: const Color(0xffA33B36),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -642,27 +771,49 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Started ${_time(session.startedAt)} · ${session.workingSetCount} working sets',
+                  'Started ${_time(session.startedAt)} · ${session.workingSetCount} working ${session.workingSetCount == 1 ? 'set' : 'sets'}',
                 ),
+                if (pendingCount > 0)
+                  Text(
+                    '$pendingCount ${pendingCount == 1 ? 'set is' : 'sets are'} saved on this device and must sync before finishing.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 const SizedBox(height: 8),
                 Expanded(
                   child: wide
                       ? SingleChildScrollView(
-                          padding: const EdgeInsets.only(bottom: 112),
+                          padding: const EdgeInsets.only(bottom: 16),
                           child: movement,
                         )
                       : ListView(
                           controller: _compactScrollController,
-                          padding: const EdgeInsets.only(bottom: 112),
+                          padding: const EdgeInsets.only(bottom: 16),
                           children: [movement],
                         ),
                 ),
+                if (selected != null) ...[
+                  const SizedBox(height: 8),
+                  if (compact) ...[
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: _RestTimer(session: session),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(width: double.infinity, child: action),
+                  ] else
+                    Row(
+                      children: [
+                        _RestTimer(session: session),
+                        const SizedBox(width: 12),
+                        Expanded(child: action!),
+                      ],
+                    ),
+                ] else
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _RestTimer(session: session),
+                  ),
               ],
-            ),
-            Positioned(
-              right: 0,
-              bottom: 16,
-              child: _RestTimer(session: session),
             ),
           ],
         );
@@ -729,6 +880,18 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     }
     try {
       final done = await ref.read(activeSessionProvider.notifier).complete();
+      if (done.rankUpdates.isNotEmpty && context.mounted) {
+        final update = done.rankUpdates.first;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              update.established
+                  ? 'Personal ${update.tier.name} rank established.'
+                  : 'Personal rank improved to ${update.tier.name}.',
+            ),
+          ),
+        );
+      }
       if (context.mounted) context.go('/history/${done.id}');
     } on AppFailure catch (error) {
       if (context.mounted) {
@@ -803,7 +966,6 @@ class _CompactMovementLayout extends StatelessWidget {
     required this.onNext,
     required this.onStepSelected,
     required this.onAdd,
-    required this.action,
   });
 
   final SessionExercise exercise;
@@ -813,7 +975,6 @@ class _CompactMovementLayout extends StatelessWidget {
   final VoidCallback? onNext;
   final ValueChanged<int> onStepSelected;
   final VoidCallback onAdd;
-  final Widget action;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -830,8 +991,6 @@ class _CompactMovementLayout extends StatelessWidget {
       ),
       const SizedBox(height: 8),
       _ExerciseCard(exercise: exercise, showIdentity: false),
-      const SizedBox(height: 16),
-      action,
     ],
   );
 }
@@ -845,7 +1004,6 @@ class _WideMovementLayout extends StatelessWidget {
     required this.onNext,
     required this.onStepSelected,
     required this.onAdd,
-    required this.action,
   });
 
   final SessionExercise exercise;
@@ -855,7 +1013,6 @@ class _WideMovementLayout extends StatelessWidget {
   final VoidCallback? onNext;
   final ValueChanged<int> onStepSelected;
   final VoidCallback onAdd;
-  final Widget action;
 
   @override
   Widget build(BuildContext context) {
@@ -886,8 +1043,6 @@ class _WideMovementLayout extends StatelessWidget {
                     showIdentity: false,
                     showDemo: false,
                   ),
-                  const SizedBox(height: 14),
-                  action,
                 ],
               ),
             ),
@@ -990,16 +1145,15 @@ class _ExerciseCard extends ConsumerStatefulWidget {
 
 class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   final _drafts = <_SetDraft>[];
-  var _nextDraftOrder = 0;
   String? _error;
   _SetDraft? _savingDraft;
   Set<String>? _setIdsBeforeSave;
+  String? _deletingSetId;
   bool _demoExpanded = false;
 
   @override
   void initState() {
     super.initState();
-    _nextDraftOrder = _workingSetCount(widget.exercise);
     _addDrafts(_initialDraftCount(widget.exercise));
   }
 
@@ -1008,7 +1162,6 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.exercise.id != widget.exercise.id) {
       _disposeDrafts();
-      _nextDraftOrder = _workingSetCount(widget.exercise);
       _addDrafts(_initialDraftCount(widget.exercise));
     }
   }
@@ -1029,12 +1182,28 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
 
   void _addDrafts(int count) {
     for (var index = 0; index < count; index += 1) {
-      _drafts.add(
-        _SetDraft(
-          _nextDraftOrder++,
-          targetDurationSeconds: widget.exercise.targetDurationSeconds,
-        ),
+      final workingIndex =
+          _workingSetCount(widget.exercise) +
+          _drafts.where((draft) => !draft.isWarmup).length;
+      final previous = _previousFor(workingIndex);
+      final draft = _SetDraft(
+        targetDurationSeconds: widget.exercise.targetDurationSeconds,
       );
+      if (widget.exercise.trackingMode == ExerciseTrackingMode.timed) {
+        final seconds =
+            previous?.durationSeconds ?? widget.exercise.targetDurationSeconds;
+        if (seconds != null) {
+          draft.duration.text = draft.durationUnit.formatValue(
+            draft.durationUnit.fromSeconds(seconds),
+          );
+        }
+      } else {
+        final weightKg =
+            previous?.weightKg ?? widget.exercise.targetWeightKg ?? 0;
+        draft.weight.text = _number(_displayWeight(weightKg));
+        draft.reps.text = '${previous?.reps ?? widget.exercise.targetReps}';
+      }
+      _drafts.add(draft);
     }
   }
 
@@ -1101,6 +1270,19 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                   ),
                 ],
               ),
+            Text(
+              '${exercise.muscleGroup ?? 'Movement'} · ${exercise.targetSets} working sets · ${exercise.trackingMode == ExerciseTrackingMode.timed ? 'target ${_formatTimedDuration(exercise.targetDurationSeconds)}' : 'target ${exercise.targetReps} reps'}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              exercise.trackingMode == ExerciseTrackingMode.timed
+                  ? 'Previous timed result: ${_performanceLabel(_previousFor(0), unit)}'
+                  : 'Previous working set: ${_performanceLabel(_previousFor(0), unit)}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: TransmutePalette.of(context).muted,
+              ),
+            ),
             if (widget.showDemo && exercise.demoUrl != null) ...[
               SizedBox(height: compact ? 4 : 8),
               _SessionExerciseDemo(
@@ -1113,52 +1295,33 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
             ],
             SizedBox(height: compact ? 10 : 16),
             Text(
-              'SETS',
+              'SET LEDGER',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                 letterSpacing: 1.4,
                 fontWeight: FontWeight.w800,
               ),
             ),
             SizedBox(height: compact ? 4 : 8),
-            _SetLedgerHeader(unit: unit, trackingMode: exercise.trackingMode),
-            ...visibleSets.map(
-              (set) => ListTile(
-                dense: compact,
-                visualDensity: compact
-                    ? const VisualDensity(vertical: -3)
-                    : null,
-                minVerticalPadding: 0,
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  radius: compact ? 12 : 14,
-                  child: Text('${set.setOrder}'),
-                ),
-                title: Text(
-                  set.durationSeconds == null
-                      ? '${displayWeight(set.weightKg, unit)} × ${set.reps}'
-                      : _formatTimedDuration(set.durationSeconds),
-                  style: compact ? const TextStyle(fontSize: 17) : null,
-                ),
-                subtitle: set.isWarmup ? const Text('Warm-up set') : null,
-                trailing: set.pending
+            for (var index = 0; index < visibleSets.length; index += 1)
+              _SavedSetRow(
+                set: visibleSets[index],
+                unit: unit,
+                previous: visibleSets[index].isWarmup
                     ? null
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.check, color: Color(0xff3E745C)),
-                          IconButton(
-                            tooltip: 'Edit set',
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => _edit(set, unit),
-                          ),
-                        ],
+                    : _previousFor(
+                        visibleSets
+                            .take(index)
+                            .where((set) => !set.isWarmup)
+                            .length,
                       ),
+                deleting: _deletingSetId == visibleSets[index].id,
+                onEdit: () => _edit(visibleSets[index], unit),
+                onDelete: () => _delete(visibleSets[index]),
               ),
-            ),
             for (var index = 0; index < _drafts.length; index += 1)
               _SetDraftRow(
                 key: ValueKey(_drafts[index]),
-                number: _drafts[index].order + 1,
+                number: exercise.sets.length + index + 1,
                 draft: _drafts[index],
                 unit: unit,
                 trackingMode: exercise.trackingMode,
@@ -1176,14 +1339,30 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                     _drafts[index].duration.text = unit.formatValue(value);
                   }
                 }),
-                previous: _previousFor(_drafts[index].order),
+                previous: _drafts[index].isWarmup
+                    ? null
+                    : _previousFor(
+                        _workingSetCount(exercise) +
+                            _drafts
+                                .take(index)
+                                .where((draft) => !draft.isWarmup)
+                                .length,
+                      ),
                 isSubmitting: identical(_savingDraft, _drafts[index]),
                 disabled: _savingDraft != null,
+                onWarmupChanged: (value) =>
+                    setState(() => _drafts[index].isWarmup = value),
                 onLog: () => _add(index),
               ),
             if (_error != null) ...[
               const SizedBox(height: 8),
-              Text(_error!, style: const TextStyle(color: Color(0xffA33B36))),
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
             ],
             Align(
               alignment: Alignment.centerLeft,
@@ -1196,7 +1375,6 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                     : () => setState(
                         () => _drafts.add(
                           _SetDraft(
-                            _nextDraftOrder++,
                             targetDurationSeconds:
                                 exercise.targetDurationSeconds,
                           ),
@@ -1215,7 +1393,12 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   Future<void> _add(int index) async {
     if (_savingDraft != null) return;
     final draft = _drafts[index];
-    final previous = _previousFor(draft.order);
+    final previous = draft.isWarmup
+        ? null
+        : _previousFor(
+            _workingSetCount(widget.exercise) +
+                _drafts.take(index).where((row) => !row.isWarmup).length,
+          );
     final timed = widget.exercise.trackingMode == ExerciseTrackingMode.timed;
     final durationValue = double.tryParse(draft.duration.text.trim());
     final duration = timed
@@ -1256,7 +1439,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
             widget.exercise,
             timed ? 0 : toKg(weight!, unit),
             timed ? 1 : reps!,
-            isWarmup: false,
+            isWarmup: draft.isWarmup,
             durationSeconds: duration,
           );
       // Rest-timer persistence is secondary to logging the set. It must not
@@ -1264,7 +1447,16 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
       unawaited(
         ref
             .read(activeSessionProvider.notifier)
-            .setRest(DateTime.now().toUtc().add(const Duration(seconds: 60))),
+            .setRest(DateTime.now().toUtc().add(const Duration(seconds: 60)))
+            .catchError((Object error) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Set saved. Rest timer could not be saved.'),
+                  ),
+                );
+              }
+            }),
       );
       if (submission.queued && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1303,45 +1495,89 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
   }
 
   PreviousPerformance? _previousFor(int zeroBasedOrder) {
-    final previous = widget.exercise.previousPerformances;
+    final timed = widget.exercise.trackingMode == ExerciseTrackingMode.timed;
+    final previous = widget.exercise.previousPerformances
+        .where((row) => (row.durationSeconds != null) == timed)
+        .toList();
     if (zeroBasedOrder >= 0 && zeroBasedOrder < previous.length) {
       return previous[zeroBasedOrder];
     }
-    return widget.exercise.previousPerformance;
+    final fallback = widget.exercise.previousPerformance;
+    return fallback != null && (fallback.durationSeconds != null) == timed
+        ? fallback
+        : null;
   }
 
   Future<void> _edit(LoggedSet set, WeightUnit unit) async {
-    final values =
-        await showModalBottomSheet<
-          ({double weight, int reps, int? durationSeconds})
-        >(
-          context: context,
-          useSafeArea: true,
-          isScrollControlled: true,
-          builder: (_) => _EditSetSheet(set: set, unit: unit),
-        );
-    if (values == null || !mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (_) => _EditSetSheet(
+        set: set,
+        unit: unit,
+        onSave: (values) => ref
+            .read(activeSessionProvider.notifier)
+            .updateSet(
+              set.id,
+              toKg(values.weight, unit),
+              values.reps,
+              isWarmup: values.isWarmup,
+              durationSeconds: values.durationSeconds,
+            ),
+      ),
+    );
+  }
+
+  Future<void> _delete(LoggedSet set) async {
+    if (set.pending || _deletingSetId != null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text('Delete set ${set.setOrder}?'),
+        content: const Text(
+          'This logged set will be removed from the workout.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Keep set'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Delete set'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _deletingSetId = set.id;
+      _error = null;
+    });
     try {
-      await ref
-          .read(activeSessionProvider.notifier)
-          .updateSet(
-            set.id,
-            toKg(values.weight, unit),
-            values.reps,
-            isWarmup: set.isWarmup,
-            durationSeconds: values.durationSeconds,
-          );
+      await ref.read(activeSessionProvider.notifier).deleteSet(set.id);
     } on AppFailure catch (error) {
       if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _deletingSetId = null);
     }
   }
 }
 
 class _EditSetSheet extends StatefulWidget {
-  const _EditSetSheet({required this.set, required this.unit});
+  const _EditSetSheet({
+    required this.set,
+    required this.unit,
+    required this.onSave,
+  });
 
   final LoggedSet set;
   final WeightUnit unit;
+  final Future<void> Function(
+    ({double weight, int reps, int? durationSeconds, bool isWarmup}) values,
+  )
+  onSave;
 
   @override
   State<_EditSetSheet> createState() => _EditSetSheetState();
@@ -1352,6 +1588,8 @@ class _EditSetSheetState extends State<_EditSetSheet> {
   late final TextEditingController _reps;
   late final TextEditingController _duration;
   late TimedDurationUnit _durationUnit;
+  late bool _isWarmup;
+  bool _saving = false;
   String? _error;
 
   @override
@@ -1363,6 +1601,7 @@ class _EditSetSheetState extends State<_EditSetSheet> {
     _weight = TextEditingController(text: value.toStringAsFixed(1));
     _reps = TextEditingController(text: '${widget.set.reps}');
     _durationUnit = TimedDurationUnit.forSeconds(widget.set.durationSeconds);
+    _isWarmup = widget.set.isWarmup;
     final durationValue = widget.set.durationSeconds == null
         ? null
         : _durationUnit.fromSeconds(widget.set.durationSeconds!);
@@ -1381,7 +1620,8 @@ class _EditSetSheetState extends State<_EditSetSheet> {
     super.dispose();
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_saving) return;
     final timed = widget.set.durationSeconds != null;
     final durationValue = double.tryParse(_duration.text);
     final duration = durationValue == null
@@ -1401,9 +1641,23 @@ class _EditSetSheetState extends State<_EditSetSheet> {
       setState(() => _error = 'Enter at least 1 rep.');
       return;
     }
-    Navigator.of(
-      context,
-    ).pop((weight: weight, reps: reps, durationSeconds: duration));
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave((
+        weight: weight,
+        reps: reps,
+        durationSeconds: duration,
+        isWarmup: _isWarmup,
+      ));
+      if (mounted) Navigator.of(context).pop();
+    } on AppFailure catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -1420,6 +1674,22 @@ class _EditSetSheetState extends State<_EditSetSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Edit set ${widget.set.setOrder}',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+              ),
+              IconButton(
+                tooltip: 'Close set editor',
+                onPressed: _saving ? null : () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           if (widget.set.durationSeconds != null)
             Row(
               children: [
@@ -1471,49 +1741,47 @@ class _EditSetSheetState extends State<_EditSetSheet> {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    'Edit set ${widget.set.setOrder}',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                  child: TextField(
+                    controller: _weight,
+                    autofocus: true,
+                    textInputAction: TextInputAction.next,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Weight ($unitLabel)',
+                    ),
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Close set editor',
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _reps,
+                    textInputAction: TextInputAction.done,
+                    keyboardType: TextInputType.number,
+                    onSubmitted: (_) => _save(),
+                    decoration: const InputDecoration(labelText: 'Reps'),
+                  ),
                 ),
               ],
             ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _weight,
-                  autofocus: true,
-                  textInputAction: TextInputAction.next,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: InputDecoration(labelText: 'Weight ($unitLabel)'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: _reps,
-                  textInputAction: TextInputAction.done,
-                  keyboardType: TextInputType.number,
-                  onSubmitted: (_) => _save(),
-                  decoration: const InputDecoration(labelText: 'Reps'),
-                ),
-              ),
-            ],
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Warm-up set'),
+            subtitle: const Text('Excluded from working-set progress'),
+            value: _isWarmup,
+            onChanged: _saving
+                ? null
+                : (value) => setState(() => _isWarmup = value),
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            Semantics(
+              liveRegion: true,
+              child: Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ),
           ],
           const SizedBox(height: 18),
@@ -1521,11 +1789,14 @@ class _EditSetSheetState extends State<_EditSetSheet> {
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: _saving ? null : () => Navigator.of(context).pop(),
                 child: const Text('Cancel'),
               ),
               const SizedBox(width: 8),
-              ElevatedButton(onPressed: _save, child: const Text('Save')),
+              ElevatedButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? 'Saving…' : 'Save changes'),
+              ),
             ],
           ),
         ],
@@ -1724,9 +1995,9 @@ class _ConfettiBurstPainter extends CustomPainter {
 }
 
 class _SetDraft {
-  _SetDraft(this.order, {int? targetDurationSeconds})
+  _SetDraft({int? targetDurationSeconds})
     : durationUnit = TimedDurationUnit.forSeconds(targetDurationSeconds);
-  final int order;
+  bool isWarmup = false;
   TimedDurationUnit durationUnit;
   final weight = TextEditingController();
   final reps = TextEditingController();
@@ -1744,39 +2015,110 @@ class _SetDraft {
   }
 }
 
-class _SetLedgerHeader extends StatelessWidget {
-  const _SetLedgerHeader({required this.unit, required this.trackingMode});
+class _SavedSetRow extends StatelessWidget {
+  const _SavedSetRow({
+    required this.set,
+    required this.unit,
+    required this.previous,
+    required this.deleting,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final LoggedSet set;
   final WeightUnit unit;
-  final ExerciseTrackingMode trackingMode;
+  final PreviousPerformance? previous;
+  final bool deleting;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final compact = MediaQuery.sizeOf(context).width < 600;
-    if (compact) {
-      return const SizedBox.shrink();
-    }
+    final value = set.durationSeconds == null
+        ? '${displayWeight(set.weightKg, unit)} × ${set.reps}'
+        : _formatTimedDuration(set.durationSeconds);
+    final status = deleting
+        ? 'Deleting…'
+        : set.pending
+        ? 'Pending sync'
+        : 'Saved';
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 240) {
-          return const SizedBox.shrink();
-        }
+        final narrow = constraints.maxWidth < 270;
+        final statusWidget = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              set.pending ? Icons.cloud_upload_outlined : Icons.check_circle,
+              size: 18,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(status, style: Theme.of(context).textTheme.bodySmall),
+            ),
+          ],
+        );
+        final controls = <Widget>[
+          if (!set.pending) ...[
+            IconButton(
+              tooltip: 'Edit set ${set.setOrder}',
+              onPressed: deleting ? null : onEdit,
+              icon: const Icon(Icons.edit_outlined, size: 19),
+            ),
+            IconButton(
+              tooltip: 'Delete set ${set.setOrder}',
+              onPressed: deleting ? null : onDelete,
+              icon: const Icon(Icons.delete_outline, size: 19),
+            ),
+          ],
+        ];
         return Padding(
-          padding: EdgeInsets.only(left: 48, right: 84),
-          child: Row(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: Text(
-                  trackingMode == ExerciseTrackingMode.timed
-                      ? 'DURATION'
-                      : 'WEIGHT (${unit.name.toUpperCase()})',
-                ),
+              Row(
+                children: [
+                  SizedBox(
+                    width: narrow ? 28 : 38,
+                    child: Text(
+                      set.setOrder.toString().padLeft(2, '0'),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '$value${set.isWarmup ? '  ·  Warm-up' : ''}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  if (!narrow) statusWidget,
+                ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  trackingMode == ExerciseTrackingMode.timed ? '' : 'REPS',
-                ),
+              if (narrow)
+                Align(alignment: Alignment.centerLeft, child: statusWidget),
+              Row(
+                children: [
+                  if (!narrow) const SizedBox(width: 38),
+                  Expanded(
+                    child: Text(
+                      'Previous ${set.isWarmup ? '—' : _performanceLabel(previous, unit)}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  if (!narrow) ...controls,
+                ],
               ),
+              if (narrow && controls.isNotEmpty)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: controls,
+                  ),
+                ),
+              const Divider(height: 8),
             ],
           ),
         );
@@ -1797,6 +2139,7 @@ class _SetDraftRow extends StatelessWidget {
     required this.previous,
     required this.isSubmitting,
     required this.disabled,
+    required this.onWarmupChanged,
     required this.onLog,
   });
   final int number;
@@ -1808,6 +2151,7 @@ class _SetDraftRow extends StatelessWidget {
   final PreviousPerformance? previous;
   final bool isSubmitting;
   final bool disabled;
+  final ValueChanged<bool> onWarmupChanged;
   final VoidCallback onLog;
 
   String? get _weightPlaceholder => previous == null
@@ -1907,53 +2251,82 @@ class _SetDraftRow extends StatelessWidget {
       ),
     );
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: compact ? 2 : 6),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final numberLabel = Text(
-            number.toString().padLeft(2, '0'),
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          );
-          if (constraints.maxWidth < 240) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    SizedBox(width: 28, child: numberLabel),
-                    Expanded(
-                      child: trackingMode == ExerciseTrackingMode.timed
-                          ? durationInput()
-                          : weightInput(),
-                    ),
-                  ],
-                ),
-                if (trackingMode == ExerciseTrackingMode.reps)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 28),
-                    child: repsInput(),
-                  ),
-                Align(alignment: Alignment.centerRight, child: logButton),
-              ],
-            );
-          }
-          return Row(
+      padding: EdgeInsets.symmetric(vertical: compact ? 6 : 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
             children: [
-              SizedBox(width: compact ? 40 : 48, child: numberLabel),
               Expanded(
-                child: trackingMode == ExerciseTrackingMode.timed
-                    ? durationInput()
-                    : weightInput(),
+                child: Text(
+                  'SET ${number.toString().padLeft(2, '0')}  ·  PREVIOUS ${draft.isWarmup ? 'Warm-up' : _performanceLabel(previous, unit)}',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
               ),
-              if (trackingMode == ExerciseTrackingMode.reps) ...[
-                SizedBox(width: compact ? 10 : 16),
-                Expanded(child: repsInput()),
-              ],
-              SizedBox(width: compact ? 8 : 12),
-              logButton,
+              if (isSubmitting) const Text('Saving…'),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: 4),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final numberLabel = Text(
+                number.toString().padLeft(2, '0'),
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              );
+              if (constraints.maxWidth < 240) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        SizedBox(width: 28, child: numberLabel),
+                        Expanded(
+                          child: trackingMode == ExerciseTrackingMode.timed
+                              ? durationInput()
+                              : weightInput(),
+                        ),
+                      ],
+                    ),
+                    if (trackingMode == ExerciseTrackingMode.reps)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 28),
+                        child: repsInput(),
+                      ),
+                    Align(alignment: Alignment.centerRight, child: logButton),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  SizedBox(width: compact ? 40 : 48, child: numberLabel),
+                  Expanded(
+                    child: trackingMode == ExerciseTrackingMode.timed
+                        ? durationInput()
+                        : weightInput(),
+                  ),
+                  if (trackingMode == ExerciseTrackingMode.reps) ...[
+                    SizedBox(width: compact ? 10 : 16),
+                    Expanded(child: repsInput()),
+                  ],
+                  SizedBox(width: compact ? 8 : 12),
+                  logButton,
+                ],
+              );
+            },
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilterChip(
+              label: const Text('Warm-up'),
+              selected: draft.isWarmup,
+              onSelected: disabled ? null : onWarmupChanged,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const Divider(height: 8),
+        ],
       ),
     );
   }
@@ -1961,6 +2334,14 @@ class _SetDraftRow extends StatelessWidget {
 
 String _number(double value) =>
     value.toStringAsFixed(value == value.roundToDouble() ? 0 : 1);
+
+String _performanceLabel(PreviousPerformance? performance, WeightUnit unit) {
+  if (performance == null) return '—';
+  if (performance.durationSeconds != null) {
+    return _formatTimedDuration(performance.durationSeconds);
+  }
+  return '${displayWeight(performance.weightKg, unit)} × ${performance.reps}';
+}
 
 String _formatTimedDuration(int? seconds) {
   if (seconds == null) return '—';
@@ -2252,7 +2633,12 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
         _open = false;
         _autoOpened = false;
       });
-      await ref.read(activeSessionProvider.notifier).setRest(null);
+      try {
+        await ref.read(activeSessionProvider.notifier).setRest(null);
+      } catch (_) {
+        _clearingExpired = false;
+        _showRestError();
+      }
       return;
     }
     setState(() {});
@@ -2380,10 +2766,7 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                         onPressed: deadline == null
                             ? null
                             : () async {
-                                await ref
-                                    .read(activeSessionProvider.notifier)
-                                    .setRest(null);
-                                if (mounted) {
+                                if (await _saveRest(null) && mounted) {
                                   setState(() {
                                     _open = false;
                                     _autoOpened = false;
@@ -2453,9 +2836,26 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
       _open = true;
       _autoOpened = false;
     });
-    await ref
-        .read(activeSessionProvider.notifier)
-        .setRest(DateTime.now().toUtc().add(Duration(seconds: seconds)));
+    await _saveRest(DateTime.now().toUtc().add(Duration(seconds: seconds)));
+  }
+
+  Future<bool> _saveRest(DateTime? deadline) async {
+    try {
+      await ref.read(activeSessionProvider.notifier).setRest(deadline);
+      return true;
+    } catch (_) {
+      _showRestError();
+      return false;
+    }
+  }
+
+  void _showRestError() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Rest timer could not be saved. Try again.'),
+      ),
+    );
   }
 
   Future<void> _custom() async {

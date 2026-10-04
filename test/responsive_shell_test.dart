@@ -31,11 +31,16 @@ void main() {
       );
       await tester.pumpAndSettle();
       final position = tester
-          .state<ScrollableState>(find.byType(Scrollable).first)
+          .state<ScrollableState>(
+            find.descendant(
+              of: find.byType(ListView),
+              matching: find.byType(Scrollable),
+            ),
+          )
           .position;
       await tester.sendEventToBinding(
         const PointerScrollEvent(
-          position: Offset(20, 450),
+          position: Offset(250, 450),
           scrollDelta: Offset(0, 120),
         ),
       );
@@ -76,14 +81,45 @@ void main() {
     await pumpShell(tester, 375);
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
-    for (final label in ['Home', 'Nutrition', 'Workout', 'More']) {
+    for (final label in [
+      'Workout',
+      'Today',
+      'Ranks',
+      'Nutrition',
+      'Friends',
+      'Profile',
+    ]) {
       expect(find.text(label), findsOneWidget);
     }
 
-    await tester.tap(find.text('More'));
+    await tester.tap(find.byTooltip('Open navigation'));
     await tester.pumpAndSettle();
     expect(find.text('Workout plans'), findsOneWidget);
-    expect(find.text('Sessions'), findsOneWidget);
+    expect(find.text('Workout history'), findsOneWidget);
+  });
+
+  testWidgets('375dp navigation remains usable at 200% text', (tester) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => MediaQuery(
+            data: const MediaQueryData(
+              size: Size(375, 812),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: const AppShell(title: 'Workout', child: SizedBox.expand()),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(child: MaterialApp.router(routerConfig: router)),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('secondary navigation exposes the full record inventory', (
@@ -98,7 +134,7 @@ void main() {
       'Workout',
       'Exercise library',
       'Nutrition',
-      'Progress',
+      'Progress photos',
       'Fasting',
       'Settings',
     ]) {
@@ -117,19 +153,68 @@ void main() {
     expect(find.byType(NavigationBar), findsNothing);
   });
 
-  testWidgets('1440dp uses the full desktop header navigation', (tester) async {
+  testWidgets('primary destinations navigate and return to Today', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final paths = <String>[
+      '/session',
+      '/dashboard',
+      '/ranks',
+      '/nutrition',
+      '/friends',
+      '/profile',
+    ];
+    final router = GoRouter(
+      initialLocation: '/dashboard',
+      routes: [
+        for (final path in paths)
+          GoRoute(
+            path: path,
+            builder: (_, _) => MediaQuery(
+              data: const MediaQueryData(size: Size(390, 844)),
+              child: AppShell(
+                title: path,
+                child: Center(child: Text('Current $path')),
+              ),
+            ),
+          ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(child: MaterialApp.router(routerConfig: router)),
+    );
+    await tester.pumpAndSettle();
+
+    for (final (label, path) in [
+      ('Workout', '/session'),
+      ('Ranks', '/ranks'),
+      ('Nutrition', '/nutrition'),
+      ('Friends', '/friends'),
+      ('Profile', '/profile'),
+    ]) {
+      await tester.tap(find.widgetWithText(NavigationDestination, label));
+      await tester.pumpAndSettle();
+      expect(find.text('Current $path'), findsOneWidget);
+    }
+    await tester.tap(find.widgetWithText(NavigationDestination, 'Today'));
+    await tester.pumpAndSettle();
+    expect(find.text('Current /dashboard'), findsOneWidget);
+  });
+
+  testWidgets('1440dp uses the desktop sidebar navigation', (tester) async {
     await pumpShell(tester, 1440);
     expect(find.text('TRANSMUTE'), findsOneWidget);
     for (final label in [
-      'Dashboard',
-      'Workout Plans',
       'Workout',
-      'Sessions',
-      'Exercise library',
+      'Today',
+      'Ranks',
       'Nutrition',
-      'Progress',
-      'Fasting',
-      'Settings',
+      'Friends',
+      'Profile',
+      'More destinations',
     ]) {
       expect(find.text(label), findsOneWidget);
     }

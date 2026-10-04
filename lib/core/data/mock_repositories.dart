@@ -296,6 +296,7 @@ class MockStore {
   late List<FriendRequest> incomingFriends;
   late List<FriendRequest> outgoingFriends;
   late List<FriendActivity> friendActivity;
+  final List<RoutineShare> routineShares = [];
   UserPreferences preferences = const UserPreferences(
     weightUnit: WeightUnit.lb,
     activePlanId: 'upper-a',
@@ -1544,6 +1545,11 @@ class MockPlanRepository implements PlanRepository {
         'plan_active',
         'Finish or discard the active workout before deleting its plan.',
       );
+    if (_store.completed.any((session) => session.planId == planId))
+      throw const AppFailure(
+        'plan_has_history',
+        'This folder has workout history and cannot be deleted. Rename it to keep that history intact.',
+      );
     final before = _store.plans.length;
     _store.plans.removeWhere((plan) => plan.id == planId);
     if (before == _store.plans.length)
@@ -1617,10 +1623,15 @@ class MockPlanRepository implements PlanRepository {
   @override
   Future<void> deleteDay(String planId, String dayId) async {
     final plan = _requirePlan(planId);
-    if (plan.days.length == 1)
+    if (_store.active?.planDayId == dayId)
       throw const AppFailure(
-        'last_day',
-        'A plan must keep at least one training day.',
+        'day_active',
+        'Finish or discard the active workout before deleting this routine.',
+      );
+    if (_store.completed.any((session) => session.planDayId == dayId))
+      throw const AppFailure(
+        'day_has_history',
+        'This routine has workout history and cannot be deleted. Rename it to keep that history intact.',
       );
     final days = plan.days.where((day) => day.id != dayId).toList();
     if (days.length == plan.days.length)
@@ -1645,6 +1656,43 @@ class MockPlanRepository implements PlanRepository {
         ],
       ),
     );
+  }
+
+  @override
+  Future<WorkoutPlanDay> reorderDay(
+    String planId,
+    String dayId,
+    ReorderDirection direction,
+  ) async {
+    final plan = _requirePlan(planId);
+    final days = [...plan.days]
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final from = days.indexWhere((day) => day.id == dayId);
+    if (from < 0)
+      throw const AppFailure('day_not_found', 'That routine is unavailable.');
+    final to = from + (direction == ReorderDirection.up ? -1 : 1);
+    if (to < 0 || to >= days.length) return days[from];
+    final moved = days.removeAt(from);
+    days.insert(to, moved);
+    final ordered = [
+      for (var index = 0; index < days.length; index++)
+        WorkoutPlanDay(
+          id: days[index].id,
+          name: days[index].name,
+          sortOrder: index,
+          exercises: days[index].exercises,
+        ),
+    ];
+    _replace(
+      WorkoutPlan(
+        id: plan.id,
+        name: plan.name,
+        description: plan.description,
+        updatedAt: DateTime.now().toUtc(),
+        days: ordered,
+      ),
+    );
+    return ordered.firstWhere((day) => day.id == dayId);
   }
 
   WorkoutPlanDay _day(WorkoutPlan plan, String id) =>
@@ -1750,6 +1798,54 @@ class MockPlanRepository implements PlanRepository {
         ],
       ),
     );
+  }
+
+  @override
+  Future<PlanExercise> reorderExerciseInDay(
+    String planId,
+    String dayId,
+    String planExerciseId,
+    ReorderDirection direction,
+  ) async {
+    final plan = _requirePlan(planId);
+    final day = _day(plan, dayId);
+    final entries = [...day.exercises]
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final from = entries.indexWhere((entry) => entry.id == planExerciseId);
+    if (from < 0)
+      throw const AppFailure(
+        'plan_exercise_not_found',
+        'That prescription is unavailable.',
+      );
+    final to = from + (direction == ReorderDirection.up ? -1 : 1);
+    if (to < 0 || to >= entries.length) return entries[from];
+    final moved = entries.removeAt(from);
+    entries.insert(to, moved);
+    final ordered = [
+      for (var index = 0; index < entries.length; index++)
+        PlanExercise(
+          id: entries[index].id,
+          exercise: entries[index].exercise,
+          sortOrder: index,
+          targetSets: entries[index].targetSets,
+          targetReps: entries[index].targetReps,
+          trackingMode: entries[index].trackingMode,
+          targetDurationSeconds: entries[index].targetDurationSeconds,
+          targetWeightKg: entries[index].targetWeightKg,
+          previousPerformance: entries[index].previousPerformance,
+        ),
+    ];
+    _writeDay(
+      plan,
+      dayId,
+      WorkoutPlanDay(
+        id: day.id,
+        name: day.name,
+        sortOrder: day.sortOrder,
+        exercises: ordered,
+      ),
+    );
+    return ordered.firstWhere((entry) => entry.id == planExerciseId);
   }
 
   @override
@@ -1973,6 +2069,199 @@ class MockPlanRepository implements PlanRepository {
         .take(50)
         .toList();
   }
+
+  RoutineShareSnapshot _shareSnapshot(WorkoutPlan plan, WorkoutPlanDay day) =>
+      RoutineShareSnapshot(
+        routineName: day.name,
+        folderName: plan.name,
+        ownerName: 'Demo Alchemist',
+        ownerUsername: 'demo',
+        exercises: day.exercises
+            .map(
+              (entry) => RoutineShareExercise(
+                exerciseId: entry.exercise.id,
+                name: entry.exercise.name,
+                category: entry.exercise.category,
+                muscleGroup: entry.exercise.muscleGroup,
+                targetSets: entry.targetSets,
+                targetReps: entry.targetReps,
+                trackingMode: entry.trackingMode,
+                targetDurationSeconds: entry.targetDurationSeconds,
+                targetWeightKg: entry.targetWeightKg,
+              ),
+            )
+            .toList(),
+      );
+
+  RoutineShare _shareWithStatus(RoutineShare share) {
+    if (share.status != RoutineShareStatus.active ||
+        !share.expiresAt.isBefore(DateTime.now().toUtc())) {
+      return share;
+    }
+    return RoutineShare(
+      id: share.id,
+      token: share.token,
+      routineDayId: share.routineDayId,
+      status: RoutineShareStatus.expired,
+      createdAt: share.createdAt,
+      expiresAt: share.expiresAt,
+      snapshot: share.snapshot,
+    );
+  }
+
+  @override
+  Future<List<RoutineShare>> listRoutineShares(String routineDayId) async =>
+      _store.routineShares
+          .where((share) => share.routineDayId == routineDayId)
+          .map(_shareWithStatus)
+          .toList()
+        ..sort((left, right) => right.createdAt.compareTo(left.createdAt));
+
+  @override
+  Future<RoutineShare> createRoutineShare(String routineDayId) async {
+    final plan = _store.plans
+        .where(
+          (candidate) => candidate.days.any((day) => day.id == routineDayId),
+        )
+        .cast<WorkoutPlan?>()
+        .firstOrNull;
+    if (plan == null) {
+      throw const AppFailure(
+        'routine_not_found',
+        'That routine is unavailable.',
+      );
+    }
+    final day = _day(plan, routineDayId);
+    if (day.exercises.isEmpty) {
+      throw const AppFailure(
+        'routine_share_empty',
+        'Add at least one exercise before sharing this routine.',
+      );
+    }
+    final now = DateTime.now().toUtc();
+    final share = RoutineShare(
+      id: _store.next('routine-share'),
+      token: _store.next('share-token'),
+      routineDayId: day.id,
+      status: RoutineShareStatus.active,
+      createdAt: now,
+      expiresAt: now.add(const Duration(days: 30)),
+      snapshot: _shareSnapshot(plan, day),
+    );
+    _store.routineShares.add(share);
+    return share;
+  }
+
+  @override
+  Future<void> revokeRoutineShare(String token) async {
+    final index = _store.routineShares.indexWhere(
+      (share) => share.token == token,
+    );
+    if (index < 0) {
+      throw const AppFailure(
+        'routine_share_not_found',
+        'That routine link is unavailable.',
+      );
+    }
+    final share = _store.routineShares[index];
+    _store.routineShares[index] = RoutineShare(
+      id: share.id,
+      token: share.token,
+      routineDayId: share.routineDayId,
+      status: RoutineShareStatus.revoked,
+      createdAt: share.createdAt,
+      expiresAt: share.expiresAt,
+      snapshot: share.snapshot,
+    );
+  }
+
+  @override
+  Future<RoutineShareSnapshot> getRoutineShare(String token) async {
+    final share = _store.routineShares
+        .where((candidate) => candidate.token == token)
+        .cast<RoutineShare?>()
+        .firstOrNull;
+    if (share == null) {
+      throw const AppFailure(
+        'routine_share_not_found',
+        'This routine link is unavailable.',
+      );
+    }
+    final current = _shareWithStatus(share);
+    if (current.status == RoutineShareStatus.revoked) {
+      throw const AppFailure(
+        'routine_share_revoked',
+        'This routine link was revoked by its owner.',
+      );
+    }
+    if (current.status == RoutineShareStatus.expired) {
+      throw const AppFailure(
+        'routine_share_expired',
+        'This routine link has expired.',
+      );
+    }
+    return current.snapshot;
+  }
+
+  @override
+  Future<WorkoutPlanDay> importRoutineShare(
+    String token, {
+    required String planId,
+    String? name,
+  }) async {
+    final snapshot = await getRoutineShare(token);
+    final plan = _requirePlan(planId);
+    final routineName = name?.trim().isNotEmpty == true
+        ? name!.trim()
+        : snapshot.routineName;
+    if (routineName.length < 2 || routineName.length > 32) {
+      throw const AppFailure(
+        'invalid_day_name',
+        'Use 2–32 characters for the routine name.',
+      );
+    }
+    final exercises = <PlanExercise>[];
+    for (final entry in snapshot.exercises) {
+      final exercise = _store.catalog
+          .where((candidate) => candidate.id == entry.exerciseId)
+          .cast<Exercise?>()
+          .firstOrNull;
+      if (exercise == null) {
+        throw AppFailure(
+          'routine_share_exercise_unavailable',
+          '“${entry.name}” is no longer available to import.',
+        );
+      }
+      exercises.add(
+        PlanExercise(
+          id: _store.next('plan-exercise'),
+          exercise: exercise,
+          sortOrder: exercises.length,
+          targetSets: entry.targetSets,
+          targetReps: entry.targetReps,
+          trackingMode: entry.trackingMode,
+          targetDurationSeconds: entry.targetDurationSeconds,
+          targetWeightKg: entry.targetWeightKg,
+        ),
+      );
+    }
+    final day = WorkoutPlanDay(
+      id: _store.next('plan-day'),
+      name: routineName,
+      sortOrder: plan.days.length,
+      exercises: exercises,
+    );
+    _replace(
+      WorkoutPlan(
+        id: plan.id,
+        name: plan.name,
+        description: plan.description,
+        updatedAt: DateTime.now().toUtc(),
+        days: [...plan.days, day],
+      ),
+    );
+    return day;
+  }
 }
 
 PersonalRecord? _mockPersonalRecord(
@@ -2000,6 +2289,180 @@ PersonalRecord? _mockPersonalRecord(
     currentWeightKg: currentWeightKg,
     previousReps: previousReps,
     previousWeightKg: previousWeightKg,
+  );
+}
+
+class MockExerciseRankRepository implements ExerciseRankRepository {
+  MockExerciseRankRepository(this._store);
+  final MockStore _store;
+
+  @override
+  Future<List<ExerciseRank>> listRanks({
+    String query = '',
+    ExerciseTrackingMode? mode,
+  }) async {
+    final normalized = query.trim().toLowerCase();
+    return _store.catalog
+        .where(
+          (exercise) =>
+              normalized.isEmpty ||
+              exercise.name.toLowerCase().contains(normalized),
+        )
+        .map((exercise) => _rankFor(exercise, mode))
+        .whereType<ExerciseRank>()
+        .toList()
+      ..sort((left, right) {
+        if (left.isRanked != right.isRanked) return left.isRanked ? -1 : 1;
+        return left.exercise.name.compareTo(right.exercise.name);
+      });
+  }
+
+  @override
+  Future<ExerciseRank> getRank(String exerciseId) async {
+    final exercise = _store.catalog
+        .where((item) => item.id == exerciseId)
+        .firstOrNull;
+    if (exercise == null)
+      throw const AppFailure('not_found', 'Exercise not found.');
+    return _rankFor(exercise, null)!;
+  }
+
+  @override
+  ExerciseRank preview({
+    required Exercise exercise,
+    required ExerciseTrackingMode mode,
+    required double value,
+    double? baselineValue,
+  }) => _preview(exercise, mode, value, baselineValue);
+
+  ExerciseRank? _rankFor(
+    Exercise exercise,
+    ExerciseTrackingMode? requestedMode,
+  ) {
+    final samples =
+        <({WorkoutSession session, SessionExercise row, LoggedSet set})>[];
+    for (final session in _store.completed) {
+      if (session.workingSetCount < 3) continue;
+      for (final row in session.exercises.where(
+        (row) => row.exerciseId == exercise.id,
+      )) {
+        for (final set in row.sets.where((set) => !set.isWarmup)) {
+          final mode = set.durationSeconds == null
+              ? ExerciseTrackingMode.reps
+              : ExerciseTrackingMode.timed;
+          if (requestedMode == null || requestedMode == mode)
+            samples.add((session: session, row: row, set: set));
+        }
+      }
+    }
+    if (samples.isEmpty) return ExerciseRank(exercise: exercise);
+    final mode = samples.first.set.durationSeconds == null
+        ? ExerciseTrackingMode.reps
+        : ExerciseTrackingMode.timed;
+    final metric = mode == ExerciseTrackingMode.timed
+        ? ExerciseRankMetric.maxDurationSeconds
+        : samples.any((item) => item.set.weightKg > 0)
+        ? ExerciseRankMetric.estimatedOneRepMaxKg
+        : ExerciseRankMetric.maxReps;
+    double valueOf(LoggedSet set) => switch (metric) {
+      ExerciseRankMetric.maxDurationSeconds => set.durationSeconds!.toDouble(),
+      ExerciseRankMetric.estimatedOneRepMaxKg =>
+        set.weightKg * (1 + (set.reps.clamp(1, 12)) / 30),
+      ExerciseRankMetric.maxReps => set.reps.toDouble(),
+    };
+    final perSession =
+        <String, ({DateTime date, double value, String setId})>{};
+    for (final item in samples) {
+      if (metric == ExerciseRankMetric.estimatedOneRepMaxKg &&
+          item.set.weightKg <= 0)
+        continue;
+      if (metric == ExerciseRankMetric.maxReps && item.set.weightKg > 0)
+        continue;
+      final value = valueOf(item.set);
+      final prior = perSession[item.session.id];
+      if (prior == null || value > prior.value)
+        perSession[item.session.id] = (
+          date: item.session.completedAt!,
+          value: value,
+          setId: item.set.id,
+        );
+    }
+    final ordered = perSession.entries.toList()
+      ..sort((left, right) => left.value.date.compareTo(right.value.date));
+    final dates = <String>{};
+    final foundations = <double>[];
+    for (final item in ordered) {
+      final date = item.value.date.toIso8601String().substring(0, 10);
+      if (dates.add(date)) foundations.add(item.value.value);
+      if (foundations.length == 2) break;
+    }
+    final best = perSession.values.fold(
+      0.0,
+      (best, item) => item.value > best ? item.value : best,
+    );
+    final baseline = foundations.length == 2
+        ? foundations.reduce((a, b) => a > b ? a : b)
+        : null;
+    final preview = _preview(exercise, mode, best, baseline);
+    return ExerciseRank(
+      exercise: preview.exercise,
+      trackingMode: mode,
+      metric: metric,
+      baselineValue: preview.baselineValue,
+      bestValue: best,
+      tier: preview.tier,
+      progressPoints: preview.progressPoints,
+      nextThreshold: preview.nextThreshold,
+      ruleVersion: 1,
+      evidence: ordered
+          .map(
+            (item) => ExerciseRankEvidence(
+              sessionId: item.key,
+              completedAt: item.value.date,
+              value: item.value.value,
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+ExerciseRank _preview(
+  Exercise exercise,
+  ExerciseTrackingMode mode,
+  double value,
+  double? baseline,
+) {
+  final reference = baseline ?? value;
+  final ratio = value / reference;
+  const levels = <(ExerciseRankTier, double, double?)>[
+    (ExerciseRankTier.bronze, 1, 1.05),
+    (ExerciseRankTier.silver, 1.05, 1.15),
+    (ExerciseRankTier.gold, 1.15, 1.30),
+    (ExerciseRankTier.platinum, 1.30, 1.50),
+    (ExerciseRankTier.transmuted, 1.50, null),
+  ];
+  final level = levels.reversed.firstWhere((item) => ratio >= item.$2);
+  final points = level.$3 == null
+      ? 100
+      : (100 * (ratio - level.$2) / (level.$3! - level.$2)).floor().clamp(
+          0,
+          99,
+        );
+  return ExerciseRank(
+    exercise: exercise,
+    trackingMode: mode,
+    metric: mode == ExerciseTrackingMode.timed
+        ? ExerciseRankMetric.maxDurationSeconds
+        : ExerciseRankMetric.estimatedOneRepMaxKg,
+    baselineValue: baseline,
+    bestValue: value,
+    tier: baseline == null ? null : level.$1,
+    progressPoints: baseline == null ? null : points,
+    nextThreshold: baseline == null || level.$3 == null
+        ? null
+        : baseline * level.$3!,
+    ruleVersion: 1,
   );
 }
 
@@ -2034,10 +2497,11 @@ class MockQuickAddRepository implements QuickAddRepository {
       0,
       WorkoutSession(
         id: sessionId,
-        planId: 'quick-add',
+        planId: null,
         planName: 'Quick Add',
-        planDayId: 'quick-add',
+        planDayId: null,
         planDayName: 'Quick Add',
+        origin: WorkoutSessionOrigin.quickAdd,
         status: SessionStatus.completed,
         startedAt: startedAt,
         completedAt: now,
@@ -2124,6 +2588,40 @@ class MockSessionRepository implements SessionRepository {
           'That training day is unavailable.',
         ));
     final now = DateTime.now().toUtc();
+    List<PreviousPerformance> previousFor(PlanExercise prescription) {
+      final completed = [..._store.completed]
+        ..sort((left, right) => right.startedAt.compareTo(left.startedAt));
+      final timed = prescription.trackingMode == ExerciseTrackingMode.timed;
+      for (final session in completed) {
+        final prior = session.exercises
+            .where(
+              (exercise) => exercise.exerciseId == prescription.exercise.id,
+            )
+            .firstOrNull;
+        if (prior == null) continue;
+        final comparable = prior.sets
+            .where(
+              (set) => !set.isWarmup && (set.durationSeconds != null) == timed,
+            )
+            .toList();
+        if (comparable.isEmpty) continue;
+        return [
+          for (var index = 0; index < comparable.length; index += 1)
+            PreviousPerformance(
+              sessionId: session.id,
+              completedAt: session.completedAt ?? session.startedAt,
+              weightKg: comparable[index].weightKg,
+              reps: comparable[index].reps,
+              durationSeconds: comparable[index].durationSeconds,
+              setOrder: index + 1,
+            ),
+        ];
+      }
+      return timed || prescription.previousPerformance == null
+          ? const []
+          : [prescription.previousPerformance!];
+    }
+
     _store.active = WorkoutSession(
       id: _store.next('session'),
       planId: plan.id,
@@ -2133,31 +2631,52 @@ class MockSessionRepository implements SessionRepository {
       status: SessionStatus.active,
       startedAt: now,
       updatedAt: now,
-      exercises: day.exercises
-          .map(
-            (row) => SessionExercise(
-              id: _store.next('session-exercise'),
-              exerciseId: row.exercise.id,
-              name: row.exercise.name,
-              muscleGroup: row.exercise.muscleGroup,
-              demoUrl: row.exercise.demoUrl,
-              demoSourceName: row.exercise.demoSourceName,
-              sortOrder: row.sortOrder,
-              targetSets: row.targetSets,
-              targetReps: row.targetReps,
-              trackingMode: row.trackingMode,
-              targetDurationSeconds: row.targetDurationSeconds,
-              targetWeightKg: row.targetWeightKg,
-              previousPerformance: row.previousPerformance,
-              previousPerformances: row.previousPerformance == null
-                  ? const []
-                  : [row.previousPerformance!],
-              sets: const [],
-            ),
-          )
-          .toList(),
+      exercises: day.exercises.map((row) {
+        final previous = previousFor(row);
+        return SessionExercise(
+          id: _store.next('session-exercise'),
+          exerciseId: row.exercise.id,
+          name: row.exercise.name,
+          muscleGroup: row.exercise.muscleGroup,
+          demoUrl: row.exercise.demoUrl,
+          demoSourceName: row.exercise.demoSourceName,
+          sortOrder: row.sortOrder,
+          targetSets: row.targetSets,
+          targetReps: row.targetReps,
+          trackingMode: row.trackingMode,
+          targetDurationSeconds: row.targetDurationSeconds,
+          targetWeightKg: row.targetWeightKg,
+          previousPerformance: previous.lastOrNull,
+          previousPerformances: previous,
+          sets: const [],
+        );
+      }).toList(),
     );
     return _store.active!;
+  }
+
+  @override
+  Future<WorkoutSession> startFreeformSession() async {
+    if (_store.active != null) {
+      throw AppFailure(
+        'active_session_exists',
+        'Resume your existing workout.',
+        activeSessionId: _store.active!.id,
+      );
+    }
+    final now = DateTime.now().toUtc();
+    return _store.active = WorkoutSession(
+      id: _store.next('session'),
+      planId: null,
+      planName: 'Empty Workout',
+      planDayId: null,
+      planDayName: 'Freeform',
+      origin: WorkoutSessionOrigin.freeform,
+      status: SessionStatus.active,
+      startedAt: now,
+      updatedAt: now,
+      exercises: const [],
+    );
   }
 
   @override
@@ -2184,6 +2703,37 @@ class MockSessionRepository implements SessionRepository {
     final exercise = _store.catalog
         .where((item) => item.id == exerciseId)
         .first;
+    final previousSession =
+        ([
+              ..._store.completed,
+            ]..sort((left, right) => right.startedAt.compareTo(left.startedAt)))
+            .where(
+              (done) => done.exercises.any(
+                (row) =>
+                    row.exerciseId == exerciseId &&
+                    row.sets.any(
+                      (set) => !set.isWarmup && set.durationSeconds == null,
+                    ),
+              ),
+            )
+            .firstOrNull;
+    final priorSets =
+        previousSession?.exercises
+            .firstWhere((row) => row.exerciseId == exerciseId)
+            .sets
+            .where((set) => !set.isWarmup && set.durationSeconds == null)
+            .toList() ??
+        const <LoggedSet>[];
+    final previous = [
+      for (var index = 0; index < priorSets.length; index += 1)
+        PreviousPerformance(
+          sessionId: previousSession!.id,
+          completedAt: previousSession.completedAt ?? previousSession.startedAt,
+          weightKg: priorSets[index].weightKg,
+          reps: priorSets[index].reps,
+          setOrder: index + 1,
+        ),
+    ];
     final row = SessionExercise(
       id: _store.next('session-exercise'),
       exerciseId: exercise.id,
@@ -2194,6 +2744,8 @@ class MockSessionRepository implements SessionRepository {
       sortOrder: session.exercises.length,
       targetSets: 3,
       targetReps: 10,
+      previousPerformance: previous.lastOrNull,
+      previousPerformances: previous,
       sets: const [],
     );
     _store.active = session.copyWith(

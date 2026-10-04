@@ -297,16 +297,18 @@ class ApiPlanRepository implements PlanRepository {
 
   @override
   Future<WorkoutPlan> createPlan(String name, {String? description}) async {
-    await _request(
+    final body = await _request(
       () => _dio.post<Map<String, dynamic>>(
         '/v1/plans',
         data: {
           'name': name,
           if (description?.isNotEmpty == true) 'description': description,
+          'empty': true,
         },
       ),
     );
-    return (await listPlans()).first;
+    final created = body.data!['plan'] as Map<String, dynamic>;
+    return getPlan(created['id'] as String);
   }
 
   @override
@@ -386,6 +388,21 @@ class ApiPlanRepository implements PlanRepository {
   }
 
   @override
+  Future<WorkoutPlanDay> reorderDay(
+    String planId,
+    String dayId,
+    ReorderDirection direction,
+  ) async {
+    await _request(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/plan-days/$dayId/reorder',
+        data: {'direction': direction.name},
+      ),
+    );
+    return (await getPlan(planId)).days.firstWhere((day) => day.id == dayId);
+  }
+
+  @override
   Future<PlanExercise> addExerciseToDay(
     String planId,
     String dayId,
@@ -411,6 +428,25 @@ class ApiPlanRepository implements PlanRepository {
     await _request(
       () => _dio.delete<void>('/v1/plan-day-exercises/$planExerciseId'),
     );
+  }
+
+  @override
+  Future<PlanExercise> reorderExerciseInDay(
+    String planId,
+    String dayId,
+    String planExerciseId,
+    ReorderDirection direction,
+  ) async {
+    await _request(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/plan-day-exercises/$planExerciseId/reorder',
+        data: {'direction': direction.name},
+      ),
+    );
+    return (await getPlan(planId)).days
+        .firstWhere((day) => day.id == dayId)
+        .exercises
+        .firstWhere((exercise) => exercise.id == planExerciseId);
   }
 
   @override
@@ -554,6 +590,66 @@ class ApiPlanRepository implements PlanRepository {
         )
         .toList();
   }
+
+  @override
+  Future<List<RoutineShare>> listRoutineShares(String routineDayId) async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>(
+        '/v1/routine-shares',
+        queryParameters: {'routineDayId': routineDayId},
+      ),
+    );
+    return (body.data!['shares'] as List<dynamic>)
+        .map((value) => _routineShare(value as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<RoutineShare> createRoutineShare(String routineDayId) async {
+    final body = await _request(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/routine-shares',
+        data: {'routineDayId': routineDayId},
+      ),
+    );
+    return _routineShare(body.data!['share'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> revokeRoutineShare(String token) =>
+      _request(() => _dio.delete<void>('/v1/routine-shares/$token'));
+
+  @override
+  Future<RoutineShareSnapshot> getRoutineShare(String token) async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/routine-shares/$token'),
+    );
+    return _routineShareSnapshot(body.data!['share'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<WorkoutPlanDay> importRoutineShare(
+    String token, {
+    required String planId,
+    String? name,
+  }) async {
+    final body = await _request(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/routine-shares/$token/import',
+        data: {
+          'routineId': planId,
+          if (name?.trim().isNotEmpty == true) 'name': name!.trim(),
+        },
+      ),
+    );
+    final day = body.data!['day'] as Map<String, dynamic>;
+    return WorkoutPlanDay(
+      id: day['id'] as String,
+      name: day['name'] as String,
+      sortOrder: day['sortOrder'] as int,
+      exercises: const [],
+    );
+  }
 }
 
 class ApiQuickAddRepository implements QuickAddRepository {
@@ -582,6 +678,47 @@ class ApiQuickAddRepository implements QuickAddRepository {
   }
 }
 
+class ApiExerciseRankRepository implements ExerciseRankRepository {
+  ApiExerciseRankRepository(this._dio);
+  final Dio _dio;
+
+  @override
+  Future<List<ExerciseRank>> listRanks({
+    String query = '',
+    ExerciseTrackingMode? mode,
+  }) async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>(
+        '/v1/exercise-ranks',
+        queryParameters: {
+          if (query.trim().isNotEmpty) 'q': query.trim(),
+          if (mode != null) 'mode': mode.name,
+          'limit': 100,
+        },
+      ),
+    );
+    return (body.data!['ranks'] as List<dynamic>)
+        .map((item) => _exerciseRank(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<ExerciseRank> getRank(String exerciseId) async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/exercise-ranks/$exerciseId'),
+    );
+    return _exerciseRank(body.data!['rank'] as Map<String, dynamic>);
+  }
+
+  @override
+  ExerciseRank preview({
+    required Exercise exercise,
+    required ExerciseTrackingMode mode,
+    required double value,
+    double? baselineValue,
+  }) => _rankPreview(exercise, mode, value, baselineValue);
+}
+
 class ApiSessionRepository implements SessionRepository {
   ApiSessionRepository(this._dio, this._restStore);
   final Dio _dio;
@@ -595,8 +732,8 @@ class ApiSessionRepository implements SessionRepository {
   )).data!;
   Future<WorkoutSession> _detail(
     String id, {
-    String planId = 'unknown',
-    String planDayId = 'unknown',
+    String? planId,
+    String? planDayId,
   }) async {
     final body = await _request(
       () => _dio.get<Map<String, dynamic>>('/v1/sessions/$id'),
@@ -621,7 +758,7 @@ class ApiSessionRepository implements SessionRepository {
         (record['dashboard'] as Map<String, dynamic>)['activeSession'];
     if (active == null) return null;
     final item = active as Map<String, dynamic>;
-    return _detail(item['id'] as String, planDayId: 'unknown');
+    return _detail(item['id'] as String);
   }
 
   @override
@@ -648,6 +785,15 @@ class ApiSessionRepository implements SessionRepository {
       planId: planId,
       planDayId: planDayId,
     );
+  }
+
+  @override
+  Future<WorkoutSession> startFreeformSession() async {
+    final body = await _request(
+      () => _dio.post<Map<String, dynamic>>('/v1/sessions/freeform'),
+    );
+    final session = body.data!['session'] as Map<String, dynamic>;
+    return _detail(session['id'] as String);
   }
 
   @override
@@ -802,12 +948,29 @@ class ApiSessionRepository implements SessionRepository {
 
   @override
   Future<WorkoutSession> complete(String id) async {
-    await _request(
+    final response = await _request(
       () => _dio.post<Map<String, dynamic>>('/v1/sessions/$id/complete'),
     );
     _rest.remove(id);
     await _restStore.write(id, null);
-    return _detail(id);
+    final updates =
+        ((response.data!['rankUpdates'] as List<dynamic>?) ?? const []).map((
+          item,
+        ) {
+          final value = item as Map<String, dynamic>;
+          return ExerciseRankUpdate(
+            exerciseId: value['exerciseId'] as String,
+            tier: switch (value['tier'] as String) {
+              'Bronze' => ExerciseRankTier.bronze,
+              'Silver' => ExerciseRankTier.silver,
+              'Gold' => ExerciseRankTier.gold,
+              'Platinum' => ExerciseRankTier.platinum,
+              _ => ExerciseRankTier.transmuted,
+            },
+            established: value['established'] as bool,
+          );
+        }).toList();
+    return (await _detail(id)).copyWith(rankUpdates: updates);
   }
 
   @override
@@ -909,6 +1072,7 @@ Future<Response<T>> _request<T>(Future<Response<T>> Function() request) async {
   } on DioException catch (error) {
     final data = error.response?.data;
     final rawError = data is Map ? data['error'] : null;
+    final serverCode = data is Map ? data['code'] : null;
     final message = rawError is String
         ? rawError
         : rawError is Map && rawError['message'] is String
@@ -922,16 +1086,25 @@ Future<Response<T>> _request<T>(Future<Response<T>> Function() request) async {
       DioExceptionType.receiveTimeout => true,
       _ => false,
     };
-    final code = switch (status) {
-      401 => 'unauthorized',
-      404 => 'not_found',
-      409 => 'conflict',
-      400 || 422 => 'validation_error',
-      int value when value >= 500 => 'server_error',
-      _ when network => 'network_error',
-      _ => 'request_failed',
-    };
-    throw AppFailure(code, message, retryable: network || (status ?? 0) >= 500);
+    final code = serverCode == 'active_session_exists'
+        ? 'active_session_exists'
+        : switch (status) {
+            401 => 'unauthorized',
+            404 => 'not_found',
+            409 => 'conflict',
+            400 || 422 => 'validation_error',
+            int value when value >= 500 => 'server_error',
+            _ when network => 'network_error',
+            _ => 'request_failed',
+          };
+    throw AppFailure(
+      code,
+      message,
+      retryable: network || (status ?? 0) >= 500,
+      activeSessionId: data is Map && data['activeSessionId'] is String
+          ? data['activeSessionId'] as String
+          : null,
+    );
   }
 }
 
@@ -1040,20 +1213,21 @@ List<WorkoutPlan> _plans(Map<String, dynamic> record, WeightUnit weightUnit) =>
                 trackingMode: ExerciseTrackingMode.values.byName(
                   (entry['trackingMode'] as String?) ?? 'reps',
                 ),
-                targetDurationSeconds: (entry['targetDurationSeconds'] as num?)?.toInt(),
+                targetDurationSeconds: (entry['targetDurationSeconds'] as num?)
+                    ?.toInt(),
                 targetWeightKg: entry['targetWeight'] == null
                     ? null
                     : toKg(_number(entry['targetWeight']), weightUnit),
               );
-            }).toList(),
+            }).toList()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)),
           );
-        }).toList(),
+        }).toList()..sort((a, b) => a.sortOrder.compareTo(b.sortOrder)),
       );
     }).toList();
 WorkoutSession _session(
   Map<String, dynamic> body, {
-  required String planId,
-  required String planDayId,
+  required String? planId,
+  required String? planDayId,
   DateTime? restEndsAt,
   required Map<String, String> setExercise,
   required WeightUnit weightUnit,
@@ -1075,6 +1249,7 @@ WorkoutSession _session(
             ),
             reps: row['reps'] as int,
             setOrder: (row['order'] as num?)?.toInt() ?? 1,
+            durationSeconds: (row['durationSeconds'] as num?)?.toInt(),
           ),
         );
   }
@@ -1089,10 +1264,21 @@ WorkoutSession _session(
   }
   return WorkoutSession(
     id: info['id'] as String,
-    planId: planId,
-    planName: (info['routineName'] as String?) ?? 'Quick Add',
-    planDayId: planDayId,
-    planDayName: (info['dayName'] as String?) ?? 'Quick Add',
+    origin: switch (info['origin'] as String?) {
+      'freeform' => WorkoutSessionOrigin.freeform,
+      'quick_add' => WorkoutSessionOrigin.quickAdd,
+      _ => WorkoutSessionOrigin.planDay,
+    },
+    planId: (info['routineId'] as String?) ?? planId,
+    planName:
+        (info['routineName'] as String?) ??
+        ((info['origin'] as String?) == 'freeform'
+            ? 'Empty Workout'
+            : 'Quick Add'),
+    planDayId: (info['routineDayId'] as String?) ?? planDayId,
+    planDayName:
+        (info['dayName'] as String?) ??
+        ((info['origin'] as String?) == 'freeform' ? 'Freeform' : 'Quick Add'),
     status: SessionStatus.values.byName(info['status'] as String),
     startedAt: DateTime.parse(info['startedAt'] as String),
     completedAt: info['endedAt'] == null
@@ -1828,6 +2014,92 @@ GoalAssessment _assessment(Map<String, dynamic> map) => GoalAssessment(
   decision: map['decision'] as String?,
 );
 
+ExerciseRank _exerciseRank(Map<String, dynamic> map) {
+  final tracking = map['trackingMode'] as String?;
+  final metric = map['metric'] as String?;
+  return ExerciseRank(
+    exercise: Exercise(
+      id: map['exerciseId'] as String,
+      name: map['exerciseName'] as String,
+      category: map['category'] as String,
+      muscleGroup: map['muscleGroup'] as String?,
+    ),
+    trackingMode: tracking == null
+        ? null
+        : ExerciseTrackingMode.values.byName(tracking),
+    metric: switch (metric) {
+      'estimated_1rm_kg' => ExerciseRankMetric.estimatedOneRepMaxKg,
+      'max_reps' => ExerciseRankMetric.maxReps,
+      'max_duration_seconds' => ExerciseRankMetric.maxDurationSeconds,
+      _ => null,
+    },
+    baselineValue: (map['baselineValue'] as num?)?.toDouble(),
+    bestValue: (map['bestValue'] as num?)?.toDouble(),
+    tier: switch (map['tier'] as String?) {
+      'Bronze' => ExerciseRankTier.bronze,
+      'Silver' => ExerciseRankTier.silver,
+      'Gold' => ExerciseRankTier.gold,
+      'Platinum' => ExerciseRankTier.platinum,
+      'Transmuted' => ExerciseRankTier.transmuted,
+      _ => null,
+    },
+    subdivision: map['subdivision'] as int?,
+    progressPoints: map['progressPoints'] as int?,
+    nextThreshold: (map['nextThreshold'] as num?)?.toDouble(),
+    ruleVersion: map['ruleVersion'] as int?,
+    calculatedAt: map['calculatedAt'] == null
+        ? null
+        : DateTime.parse(map['calculatedAt'] as String),
+    evidence: ((map['evidence'] as List<dynamic>?) ?? const []).map((item) {
+      final evidence = item as Map<String, dynamic>;
+      return ExerciseRankEvidence(
+        sessionId: evidence['sessionId'] as String,
+        completedAt: DateTime.parse(evidence['completedAt'] as String),
+        value: (evidence['value'] as num).toDouble(),
+      );
+    }).toList(),
+  );
+}
+
+ExerciseRank _rankPreview(
+  Exercise exercise,
+  ExerciseTrackingMode mode,
+  double value,
+  double? baseline,
+) {
+  final actualBaseline = baseline ?? value;
+  final ratio = value / actualBaseline;
+  const levels = <(ExerciseRankTier, double, double?)>[
+    (ExerciseRankTier.bronze, 1, 1.05),
+    (ExerciseRankTier.silver, 1.05, 1.15),
+    (ExerciseRankTier.gold, 1.15, 1.30),
+    (ExerciseRankTier.platinum, 1.30, 1.50),
+    (ExerciseRankTier.transmuted, 1.50, null),
+  ];
+  final level = levels.reversed.firstWhere((item) => ratio >= item.$2);
+  final progress = level.$3 == null
+      ? 100
+      : (100 * (ratio - level.$2) / (level.$3! - level.$2)).floor().clamp(
+          0,
+          99,
+        );
+  return ExerciseRank(
+    exercise: exercise,
+    trackingMode: mode,
+    metric: mode == ExerciseTrackingMode.timed
+        ? ExerciseRankMetric.maxDurationSeconds
+        : ExerciseRankMetric.estimatedOneRepMaxKg,
+    baselineValue: baseline,
+    bestValue: value,
+    tier: baseline == null ? null : level.$1,
+    progressPoints: baseline == null ? null : progress,
+    nextThreshold: baseline == null || level.$3 == null
+        ? null
+        : baseline * level.$3!,
+    ruleVersion: 1,
+  );
+}
+
 ActiveFast _activeFast(Map<String, dynamic> map) => ActiveFast(
   id: map['id'] as String,
   startedAt: DateTime.parse(map['started_at'] as String),
@@ -1976,6 +2248,44 @@ SharedWorkoutSet _sharedWorkoutSet(Map<String, dynamic> map) =>
       weight: map['weight'] == null ? null : _number(map['weight']),
       isWarmup: map['isWarmup'] == true,
       durationSeconds: (map['durationSeconds'] as num?)?.toInt(),
+    );
+
+RoutineShare _routineShare(Map<String, dynamic> map) => RoutineShare(
+  id: map['id'] as String,
+  token: map['token'] as String,
+  routineDayId: map['routineDayId'] as String,
+  status: RoutineShareStatus.values.byName(map['status'] as String),
+  createdAt: DateTime.parse(map['createdAt'] as String),
+  expiresAt: DateTime.parse(map['expiresAt'] as String),
+  snapshot: _routineShareSnapshot(map['snapshot'] as Map<String, dynamic>),
+);
+
+RoutineShareSnapshot _routineShareSnapshot(Map<String, dynamic> map) =>
+    RoutineShareSnapshot(
+      routineName: map['routineName'] as String,
+      folderName: map['folderName'] as String,
+      ownerName: map['ownerName'] as String?,
+      ownerUsername: map['ownerUsername'] as String?,
+      exercises: (map['exercises'] as List<dynamic>)
+          .map((value) => _routineShareExercise(value as Map<String, dynamic>))
+          .toList(),
+    );
+
+RoutineShareExercise _routineShareExercise(Map<String, dynamic> map) =>
+    RoutineShareExercise(
+      exerciseId: map['exerciseId'] as String,
+      name: map['name'] as String,
+      category: map['category'] as String,
+      muscleGroup: map['muscleGroup'] as String?,
+      targetSets: (map['targetSets'] as num).toInt(),
+      targetReps: (map['targetReps'] as num).toInt(),
+      trackingMode: ExerciseTrackingMode.values.byName(
+        map['trackingMode'] as String,
+      ),
+      targetDurationSeconds: (map['targetDurationSeconds'] as num?)?.toInt(),
+      targetWeightKg: map['targetWeightKg'] == null
+          ? null
+          : _number(map['targetWeightKg']),
     );
 FriendRequest _friendRequest(Map<String, dynamic> map) => FriendRequest(
   id: map['id'] as String,

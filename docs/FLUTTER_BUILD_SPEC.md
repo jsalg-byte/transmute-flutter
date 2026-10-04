@@ -1,5 +1,11 @@
 # Transmute Flutter demonstration: build specification
 
+> **Historical baseline:** this specifies the original focused Flutter demo.
+> The expanded workout, rank, progression, nutrition and social product target
+> is in [COMPETITOR_UPGRADE_PLAN.md](COMPETITOR_UPGRADE_PLAN.md) and
+> [PRD.md](PRD.md). Follow current source and the implemented API contract for
+> existing behavior; this demo scope does not exclude new product slices.
+
 ## Purpose and scope
 
 Build a polished, production-style demonstration of one closed loop:
