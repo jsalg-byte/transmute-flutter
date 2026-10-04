@@ -2335,6 +2335,108 @@ class MockExerciseRankRepository implements ExerciseRankRepository {
     double? baselineValue,
   }) => _preview(exercise, mode, value, baselineValue);
 
+  @override
+  Future<RankOverview> getOverview() async {
+    final ranks = await listRanks();
+    const mapped = <String, (String label, String region, String side)>{
+      'bench': ('Chest', 'chest', 'front'),
+      'row': ('Back', 'back', 'back'),
+      'press': ('Shoulders', 'deltoids', 'front'),
+      'squat': ('Quads', 'quadriceps', 'front'),
+      'rdl': ('Hamstrings', 'hamstrings', 'back'),
+      'calf': ('Calves', 'calves', 'back'),
+      'barbell-wrist-curl': ('Arms', 'forearms', 'front'),
+      'barbell-reverse-curl': ('Arms', 'forearms', 'front'),
+    };
+    final groups = <String, List<ExerciseRank>>{};
+    for (final rank in ranks.where((item) => item.isRanked)) {
+      final definition = mapped[rank.exercise.id];
+      if (definition != null)
+        groups.putIfAbsent(definition.$1, () => []).add(rank);
+    }
+    final result = <MuscleRank>[];
+    for (final entry in groups.entries) {
+      final definition = mapped.values.firstWhere(
+        (item) => item.$1 == entry.key,
+      );
+      final strongest = [...entry.value]
+        ..sort(
+          (a, b) => (b.bestValue! / b.baselineValue!).compareTo(
+            a.bestValue! / a.baselineValue!,
+          ),
+        );
+      final selected = strongest.take(2).toList();
+      final score =
+          selected
+              .map((item) => item.bestValue! / item.baselineValue!)
+              .reduce((a, b) => a + b) /
+          selected.length;
+      final tier = _preview(
+        selected.first.exercise,
+        selected.first.trackingMode!,
+        score,
+        1,
+      ).tier;
+      result.add(
+        MuscleRank(
+          groupId: entry.key.toLowerCase(),
+          label: definition.$1,
+          regionId: definition.$2,
+          bodySide: definition.$3,
+          eligibleExerciseCount: entry.value.length,
+          score: score,
+          tier: tier,
+          evidenceExerciseIds: selected
+              .map((item) => item.exercise.id)
+              .toList(),
+        ),
+      );
+    }
+    final eligible = ranks
+        .where((item) => item.isRanked && mapped.containsKey(item.exercise.id))
+        .length;
+    final placement = eligible >= 10 && result.length >= 5;
+    final score = placement
+        ? result.map((item) => item.score!).reduce((a, b) => a + b) /
+              result.length
+        : null;
+    return RankOverview(
+      overall: OverallRank(
+        eligibleExerciseCount: eligible,
+        mappedGroupCount: result.length,
+        placementEligible: placement,
+        score: score,
+        tier: score == null
+            ? null
+            : _preview(
+                ranks.first.exercise,
+                ExerciseTrackingMode.reps,
+                score,
+                1,
+              ).tier,
+        evidenceExerciseIds: result
+            .expand((item) => item.evidenceExerciseIds)
+            .toList(),
+      ),
+      groups: result,
+      lastSessionChanges: const [],
+    );
+  }
+
+  @override
+  Future<List<OverallRankHistoryPoint>> getHistory() async {
+    final overview = await getOverview();
+    if (overview.overall.score == null) return const [];
+    return [
+      OverallRankHistoryPoint(
+        calculatedAt: DateTime.now().toUtc(),
+        score: overview.overall.score,
+        tier: overview.overall.tier,
+        eligibleExerciseCount: overview.overall.eligibleExerciseCount,
+      ),
+    ];
+  }
+
   ExerciseRank? _rankFor(
     Exercise exercise,
     ExerciseTrackingMode? requestedMode,

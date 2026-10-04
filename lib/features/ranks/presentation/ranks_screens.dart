@@ -43,11 +43,7 @@ class _RanksScreenState extends ConsumerState<RanksScreen> {
                   'Personal strength progress from confirmed, comparable work.',
                 ),
                 const SizedBox(height: 16),
-                _RankTabs(
-                  selected: 'Gallery',
-                  onGallery: () {},
-                  onCalculator: () => context.go('/ranks/calculator'),
-                ),
+                const RankTabs(selected: 'Gallery'),
                 const SizedBox(height: 16),
                 TextField(
                   controller: _query,
@@ -141,7 +137,7 @@ class _RanksScreenState extends ConsumerState<RanksScreen> {
                           itemBuilder: (_, index) => _RankCard(
                             rank: items[index],
                             onTap: () => context.go(
-                              '/ranks/${items[index].exercise.id}',
+                              '/ranks/gallery/${items[index].exercise.id}',
                             ),
                           ),
                         );
@@ -172,16 +168,12 @@ class RankDetailScreen extends ConsumerWidget {
           message: 'This exercise rank could not be loaded.',
           action: TransmuteButton(
             label: 'Back to gallery',
-            onPressed: () => context.go('/ranks'),
+            onPressed: () => context.go('/ranks/gallery'),
           ),
         ),
         data: (item) => ListView(
           children: [
-            _RankTabs(
-              selected: 'Gallery',
-              onGallery: () => context.go('/ranks'),
-              onCalculator: () => context.go('/ranks/calculator'),
-            ),
+            const RankTabs(selected: 'Gallery'),
             const SizedBox(height: 20),
             Text(
               item.exercise.name,
@@ -284,11 +276,7 @@ class _RankCalculatorScreenState extends ConsumerState<RankCalculatorScreen> {
       title: 'Rank calculator',
       child: ListView(
         children: [
-          _RankTabs(
-            selected: 'Calculator',
-            onGallery: () => context.go('/ranks'),
-            onCalculator: () {},
-          ),
+          const RankTabs(selected: 'Calculator'),
           const SizedBox(height: 20),
           Text(
             'Rank Calculator',
@@ -373,34 +361,36 @@ class _RankCalculatorScreenState extends ConsumerState<RankCalculatorScreen> {
   }
 }
 
-class _RankTabs extends StatelessWidget {
-  const _RankTabs({
-    required this.selected,
-    required this.onGallery,
-    required this.onCalculator,
-  });
+class RankTabs extends StatelessWidget {
+  const RankTabs({super.key, required this.selected});
   final String selected;
-  final VoidCallback onGallery;
-  final VoidCallback onCalculator;
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
-    child: SegmentedButton<String>(
-      segments: const [
-        ButtonSegment(
-          value: 'Gallery',
-          label: Text('Gallery'),
-          icon: Icon(Icons.grid_view_outlined),
-        ),
-        ButtonSegment(
-          value: 'Calculator',
-          label: Text('Calculator'),
-          icon: Icon(Icons.calculate_outlined),
-        ),
-      ],
-      selected: {selected},
-      onSelectionChanged: (value) =>
-          value.first == 'Gallery' ? onGallery() : onCalculator(),
+    child: Wrap(
+      spacing: 8,
+      children:
+          [
+                ('Your Rank', '/ranks', Icons.workspace_premium_outlined),
+                (
+                  'Bodygraph',
+                  '/ranks/bodygraph',
+                  Icons.accessibility_new_outlined,
+                ),
+                ('Leagues', '/ranks/leagues', Icons.groups_outlined),
+                ('Gallery', '/ranks/gallery', Icons.grid_view_outlined),
+                ('Calculator', '/ranks/calculator', Icons.calculate_outlined),
+                ('Analysis', '/ranks/analysis', Icons.insights_outlined),
+              ]
+              .map(
+                (tab) => ChoiceChip(
+                  selected: selected == tab.$1,
+                  avatar: Icon(tab.$3, size: 18),
+                  label: Text(tab.$1),
+                  onSelected: (_) => context.go(tab.$2),
+                ),
+              )
+              .toList(),
     ),
   );
 }

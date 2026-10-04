@@ -717,6 +717,33 @@ class ApiExerciseRankRepository implements ExerciseRankRepository {
     required double value,
     double? baselineValue,
   }) => _rankPreview(exercise, mode, value, baselineValue);
+
+  @override
+  Future<RankOverview> getOverview() async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/ranks/overview'),
+    );
+    final data = body.data!;
+    return RankOverview(
+      overall: _overallRank(data['overall'] as Map<String, dynamic>),
+      groups: (data['groups'] as List<dynamic>)
+          .map((item) => _muscleRank(item as Map<String, dynamic>))
+          .toList(),
+      lastSessionChanges:
+          ((data['lastSessionChanges'] as List<dynamic>?) ?? const [])
+              .cast<String>(),
+    );
+  }
+
+  @override
+  Future<List<OverallRankHistoryPoint>> getHistory() async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/ranks/history'),
+    );
+    return (body.data!['history'] as List<dynamic>)
+        .map((item) => _overallHistory(item as Map<String, dynamic>))
+        .toList();
+  }
 }
 
 class ApiSessionRepository implements SessionRepository {
@@ -2060,6 +2087,55 @@ ExerciseRank _exerciseRank(Map<String, dynamic> map) {
     }).toList(),
   );
 }
+
+ExerciseRankTier? _rankTier(String? value) => switch (value) {
+  'Bronze' => ExerciseRankTier.bronze,
+  'Silver' => ExerciseRankTier.silver,
+  'Gold' => ExerciseRankTier.gold,
+  'Platinum' => ExerciseRankTier.platinum,
+  'Transmuted' => ExerciseRankTier.transmuted,
+  _ => null,
+};
+
+OverallRank _overallRank(Map<String, dynamic> map) => OverallRank(
+  eligibleExerciseCount: map['eligibleExerciseCount'] as int,
+  mappedGroupCount: map['mappedGroupCount'] as int,
+  placementEligible: map['placementEligible'] as bool,
+  score: (map['score'] as num?)?.toDouble(),
+  tier: _rankTier(map['tier'] as String?),
+  delta: (map['delta'] as num?)?.toDouble(),
+  calculatedAt: map['calculatedAt'] == null
+      ? null
+      : DateTime.parse(map['calculatedAt'] as String),
+  evidenceExerciseIds:
+      ((map['evidenceExerciseIds'] as List<dynamic>?) ?? const [])
+          .cast<String>(),
+);
+
+MuscleRank _muscleRank(Map<String, dynamic> map) => MuscleRank(
+  groupId: map['groupId'] as String,
+  label: map['label'] as String,
+  regionId: map['regionId'] as String,
+  bodySide: map['bodySide'] as String,
+  eligibleExerciseCount: map['eligibleExerciseCount'] as int,
+  score: (map['score'] as num?)?.toDouble(),
+  tier: _rankTier(map['tier'] as String?),
+  delta: (map['delta'] as num?)?.toDouble(),
+  calculatedAt: map['calculatedAt'] == null
+      ? null
+      : DateTime.parse(map['calculatedAt'] as String),
+  evidenceExerciseIds:
+      ((map['evidenceExerciseIds'] as List<dynamic>?) ?? const [])
+          .cast<String>(),
+);
+
+OverallRankHistoryPoint _overallHistory(Map<String, dynamic> map) =>
+    OverallRankHistoryPoint(
+      calculatedAt: DateTime.parse(map['calculatedAt'] as String),
+      eligibleExerciseCount: map['eligibleExerciseCount'] as int,
+      score: (map['score'] as num?)?.toDouble(),
+      tier: _rankTier(map['tier'] as String?),
+    );
 
 ExerciseRank _rankPreview(
   Exercise exercise,

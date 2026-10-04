@@ -135,6 +135,13 @@ final exerciseRankProvider = FutureProvider.family<ExerciseRank, String>(
   (ref, exerciseId) =>
       ref.watch(exerciseRankRepositoryProvider).getRank(exerciseId),
 );
+final rankOverviewProvider = FutureProvider<RankOverview>(
+  (ref) => ref.watch(exerciseRankRepositoryProvider).getOverview(),
+);
+final overallRankHistoryProvider =
+    FutureProvider<List<OverallRankHistoryPoint>>(
+      (ref) => ref.watch(exerciseRankRepositoryProvider).getHistory(),
+    );
 final quickAddRepositoryProvider = Provider<QuickAddRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockQuickAddRepository(ref.watch(mockStoreProvider))
@@ -1012,6 +1019,8 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     ref.invalidate(historyProvider);
     ref.invalidate(lastPerformedPlanDayProvider);
     ref.invalidate(exerciseRanksProvider);
+    ref.invalidate(rankOverviewProvider);
+    ref.invalidate(overallRankHistoryProvider);
     return result;
   }
 

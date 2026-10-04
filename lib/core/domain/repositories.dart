@@ -163,6 +163,8 @@ abstract class ExerciseRankRepository {
     required double value,
     double? baselineValue,
   });
+  Future<RankOverview> getOverview();
+  Future<List<OverallRankHistoryPoint>> getHistory();
 }
 
 abstract class QuickAddRepository {

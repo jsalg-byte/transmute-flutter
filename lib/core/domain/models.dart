@@ -646,6 +646,79 @@ class ExerciseRank {
   bool get isProvisional => bestValue != null && !isRanked;
 }
 
+/// A derived, personal rank across the documented curated muscle map.
+/// It is never a population standing or a recovery score.
+class MuscleRank {
+  const MuscleRank({
+    required this.groupId,
+    required this.label,
+    required this.regionId,
+    required this.bodySide,
+    required this.eligibleExerciseCount,
+    this.score,
+    this.tier,
+    this.delta,
+    this.calculatedAt,
+    this.evidenceExerciseIds = const [],
+  });
+  final String groupId;
+  final String label;
+  final String regionId;
+  final String bodySide;
+  final int eligibleExerciseCount;
+  final double? score;
+  final ExerciseRankTier? tier;
+  final double? delta;
+  final DateTime? calculatedAt;
+  final List<String> evidenceExerciseIds;
+  bool get isRanked => score != null && tier != null;
+}
+
+class OverallRank {
+  const OverallRank({
+    required this.eligibleExerciseCount,
+    required this.mappedGroupCount,
+    required this.placementEligible,
+    this.score,
+    this.tier,
+    this.delta,
+    this.calculatedAt,
+    this.evidenceExerciseIds = const [],
+  });
+  final int eligibleExerciseCount;
+  final int mappedGroupCount;
+  final bool placementEligible;
+  final double? score;
+  final ExerciseRankTier? tier;
+  final double? delta;
+  final DateTime? calculatedAt;
+  final List<String> evidenceExerciseIds;
+}
+
+class RankOverview {
+  const RankOverview({
+    required this.overall,
+    required this.groups,
+    this.lastSessionChanges = const [],
+  });
+  final OverallRank overall;
+  final List<MuscleRank> groups;
+  final List<String> lastSessionChanges;
+}
+
+class OverallRankHistoryPoint {
+  const OverallRankHistoryPoint({
+    required this.calculatedAt,
+    required this.eligibleExerciseCount,
+    this.score,
+    this.tier,
+  });
+  final DateTime calculatedAt;
+  final int eligibleExerciseCount;
+  final double? score;
+  final ExerciseRankTier? tier;
+}
+
 class CatalogExercise {
   const CatalogExercise({required this.name, required this.slug});
   final String name;

@@ -20,6 +20,7 @@ import '../features/nutrition/presentation/nutrition_screen.dart';
 import '../features/planning/presentation/planning_screen.dart';
 import '../features/progress/presentation/progress_screen.dart';
 import '../features/ranks/presentation/ranks_screens.dart';
+import '../features/ranks/presentation/rank_overview_screens.dart';
 import '../features/workout_history/presentation/history_screens.dart';
 import '../features/workout_plans/presentation/plan_screens.dart';
 import '../features/workout_plans/presentation/routine_share_screens.dart';
@@ -86,17 +87,35 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
         GoRoute(path: '/dashboard', builder: (_, _) => const DashboardScreen()),
         GoRoute(
           path: '/ranks',
-          builder: (_, _) => const RanksScreen(),
+          builder: (_, _) => const OverallRanksScreen(),
           routes: [
+            GoRoute(
+              path: 'bodygraph',
+              builder: (_, _) => const RankBodygraphScreen(),
+            ),
+            GoRoute(
+              path: 'leagues',
+              builder: (_, _) => const RankLeaguesScreen(),
+            ),
+            GoRoute(
+              path: 'analysis',
+              builder: (_, _) => const RankAnalysisPlaceholderScreen(),
+            ),
+            GoRoute(
+              path: 'gallery',
+              builder: (_, _) => const RanksScreen(),
+              routes: [
+                GoRoute(
+                  path: ':exerciseId',
+                  builder: (_, state) => RankDetailScreen(
+                    exerciseId: state.pathParameters['exerciseId']!,
+                  ),
+                ),
+              ],
+            ),
             GoRoute(
               path: 'calculator',
               builder: (_, _) => const RankCalculatorScreen(),
-            ),
-            GoRoute(
-              path: ':exerciseId',
-              builder: (_, state) => RankDetailScreen(
-                exerciseId: state.pathParameters['exerciseId']!,
-              ),
             ),
           ],
         ),

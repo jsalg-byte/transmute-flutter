@@ -1,21 +1,16 @@
 # Current blockers
 
-## Empty workout slice 4 source versus deployment
+## Production migration safeguard (2026-10-04)
 
-The freeform Flutter entry, repository path, API route and migration 011 are
-implemented in local source. API-mode use requires migration 011 and the
-updated Fastify service; neither has been applied to production. Before the
-unique index is applied, inspect the target database for more than one active
-session per user. The migration intentionally stops if duplicates exist so
-existing user records are not removed silently. The checked-in `release/web`
-bundle has not been rebuilt or deployed. Focused mock/adapter tests validate
-restore and history contracts, but a mock page reload recreates its fixture
-store; authenticated API reload, production migration and production web
-behavior remain unverified. The local mock browser at 390×844 did verify
-Start Empty Workout, two exercise additions, one confirmed set each, Finish
-and the resulting two-exercise history detail. It did not exercise a full
-page reload, live API write, production migration, or discard in browser;
-discard and repository restoration have focused mock tests.
+The production API was healthy but `/v1/record` returned 500 because the
+deployed service expected `workout_sessions.origin` before migration 011 had
+run. The non-destructive column/backfill/constraint portion of migration 011
+is now applied, along with migrations 012–014; an authenticated production
+dashboard load now returns active-workout and recovery content rather than
+perpetual loaders. The migration's final partial unique index was deliberately
+not applied: two users each have two existing `active` sessions. A dedicated
+data-reconciliation decision is required before enforcing that index; no
+sessions were deleted or altered to make the migration pass.
 
 ## Routine slice 3 source versus deployment
 
@@ -32,6 +27,16 @@ not the final frozen-local-date contract required for streaks in slice 11.
 The agent browser-checked the local mock app at 390×844, but did not verify a
 live rank write/correction, authenticated API reload, production schema or the
 checked-in release bundle.
+
+## Ranked bodygraph slice 7 release state
+
+The local Flutter/Fastify source now has the front/back rank bodygraph,
+placement progress, curated canonical exercise-to-region contribution map and
+versioned muscle/overall projections. Production schema inspection confirmed
+that migrations 011–014 are present (with the unique-index exception above).
+The Slice 7 source and checked-in web bundle still require the paired commit,
+push, and deployment verification. The successful dashboard read does not by
+itself establish rank recalculation/correction history or routine-share flows.
 
 ## Native signing and physical-device verification remain
 
