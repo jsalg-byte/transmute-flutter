@@ -1248,6 +1248,22 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                       ],
                     ),
                   ),
+                  if (exercise.trackingMode == ExerciseTrackingMode.reps)
+                    IconButton(
+                      tooltip: 'Barbell plate calculator',
+                      onPressed: () => showDialog<void>(
+                        context: context,
+                        builder: (_) => BarbellPlateCalculatorDialog(
+                          initialWeight: exercise.sets.isNotEmpty
+                              ? (unit == WeightUnit.lb
+                                  ? exercise.sets.last.weightKg * 2.2046226218
+                                  : exercise.sets.last.weightKg)
+                              : (unit == WeightUnit.lb ? 135.0 : 60.0),
+                          unit: unit,
+                        ),
+                      ),
+                      icon: const Icon(Icons.calculate_outlined),
+                    ),
                   IconButton(
                     tooltip: exercise.sets.isEmpty
                         ? 'Remove exercise'
@@ -2701,6 +2717,7 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                           color: palette.raised,
                           fontSize: 28,
                           fontWeight: FontWeight.w900,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
                     ),
@@ -2731,7 +2748,10 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                           onPressed: () => _start(duration),
                           child: Text(
                             duration == 60 ? '1m' : '${duration ~/ 60}m',
-                            style: TextStyle(color: palette.raised),
+                            style: TextStyle(
+                              color: palette.raised,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
@@ -2787,8 +2807,8 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
           : Row(
               children: [
                 SizedBox(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   child: IconButton(
                     tooltip:
                         'Open rest timer${deadline == null ? '' : ', $label remaining'}',
@@ -2807,12 +2827,13 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
                     style: TextStyle(
                       color: palette.raised,
                       fontWeight: FontWeight.w700,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
                 ),
                 SizedBox(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   child: IconButton(
                     tooltip: deadline == null
                         ? 'Start 60 second rest'
@@ -2829,6 +2850,7 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
             ),
     );
   }
+
 
   Future<void> _start(int seconds) async {
     _clearingExpired = false;
@@ -2907,6 +2929,186 @@ class _CustomRestDialogState extends State<_CustomRestDialog> {
       ElevatedButton(onPressed: _start, child: const Text('Start')),
     ],
   );
+}
+
+class BarbellPlateCalculatorDialog extends StatefulWidget {
+  const BarbellPlateCalculatorDialog({
+    super.key,
+    required this.initialWeight,
+    required this.unit,
+  });
+
+  final double initialWeight;
+  final WeightUnit unit;
+
+  @override
+  State<BarbellPlateCalculatorDialog> createState() =>
+      _BarbellPlateCalculatorDialogState();
+}
+
+class _BarbellPlateCalculatorDialogState
+    extends State<BarbellPlateCalculatorDialog> {
+  late final TextEditingController _weight;
+  double _barWeight = 20.0; // standard Olympic barbell in kg (or 45 lb)
+
+  @override
+  void initState() {
+    super.initState();
+    _barWeight = widget.unit == WeightUnit.lb ? 45.0 : 20.0;
+    _weight = TextEditingController(
+      text: widget.initialWeight > 0
+          ? widget.initialWeight.toStringAsFixed(1)
+          : (_barWeight * 2).toStringAsFixed(0),
+    );
+  }
+
+  @override
+  void dispose() {
+    _weight.dispose();
+    super.dispose();
+  }
+
+  // Standard Olympic plate denominations
+  List<double> get _availablePlates => widget.unit == WeightUnit.lb
+      ? const [45.0, 35.0, 25.0, 10.0, 5.0, 2.5]
+      : const [25.0, 20.0, 15.0, 10.0, 5.0, 2.5, 1.25];
+
+  Map<double, int> _calculatePlatesPerSide(double targetWeight) {
+    var remPerSide = (targetWeight - _barWeight) / 2.0;
+    if (remPerSide <= 0) return {};
+
+    final plates = <double, int>{};
+    for (final plate in _availablePlates) {
+      if (remPerSide >= plate) {
+        final count = (remPerSide / plate).floor();
+        plates[plate] = count;
+        remPerSide -= count * plate;
+      }
+    }
+    return plates;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    final total = double.tryParse(_weight.text.trim()) ?? 0.0;
+    final platesPerSide = _calculatePlatesPerSide(total);
+    final unitLabel = widget.unit == WeightUnit.lb ? 'lb' : 'kg';
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.fitness_center, color: palette.oxide),
+          const SizedBox(width: 8),
+          const Text('Barbell Plate Math'),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _weight,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      labelText: 'Total Target Weight',
+                      suffixText: unitLabel,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text(
+                  'Barbell weight:',
+                  style: TextStyle(color: palette.muted, fontSize: 13),
+                ),
+                const Spacer(),
+                SegmentedButton<double>(
+                  segments: [
+                    ButtonSegment(
+                      value: widget.unit == WeightUnit.lb ? 45.0 : 20.0,
+                      label: Text(widget.unit == WeightUnit.lb ? '45 lb' : '20 kg'),
+                    ),
+                    ButtonSegment(
+                      value: widget.unit == WeightUnit.lb ? 35.0 : 15.0,
+                      label: Text(widget.unit == WeightUnit.lb ? '35 lb' : '15 kg'),
+                    ),
+                  ],
+                  selected: {_barWeight},
+                  onSelectionChanged: (val) => setState(() => _barWeight = val.first),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Text(
+              'PLATES PER SIDE',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+                color: palette.muted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (total < _barWeight)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Total weight is less than the empty barbell (${_barWeight.toStringAsFixed(0)} $unitLabel).',
+                  style: TextStyle(color: palette.muted),
+                ),
+              )
+            else if (platesPerSide.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Empty bar only (${_barWeight.toStringAsFixed(0)} $unitLabel). No plates required.',
+                  style: TextStyle(color: palette.steel, fontWeight: FontWeight.w600),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final entry in platesPerSide.entries)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: palette.raised,
+                        border: Border.all(color: palette.oxide),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '${entry.value}× ${entry.key.toStringAsFixed(entry.key == entry.key.roundToDouble() ? 0 : 2)} $unitLabel',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: palette.ink,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
 }
 
 class _ExerciseDialog extends ConsumerStatefulWidget {

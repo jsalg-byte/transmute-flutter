@@ -131,7 +131,7 @@ class _RanksScreenState extends ConsumerState<RanksScreen> {
                                 crossAxisCount: columns,
                                 mainAxisSpacing: 10,
                                 crossAxisSpacing: 10,
-                                childAspectRatio: largeText ? 1.7 : .78,
+                                childAspectRatio: largeText ? 1.7 : 0.58,
                               ),
                           itemCount: items.length,
                           itemBuilder: (_, index) => _RankCard(
@@ -218,10 +218,17 @@ class RankDetailScreen extends ConsumerWidget {
               )
             else
               ...item.evidence.map(
-                (evidence) => Card(
+                (evidence) => TransmutePanel(
+                  padding: EdgeInsets.zero,
+                  margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     leading: const Icon(Icons.verified_outlined),
-                    title: Text(_formatValue(context, item, evidence.value)),
+                    title: Text(
+                      _formatValue(context, item, evidence.value),
+                      style: const TextStyle(
+                        fontFeatures: [FontFeature.tabularFigures()],
+                      ),
+                    ),
                     subtitle: Text(
                       MaterialLocalizations.of(
                         context,
@@ -403,7 +410,8 @@ class _RankCard extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     button: true,
     label: '${rank.exercise.name} ${rank.tier?.name ?? 'unranked'}',
-    child: Card(
+    child: TransmutePanel(
+      padding: EdgeInsets.zero,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
@@ -440,7 +448,9 @@ class _RankCard extends StatelessWidget {
                     ? 'Needs qualifying evidence'
                     : 'Best ${_formatValue(context, rank, rank.bestValue!)}',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
               const SizedBox(height: 10),
               LinearProgressIndicator(
@@ -454,7 +464,9 @@ class _RankCard extends StatelessWidget {
                     ? '${rank.progressPoints} points'
                     : '2 dates to establish',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.labelSmall,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
             ],
           ),

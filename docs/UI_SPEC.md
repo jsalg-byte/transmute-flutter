@@ -33,6 +33,24 @@ Use current theme/palette and shared geometry; do not impose one platform's nati
 
 Set inputs identify exercise, set number, value and unit to assistive technology. Bodygraph regions have selectable text alternatives and a list of the same group results. Rank progress exposes current, next and percentage in text. Calendar days announce date and qualification state. Live announcements describe server confirmation, errors and timer completion without repeatedly reading an entire card. Forms keep drafts on validation/network failure; destructive actions explain consequences.
 
+## Active Workout Floor Ergonomics & Utilities (2026-10-05)
+
+### Touch Ergonomics & Viewport Layout
+- **48×48px Minimum Hit Targets**: All primary interactive elements during an active session (set completion checkoff, weight/rep steppers, rest timer modifiers, and movement step tabs) must have a minimum tap area of 48×48px for active gym floor use.
+- **Bottom-Anchored Floating Rest Banner**:
+  - Rest/work countdown sits in a persistent bottom banner above the system navigation bar, avoiding modal dialog interruptions.
+  - Controls: `-15s`, `+15s`, `Pause` / `Resume`, `Skip` / `Dismiss`.
+  - When countdown reaches zero, the banner transitions to a high-contrast `Ready` status with audible/visual alert cues.
+- **Barbell Plate Calculator**:
+  - Available for barbell, olympic barbell, trap bar, and ez barbell exercises.
+  - Automatically calculates weight per side: `(totalWeight - barWeight) / 2`.
+  - Displays standard plate breakdown (25kg, 20kg, 15kg, 10kg, 5kg, 2.5kg, 1.25kg) with visual plate representations.
+- **Effort Rating (RPE / RIR)**:
+  - Optional RPE (6.0–10.0 in 0.5 steps) or RIR (0–4) stepper on working sets.
+- **Tabular Numerals**:
+  - All numeric displays across sets, weights, reps, and timer digits enforce `FontFeature.tabularFigures()`.
+
 ## Verification evidence
 
 Automated checks cover navigation, state transitions, contract mapping, responsive widget layouts and semantics. The user owns browser verification. Capture the same route, auth/data state, theme and viewport in local API or deployed mode; do not compare a signed-in mock view with a deployed onboarding view. Record source commit and `release/web` bundle version for production review. The screenshots in [the reference inventory](COMPETITOR_UPGRADE_PLAN.md#screen-by-screen-reference-inventory) are design evidence, not UI assets.
+

@@ -14,6 +14,8 @@ import '../../../shared/widgets/exercise_video_controller.dart';
 /// Body-led exercise discovery. The muscle groups are display groupings over
 /// the documented [Exercise.muscleGroup] metadata; no catalog fields or
 /// exercise records are modified here.
+enum _LibraryCatalogMode { saved, openGym }
+
 class ExerciseLibraryScreen extends ConsumerStatefulWidget {
   const ExerciseLibraryScreen({super.key});
 
@@ -25,6 +27,9 @@ class ExerciseLibraryScreen extends ConsumerStatefulWidget {
 class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
   final _query = TextEditingController();
   final _selectedGroups = <String>{};
+  var _mode = _LibraryCatalogMode.saved;
+  String? _selectedBodyPart;
+  String? _selectedEquipment;
 
   @override
   void dispose() {
@@ -34,7 +39,21 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final results = ref.watch(exerciseSearchProvider(_query.text));
+    final queryText = _query.text.trim();
+    final savedResults = ref.watch(exerciseSearchProvider(_query.text));
+    final openGymResults = _mode == _LibraryCatalogMode.openGym
+        ? ref.watch(
+            openGymSearchProvider(
+              OpenGymSearchParams(
+                query: queryText,
+                bodyPart: _selectedBodyPart,
+                equipment: _selectedEquipment,
+                muscleGroup: _selectedGroups.isEmpty ? null : _selectedGroups.first,
+              ),
+            ),
+          )
+        : null;
+
     return AppShell(
       title: 'Exercise library',
       child: Column(
@@ -52,13 +71,37 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
             'Choose a muscle group to find movements and their available demonstrations.',
             style: Theme.of(context).textTheme.bodyLarge,
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+          // Catalog segment toggle
+          SegmentedButton<_LibraryCatalogMode>(
+            segments: const [
+              ButtonSegment<_LibraryCatalogMode>(
+                value: _LibraryCatalogMode.saved,
+                label: Text('Saved Movements'),
+                icon: Icon(Icons.bookmark_outline, size: 18),
+              ),
+              ButtonSegment<_LibraryCatalogMode>(
+                value: _LibraryCatalogMode.openGym,
+                label: Text('OpenGym Atlas (1,324)'),
+                icon: Icon(Icons.fitness_center_outlined, size: 18),
+              ),
+            ],
+            selected: {_mode},
+            onSelectionChanged: (selected) {
+              setState(() {
+                _mode = selected.first;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
           TextField(
             controller: _query,
             textInputAction: TextInputAction.search,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              labelText: 'Search exercises',
+              labelText: _mode == _LibraryCatalogMode.saved
+                  ? 'Search exercises'
+                  : 'Search 1,324 OpenGym movements',
               hintText: 'Search by movement name',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _query.text.isEmpty
@@ -75,24 +118,60 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
           ),
           const SizedBox(height: 20),
           Expanded(
-            child: results.when(
-              skipLoadingOnRefresh: true,
-              loading: () => const _LibraryLoading(),
-              error: (_, __) => _LibraryError(
-                onRetry: () =>
-                    ref.invalidate(exerciseSearchProvider(_query.text)),
-              ),
-              data: (exercises) => _LibraryContent(
-                exercises: exercises,
-                query: _query.text.trim(),
-                selectedGroups: _selectedGroups,
-                onGroupToggled: (group) => setState(() {
-                  if (!_selectedGroups.add(group))
-                    _selectedGroups.remove(group);
-                }),
-                onGroupsCleared: () => setState(_selectedGroups.clear),
-              ),
-            ),
+            child: _mode == _LibraryCatalogMode.saved
+                ? savedResults.when(
+                    skipLoadingOnRefresh: true,
+                    loading: () => const _LibraryLoading(),
+                    error: (_, __) => _LibraryError(
+                      onRetry: () =>
+                          ref.invalidate(exerciseSearchProvider(_query.text)),
+                    ),
+                    data: (exercises) => _LibraryContent(
+                      exercises: exercises,
+                      query: queryText,
+                      selectedGroups: _selectedGroups,
+                      onGroupToggled: (group) => setState(() {
+                        if (!_selectedGroups.add(group)) {
+                          _selectedGroups.remove(group);
+                        }
+                      }),
+                      onGroupsCleared: () => setState(_selectedGroups.clear),
+                    ),
+                  )
+                : (openGymResults ?? const AsyncValue.loading()).when(
+                    skipLoadingOnRefresh: true,
+                    loading: () => const _LibraryLoading(),
+                    error: (_, __) => _LibraryError(
+                      onRetry: () => ref.invalidate(
+                        openGymSearchProvider(
+                          OpenGymSearchParams(
+                            query: queryText,
+                            bodyPart: _selectedBodyPart,
+                            equipment: _selectedEquipment,
+                          ),
+                        ),
+                      ),
+                    ),
+                    data: (exercises) => _OpenGymLibraryContent(
+                      exercises: exercises,
+                      query: queryText,
+                      selectedGroups: _selectedGroups,
+                      selectedBodyPart: _selectedBodyPart,
+                      selectedEquipment: _selectedEquipment,
+                      onGroupToggled: (group) => setState(() {
+                        if (!_selectedGroups.add(group)) {
+                          _selectedGroups.remove(group);
+                        }
+                      }),
+                      onGroupsCleared: () => setState(_selectedGroups.clear),
+                      onBodyPartSelected: (bp) => setState(() {
+                        _selectedBodyPart = _selectedBodyPart == bp ? null : bp;
+                      }),
+                      onEquipmentSelected: (eq) => setState(() {
+                        _selectedEquipment = _selectedEquipment == eq ? null : eq;
+                      }),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -187,6 +266,195 @@ class _LibraryContent extends StatelessWidget {
   }
 }
 
+class _OpenGymLibraryContent extends StatelessWidget {
+  const _OpenGymLibraryContent({
+    required this.exercises,
+    required this.query,
+    required this.selectedGroups,
+    required this.selectedBodyPart,
+    required this.selectedEquipment,
+    required this.onGroupToggled,
+    required this.onGroupsCleared,
+    required this.onBodyPartSelected,
+    required this.onEquipmentSelected,
+  });
+
+  final List<Exercise> exercises;
+  final String query;
+  final Set<String> selectedGroups;
+  final String? selectedBodyPart;
+  final String? selectedEquipment;
+  final ValueChanged<String> onGroupToggled;
+  final VoidCallback onGroupsCleared;
+  final ValueChanged<String> onBodyPartSelected;
+  final ValueChanged<String> onEquipmentSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    final count = exercises.length;
+
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.tune, size: 18, color: palette.oxide),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Taxonomy Filters',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (selectedBodyPart != null || selectedEquipment != null || selectedGroups.isNotEmpty)
+                        TextButton(
+                          onPressed: () {
+                            if (selectedBodyPart != null) onBodyPartSelected(selectedBodyPart!);
+                            if (selectedEquipment != null) onEquipmentSelected(selectedEquipment!);
+                            onGroupsCleared();
+                          },
+                          child: const Text('Reset filters'),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'BODY REGION',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                      color: palette.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final bp in [
+                          'chest',
+                          'back',
+                          'shoulders',
+                          'upper arms',
+                          'lower arms',
+                          'upper legs',
+                          'lower legs',
+                          'waist',
+                          'cardio',
+                          'neck',
+                        ])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: FilterChip(
+                              label: Text(bp),
+                              selected: selectedBodyPart == bp,
+                              onSelected: (_) => onBodyPartSelected(bp),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'EQUIPMENT',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                      color: palette.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final eq in [
+                          'barbell',
+                          'dumbbell',
+                          'cable',
+                          'body weight',
+                          'band',
+                          'kettlebell',
+                          'leverage machine',
+                          'smith machine',
+                          'olympic barbell',
+                          'ez barbell',
+                        ])
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: FilterChip(
+                              label: Text(eq),
+                              selected: selectedEquipment == eq,
+                              onSelected: (_) => onEquipmentSelected(eq),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(child: const SizedBox(height: 16)),
+        if (exercises.isEmpty)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 24),
+              child: _EmptySearch(),
+            ),
+          )
+        else ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: Row(
+                children: [
+                  Text(
+                    '$count movements found',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'OpenGym Atlas',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: palette.steel,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SliverList.separated(
+            itemCount: exercises.length,
+            itemBuilder: (context, index) => _ExerciseAccordion(
+              key: ValueKey(exercises[index].id),
+              exercise: exercises[index],
+            ),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        ],
+      ],
+    );
+  }
+}
+
 class _BodyMusclePicker extends StatelessWidget {
   const _BodyMusclePicker({
     required this.availableGroups,
@@ -264,9 +532,10 @@ class _BodyMusclePicker extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: Center(child: anatomy)),
-                    const SizedBox(width: 24),
+                    Center(child: anatomy),
+                    const SizedBox(width: 16),
                     Expanded(child: controls),
                   ],
                 ),
@@ -534,6 +803,11 @@ class _ExerciseAccordionState extends State<_ExerciseAccordion> {
   @override
   Widget build(BuildContext context) {
     final palette = TransmutePalette.of(context);
+    final ex = widget.exercise;
+    final hasCues = ex.instructions.isNotEmpty;
+    final hasMuscles = ex.primaryMuscles.isNotEmpty || ex.secondaryMuscles.isNotEmpty;
+    final hasMedia = ex.gifUrl != null || ex.imageUrl != null || ex.demoUrl != null;
+
     return Card(
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
@@ -543,36 +817,225 @@ class _ExerciseAccordionState extends State<_ExerciseAccordion> {
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         title: Text(
-          widget.exercise.name,
+          ex.name,
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        subtitle: Text(
-          '${_categoryLabel(widget.exercise.category)} · ${widget.exercise.muscleGroup ?? 'Muscle group not specified'}',
+        subtitle: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            Text(
+              '${_categoryLabel(ex.category)} · ${ex.muscleGroup ?? ex.bodyPart ?? 'General'}',
+              style: TextStyle(color: palette.muted, fontSize: 13),
+            ),
+            if (ex.equipment != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: palette.divider),
+                ),
+                child: Text(
+                  ex.equipment!,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: palette.steel,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
         ),
         iconColor: palette.oxide,
         collapsedIconColor: palette.muted,
         children: [
+          // Muscle targets badges
+          if (hasMuscles) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'TARGET ANATOMY',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                  color: palette.muted,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final m in ex.primaryMuscles)
+                    Chip(
+                      label: Text(m),
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: palette.rest.withValues(alpha: .15),
+                      side: BorderSide(color: palette.rest.withValues(alpha: .4)),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: palette.rest,
+                      ),
+                    ),
+                  for (final m in ex.secondaryMuscles)
+                    Chip(
+                      label: Text(m),
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: palette.surface,
+                      side: BorderSide(color: palette.divider),
+                      labelStyle: TextStyle(
+                        fontSize: 12,
+                        color: palette.muted,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Step-by-step instructions
+          if (hasCues) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'EXECUTION CUES',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                  color: palette.muted,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (var i = 0; i < ex.instructions.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      margin: const EdgeInsets.only(right: 10, top: 1),
+                      decoration: BoxDecoration(
+                        color: palette.raised,
+                        border: Border.all(color: palette.divider),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: palette.oxide,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        ex.instructions[i],
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 12),
+          ],
+
+          // Demonstration media (GIF / Video / DemoUrl)
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Demonstration',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              'DEMONSTRATION',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 fontWeight: FontWeight.w800,
-                letterSpacing: 1.1,
+                letterSpacing: 1.2,
+                color: palette.muted,
               ),
             ),
           ),
           const SizedBox(height: 8),
-          if (widget.exercise.demoUrl == null)
+          if (!hasMedia)
             const _DemoUnavailable()
-          else
+          else if (ex.gifUrl != null)
+            _ExerciseGifDemo(
+              name: ex.name,
+              gifUrl: ex.gifUrl!,
+              imageUrl: ex.imageUrl,
+            )
+          else if (ex.demoUrl != null)
             _ExerciseDemo(
-              name: widget.exercise.name,
-              url: widget.exercise.demoUrl!,
-              sourceName: widget.exercise.demoSourceName,
+              name: ex.name,
+              url: ex.demoUrl!,
+              sourceName: ex.demoSourceName,
               autoPlay: _isExpanded,
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _ExerciseGifDemo extends StatelessWidget {
+  const _ExerciseGifDemo({
+    required this.name,
+    required this.gifUrl,
+    this.imageUrl,
+  });
+
+  final String name;
+  final String gifUrl;
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: palette.divider),
+          color: palette.surface,
+        ),
+        child: Semantics(
+          label: '$name animated demonstration',
+          child: Image.network(
+            gifUrl,
+            fit: BoxFit.contain,
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return SizedBox(
+                height: 180,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    value: loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!
+                        : null,
+                    strokeWidth: 2,
+                  ),
+                ),
+              );
+            },
+            errorBuilder: (_, __, ___) => imageUrl != null
+                ? Image.network(
+                    imageUrl!,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const _DemoUnavailable(),
+                  )
+                : const _DemoUnavailable(),
+          ),
+        ),
       ),
     );
   }

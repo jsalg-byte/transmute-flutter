@@ -171,7 +171,9 @@ class _RankBodygraphScreenState extends ConsumerState<RankBodygraphScreen> {
                     child: Column(
                       children: [
                         for (final group in groups)
-                          Card(
+                          TransmutePanel(
+                            padding: EdgeInsets.zero,
+                            margin: const EdgeInsets.only(bottom: 8),
                             child: ListTile(
                               title: Text(group.label),
                               subtitle: Text(_groupStatus(group)),
@@ -382,6 +384,7 @@ class RankLeaguesScreen extends ConsumerWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: isTop3 ? rankColor : null,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
                 ),
@@ -423,13 +426,17 @@ class RankLeaguesScreen extends ConsumerWidget {
                 ),
                 subtitle: Text(
                   '@${entry.username} · ${entry.qualifiedSessions} workouts',
-                  style: const TextStyle(fontSize: 12),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
                 ),
                 trailing: Text(
                   '${entry.xp} XP',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: theme.colorScheme.primary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ),
@@ -1182,6 +1189,7 @@ const _regions = <String, List<String>>{
   'calves': ['calves'],
   'forearms': ['forearm', 'biceps', 'triceps'],
   'glutes': ['gluteal'],
+  'core': ['abs', 'obliques'],
 };
 const _svgRegions = [
   'abs',
@@ -1235,6 +1243,8 @@ List<MuscleRank> _allGroups(List<MuscleRank> groups) {
     ('hamstrings', 'Hamstrings', 'hamstrings', 'back'),
     ('calves', 'Calves', 'calves', 'back'),
     ('arms', 'Arms', 'forearms', 'front'),
+    ('core', 'Core / Abs', 'core', 'front'),
+    ('glutes', 'Glutes', 'glutes', 'back'),
   ];
   return [
     for (final item in base)

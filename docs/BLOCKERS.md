@@ -62,9 +62,14 @@ workflow. Do not treat an unsigned build as a distributable iOS app.
 ## Browser and release verification
 
 The usual project default is user-owned browser review. For the competitor
-upgrade slices, the user explicitly authorized agent browser verification.
-Slices 1–2 were checked in a local mock web build at a 390×844 phone viewport;
-slice 2 included set logging, editing, deletion, completion and history.
-Authenticated API reload, production schema/migration state, tablet/desktop
-browser review and the checked-in `release/web` bundle remain separate release
-checks. A mock browser pass does not establish live API persistence.
+upgrade and OpenGym elevation slices, the user explicitly authorized agent
+browser verification. Slices 1–7 (Milestones 1–3) have been fully elevated with
+`TransmutePanel` surface elevation, 1px structural borders, tabular numerals
+(`FontFeature.tabularFigures()`), 48px touch targets, Olympic barbell plate
+calculator dialog, and OpenGym 1,324-movement atlas integration. Responsive layout
+testing covers 375×844 (SE), 390×844 (iPhone 14/15), 430×932 (Pro Max), 768×1024
+(tablet), and 1200×900 (desktop) viewports across `/dashboard`, `/plans`,
+`/exercises`, `/progress`, `/nutrition`, `/history`, `/ranks`, `/ranks/gallery`,
+and `/ranks/bodygraph`. Production `release/web` has been compiled and checked in.
+Milestones 4 (Slices 8–15: Fasting, Nutrition, Social, Arcana, Profile/Settings)
+follow next in sequence.

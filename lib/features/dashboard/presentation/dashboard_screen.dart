@@ -187,6 +187,7 @@ class _ProgressionBanner extends ConsumerWidget {
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 1.0,
                                 color: palette.ink,
+                                fontFeatures: const [FontFeature.tabularFigures()],
                               ),
                             ),
                           ),
@@ -194,6 +195,7 @@ class _ProgressionBanner extends ConsumerWidget {
                             '${data.lifetimeXp} XP',
                             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                   color: palette.muted,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
                                 ),
                           ),
                           Text(
@@ -201,6 +203,7 @@ class _ProgressionBanner extends ConsumerWidget {
                             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                   color: palette.oxide,
                                   fontWeight: FontWeight.bold,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
                                 ),
                           ),
                         ],
@@ -215,12 +218,14 @@ class _ProgressionBanner extends ConsumerWidget {
                             'Level ${data.currentLevel + 1}',
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
                                 ),
                           ),
                           Text(
                             '${data.xpToNextLevel} XP remaining',
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                   color: palette.muted,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
                                 ),
                           ),
                         ],
@@ -305,6 +310,7 @@ class _ProgressionBanner extends ConsumerWidget {
                                         fontSize: 10,
                                         fontWeight: FontWeight.w800,
                                         color: palette.ink,
+                                        fontFeatures: const [FontFeature.tabularFigures()],
                                       ),
                                     ),
                                   ],
@@ -377,6 +383,7 @@ class _ProgressionBanner extends ConsumerWidget {
                                   fontSize: 11,
                                   fontWeight: FontWeight.w800,
                                   color: palette.ink,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
                                 ),
                               ),
                             ],
@@ -623,12 +630,15 @@ class _TrainingSummary extends ConsumerWidget {
                                 '${displayVolume.toStringAsFixed(0)} ${unit == WeightUnit.lb ? 'lb' : 'kg'}',
                                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 '${analytics.summary.workoutCount} workouts completed',
-                                style: Theme.of(context).textTheme.bodySmall,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                ),
                               ),
                             ],
                           ),
@@ -669,76 +679,73 @@ class _TrainingSummary extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.timer_outlined, size: 20, color: palette.oxide),
-                          const SizedBox(height: 6),
-                          Text(
-                            '$durationMin min',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                  child: TransmutePanel(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.timer_outlined, size: 20, color: palette.oxide),
+                        const SizedBox(height: 6),
+                        Text(
+                          '$durationMin min',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontFeatures: const [FontFeature.tabularFigures()],
                           ),
-                          Text(
-                            'Duration',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
+                        ),
+                        Text(
+                          'Duration',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.fitness_center_outlined, size: 20, color: palette.oxide),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${analytics.summary.workingSetCount}',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                  child: TransmutePanel(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.fitness_center_outlined, size: 20, color: palette.oxide),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${analytics.summary.workingSetCount}',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontFeatures: const [FontFeature.tabularFigures()],
                           ),
-                          Text(
-                            'Working sets',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
+                        ),
+                        Text(
+                          'Working sets',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.emoji_events_outlined, size: 20, color: palette.gold),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${analytics.summary.personalRecordCount}',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                  child: TransmutePanel(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.emoji_events_outlined, size: 20, color: palette.gold),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${analytics.summary.personalRecordCount}',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontFeatures: const [FontFeature.tabularFigures()],
                           ),
-                          Text(
-                            'Records',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
+                        ),
+                        Text(
+                          'Records',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -801,7 +808,9 @@ class _FeedView extends ConsumerWidget {
               : Column(
                   children: [
                     for (final item in record.activity.take(8))
-                      Card(
+                      TransmutePanel(
+                        padding: EdgeInsets.zero,
+                        margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           title: Text(item.name ?? item.username),
                           subtitle: Text(
@@ -888,7 +897,8 @@ class _DiscoveryGrid extends StatelessWidget {
             for (final (icon, title, subtitle, route) in cards)
               SizedBox(
                 width: width,
-                child: Card(
+                child: TransmutePanel(
+                  padding: EdgeInsets.zero,
                   child: InkWell(
                     onTap: () => context.go(route),
                     child: Padding(
@@ -1041,6 +1051,7 @@ class _TodayGoalsSection extends ConsumerWidget {
                                   : 'Add weight',
                               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
+                                fontFeatures: const [FontFeature.tabularFigures()],
                               ),
                             ),
                             if (currentWeightDisplay != null) ...[
@@ -1061,6 +1072,7 @@ class _TodayGoalsSection extends ConsumerWidget {
                             '${daysLeft != null ? (daysLeft >= 0 ? ' · $daysLeft days left' : ' · Overdue') : ''}',
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: palette.muted,
+                              fontFeatures: const [FontFeature.tabularFigures()],
                             ),
                           ),
                         ],
@@ -1200,6 +1212,7 @@ class _GoalProgressGauge extends StatelessWidget {
               fontWeight: FontWeight.bold,
               fontSize: 14,
               color: palette.ink,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ],

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/widgets/app_shell.dart';
 import 'routine_dialogs.dart';
 
@@ -44,26 +45,35 @@ class PlanListScreen extends ConsumerWidget {
               ],
             )
           else
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 8,
               children: [
-                Expanded(
-                  child: Text(
-                    'Routine folders',
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                    ),
+                Text(
+                  'Routine folders',
+                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () => _newPlan(context, ref),
-                  icon: const Icon(Icons.auto_awesome_outlined),
-                  label: const Text('Create or generate plan'),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => _newFolder(context, ref),
-                  icon: const Icon(Icons.add),
-                  label: const Text('New folder'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => _newPlan(context, ref),
+                      icon: const Icon(Icons.auto_awesome_outlined),
+                      label: const Text('Create or generate plan'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => _newFolder(context, ref),
+                      icon: const Icon(Icons.add),
+                      label: const Text('New folder'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -72,7 +82,8 @@ class PlanListScreen extends ConsumerWidget {
             skipLoadingOnRefresh: true,
             data: (session) => session == null
                 ? const SizedBox()
-                : Card(
+                : TransmutePanel(
+                    padding: EdgeInsets.zero,
                     child: ListTile(
                       leading: const Icon(Icons.play_circle_fill),
                       title: Text(
@@ -381,64 +392,66 @@ class _PlanList extends StatelessWidget {
           itemCount: items.length,
           itemBuilder: (_, index) {
             final plan = items[index];
-            return Card(
-              child: Padding(
-                padding: EdgeInsets.all(compact ? 12 : 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (compact) ...[
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              plan.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
+            return TransmutePanel(
+              padding: EdgeInsets.all(compact ? 12 : 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (compact) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            plan.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          IconButton.filledTonal(
-                            tooltip: 'Open ${plan.name}',
-                            onPressed: () => context.go('/plans/${plan.id}'),
-                            icon: const Icon(Icons.arrow_forward),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Text(
-                        '${plan.days.length} routines · ${plan.exerciseCount} exercises',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ] else ...[
-                      Text(
-                        plan.name,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 6),
-                      Expanded(
-                        child: Text(
-                          plan.description ??
-                              'A repeatable training prescription.',
                         ),
-                      ),
-                      Text(
-                        '${plan.days.length} routines · ${plan.exerciseCount} exercises',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 10),
-                      Align(
-                        alignment: Alignment.bottomRight,
-                        child: ElevatedButton(
+                        IconButton.filledTonal(
+                          tooltip: 'Open ${plan.name}',
                           onPressed: () => context.go('/plans/${plan.id}'),
-                          child: const Text('Open folder'),
+                          icon: const Icon(Icons.arrow_forward),
                         ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${plan.days.length} routines · ${plan.exerciseCount} exercises',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
-                    ],
+                    ),
+                  ] else ...[
+                    Text(
+                      plan.name,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: Text(
+                        plan.description ??
+                            'A repeatable training prescription.',
+                      ),
+                    ),
+                    Text(
+                      '${plan.days.length} routines · ${plan.exerciseCount} exercises',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: ElevatedButton(
+                        onPressed: () => context.go('/plans/${plan.id}'),
+                        child: const Text('Open folder'),
+                      ),
+                    ),
                   ],
-                ),
+                ],
               ),
             );
           },
@@ -906,13 +919,17 @@ class _PrescriptionCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final unit =
         ref.watch(authControllerProvider).user?.weightUnit ?? WeightUnit.kg;
-    return Card(
+    return TransmutePanel(
+      padding: EdgeInsets.zero,
       child: ListTile(
         onTap: () =>
             _showExerciseDetail(context, ref, entry.exercise, onSaved: refresh),
         title: Text(entry.exercise.name),
         subtitle: Text(
           '${entry.exercise.muscleGroup ?? entry.exercise.category} · ${entry.targetSets} × ${entry.trackingMode == ExerciseTrackingMode.timed ? _formatPrescriptionDuration(entry.targetDurationSeconds) : '${entry.targetReps} reps'}${entry.trackingMode == ExerciseTrackingMode.reps && entry.targetWeightKg != null ? ' at ${displayWeight(entry.targetWeightKg!, unit)}' : ''}${entry.previousPerformance == null ? '' : '\nPrevious: ${displayWeight(entry.previousPerformance!.weightKg, unit)} × ${entry.previousPerformance!.reps}'}',
+          style: TextStyle(
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
         ),
         trailing: PopupMenuButton<String>(
           tooltip: 'Options for ${entry.exercise.name}',

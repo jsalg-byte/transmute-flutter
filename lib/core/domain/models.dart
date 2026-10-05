@@ -856,13 +856,56 @@ class Exercise {
     this.muscleGroup,
     this.demoUrl,
     this.demoSourceName,
+    this.bodyPart,
+    this.equipment,
+    this.targetMuscle,
+    this.primaryMuscles = const [],
+    this.secondaryMuscles = const [],
+    this.instructions = const [],
+    this.imageUrl,
+    this.gifUrl,
   });
+
+  factory Exercise.fromJson(Map<String, dynamic> json) => Exercise(
+    id: json['id'] as String,
+    name: json['name'] as String,
+    category: json['category'] as String? ?? 'strength',
+    muscleGroup: json['muscleGroup'] as String?,
+    demoUrl: json['demoUrl'] as String?,
+    demoSourceName: json['demoSourceName'] as String?,
+    bodyPart: json['bodyPart'] as String?,
+    equipment: json['equipment'] as String?,
+    targetMuscle: json['targetMuscle'] as String?,
+    primaryMuscles: (json['primaryMuscles'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const [],
+    secondaryMuscles: (json['secondaryMuscles'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const [],
+    instructions: (json['instructions'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        const [],
+    imageUrl: json['imageUrl'] as String?,
+    gifUrl: json['gifUrl'] as String?,
+  );
+
   final String id;
   final String name;
   final String category;
   final String? muscleGroup;
   final String? demoUrl;
   final String? demoSourceName;
+  final String? bodyPart;
+  final String? equipment;
+  final String? targetMuscle;
+  final List<String> primaryMuscles;
+  final List<String> secondaryMuscles;
+  final List<String> instructions;
+  final String? imageUrl;
+  final String? gifUrl;
 }
 
 enum ExerciseRankMetric { estimatedOneRepMaxKg, maxReps, maxDurationSeconds }

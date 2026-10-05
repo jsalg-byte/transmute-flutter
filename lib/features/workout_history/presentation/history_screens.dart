@@ -137,6 +137,9 @@ class _HistoryItem extends StatelessWidget {
       title: Text(item.planName, style: Theme.of(context).textTheme.titleLarge),
       subtitle: Text(
         '${item.planDayName} · ${_date(item.completedAt)} · ${item.durationSeconds ~/ 60} min · ${item.workingSetCount} working ${item.workingSetCount == 1 ? 'set' : 'sets'}\n${displayWeight(item.totalVolumeKg, unit)} total volume',
+        style: const TextStyle(
+          fontFeatures: [FontFeature.tabularFigures()],
+        ),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -296,12 +299,11 @@ class _CompletedDetail extends ConsumerWidget {
           'Completed ${_date(session.completedAt!)} · ${session.duration.inMinutes} min · ${session.workingSetCount} working ${session.workingSetCount == 1 ? 'set' : 'sets'}',
         ),
         const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              '${displayWeight(session.totalVolumeKg, unit)} total volume',
-              style: Theme.of(context).textTheme.titleLarge,
+        TransmutePanel(
+          child: Text(
+            '${displayWeight(session.totalVolumeKg, unit)} total volume',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ),
@@ -336,26 +338,26 @@ class _CompletedDetail extends ConsumerWidget {
         ),
         const SizedBox(height: 12),
         ...session.exercises.map(
-          (exercise) => Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    exercise.name,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  ...exercise.sets.map(
-                    (set) => Text(
-                      set.durationSeconds == null
-                          ? 'Set ${set.setOrder}: ${displayWeight(set.weightKg, unit)} × ${set.reps}'
-                          : 'Set ${set.setOrder}: ${_formatQuickAddDuration(set.durationSeconds!)}',
+          (exercise) => TransmutePanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  exercise.name,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                ...exercise.sets.map(
+                  (set) => Text(
+                    set.durationSeconds == null
+                        ? 'Set ${set.setOrder}: ${displayWeight(set.weightKg, unit)} × ${set.reps}'
+                        : 'Set ${set.setOrder}: ${_formatQuickAddDuration(set.durationSeconds!)}',
+                    style: const TextStyle(
+                      fontFeatures: [FontFeature.tabularFigures()],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -431,20 +433,20 @@ class _WorkoutRecord extends StatelessWidget {
                 .map(
                   (stat) => SizedBox(
                     width: width,
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(stat.$1),
-                            const SizedBox(height: 4),
-                            Text(
-                              stat.$2,
-                              style: Theme.of(context).textTheme.titleLarge,
+                    child: TransmutePanel(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(stat.$1),
+                          const SizedBox(height: 4),
+                          Text(
+                            stat.$2,
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontFeatures: const [FontFeature.tabularFigures()],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -460,11 +462,23 @@ class _WorkoutRecord extends StatelessWidget {
       ),
       const SizedBox(height: 8),
       ...session.exercises.asMap().entries.map(
-        (entry) => Card(
+        (entry) => TransmutePanel(
+          padding: EdgeInsets.zero,
+          margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
-            leading: Text('${entry.key + 1}'.padLeft(2, '0')),
+            leading: Text(
+              '${entry.key + 1}'.padLeft(2, '0'),
+              style: const TextStyle(
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
             title: Text(entry.value.name),
-            subtitle: Text(_setSummary(entry.value, unit)),
+            subtitle: Text(
+              _setSummary(entry.value, unit),
+              style: const TextStyle(
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
           ),
         ),
       ),

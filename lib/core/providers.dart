@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'api/api_repositories.dart';
 import 'data/pending_set_sync.dart';
 import 'data/mock_repositories.dart';
+import 'data/opengym_catalog.dart';
 import 'domain/models.dart';
 import 'domain/daily_transmutation.dart';
 import 'domain/recovery.dart';
@@ -620,6 +621,46 @@ final calistreeSearchProvider =
     FutureProvider.family<List<CatalogExercise>, String>(
       (ref, query) =>
           ref.watch(planRepositoryProvider).searchCalistreeExercises(query),
+    );
+
+final openGymCatalogProvider = FutureProvider<List<Exercise>>((ref) {
+  return OpenGymCatalog.loadAll();
+});
+
+class OpenGymSearchParams {
+  const OpenGymSearchParams({
+    this.query = '',
+    this.bodyPart,
+    this.equipment,
+    this.muscleGroup,
+  });
+  final String query;
+  final String? bodyPart;
+  final String? equipment;
+  final String? muscleGroup;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OpenGymSearchParams &&
+          runtimeType == other.runtimeType &&
+          query == other.query &&
+          bodyPart == other.bodyPart &&
+          equipment == other.equipment &&
+          muscleGroup == other.muscleGroup;
+
+  @override
+  int get hashCode => Object.hash(query, bodyPart, equipment, muscleGroup);
+}
+
+final openGymSearchProvider =
+    FutureProvider.family<List<Exercise>, OpenGymSearchParams>(
+      (ref, params) => OpenGymCatalog.search(
+        query: params.query,
+        bodyPart: params.bodyPart,
+        equipment: params.equipment,
+        muscleGroup: params.muscleGroup,
+      ),
     );
 
 class RecentRecordItem {

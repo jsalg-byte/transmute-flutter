@@ -127,6 +127,21 @@ overload the existing color-palette field with layout preferences.
 Future incremental extractions: dialogs/sheets, banners, async panels, session
 set rows and timers. Keep mutation and lifecycle logic in their owning features.
 
+## UI-UX Pro Max Skill & AI UX Playground Directives (2026-10-05)
+
+### Anti-AI Visual Directives
+1. **Zero Multi-Color Ambient Gradients**: Prohibit rainbow, multi-color ambient washes, and generic purple/pink gradients. Surfaces use solid background tokens (`surface`, `raised`) paired with crisp 1px neutral borders (`divider`).
+2. **Strict Surface Elevation Tokens**: Elevation is structural and restrained: 0dp for Ledger flat surfaces, 1–2dp for Soft cards and modal sheets.
+3. **No Heavy Neon Drop-Shadows**: Prohibit high-radius neon glow filters or diffuse colored drop shadows.
+4. **Disciplined Typographic Hierarchy**: Spectral serif is reserved for primary headers and emblems; clean neutral sans-serif is used for UI labels.
+5. **Tabular Numerals (`tabular-nums`)**: All numeric metrics (reps, weight, timer countdowns, percentages, set indices, RPE values) MUST apply `FontFeature.tabularFigures()` to prevent layout shifting and jitter during updates.
+
+### Gym Ergonomics & Micro-Interactions (AI UX Playground)
+1. **48×48px Minimum Hit Targets**: For all primary touch interactions on the gym floor (set completion checkoffs, steppers, rest timer modifiers, and dismissal buttons).
+2. **Bottom-Anchored Thumb Zones**: Active workout actions (logging sets, adjusting rest, advancing movements) are anchored to the bottom third of mobile viewports.
+3. **Tactile Completed-State Feedback**: Visual state transitions (set checked, timer ended, PR reached) provide instantaneous, high-contrast feedback.
+4. **Optimistic Updates**: User input is immediately reflected locally; synchronization remains non-blocking with clear pending indicators.
+
 ## Checks
 
 Use `.fvm/flutter_sdk/bin/flutter analyze` and
@@ -134,3 +149,4 @@ Use `.fvm/flutter_sdk/bin/flutter analyze` and
 The library tests cover theme combinations, preview widths/text scaling, boundary
 navigation, disabled/loading states, and sample form interactions. These tests do
 not replace user browser review.
+

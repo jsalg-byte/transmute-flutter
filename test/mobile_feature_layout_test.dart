@@ -6,10 +6,13 @@ import 'package:transmute_flutter/features/dashboard/presentation/dashboard_scre
 import 'package:transmute_flutter/features/exercise_library/presentation/exercise_library_screen.dart';
 import 'package:transmute_flutter/features/nutrition/presentation/nutrition_screen.dart';
 import 'package:transmute_flutter/features/progress/presentation/progress_screen.dart';
+import 'package:transmute_flutter/features/ranks/presentation/rank_overview_screens.dart';
+import 'package:transmute_flutter/features/ranks/presentation/ranks_screens.dart';
+import 'package:transmute_flutter/features/workout_history/presentation/history_screens.dart';
 import 'package:transmute_flutter/features/workout_plans/presentation/plan_screens.dart';
 
 void main() {
-  testWidgets('priority feature screens fit common phone widths', (
+  testWidgets('priority feature screens fit mobile and desktop viewports', (
     tester,
   ) async {
     final router = GoRouter(
@@ -23,8 +26,17 @@ void main() {
         ),
         GoRoute(path: '/progress', builder: (_, _) => const ProgressScreen()),
         GoRoute(path: '/nutrition', builder: (_, _) => const NutritionScreen()),
+        GoRoute(path: '/history', builder: (_, _) => const HistoryScreen()),
+        GoRoute(path: '/ranks', builder: (_, _) => const OverallRanksScreen()),
+        GoRoute(
+          path: '/ranks/gallery',
+          builder: (_, _) => const RanksScreen(),
+        ),
+        GoRoute(
+          path: '/ranks/bodygraph',
+          builder: (_, _) => const RankBodygraphScreen(),
+        ),
         GoRoute(path: '/session', builder: (_, _) => const SizedBox()),
-        GoRoute(path: '/history', builder: (_, _) => const SizedBox()),
       ],
     );
     addTearDown(router.dispose);
@@ -43,19 +55,31 @@ void main() {
       ('/exercises', 'Exercise library'),
       ('/progress', 'Progress'),
       ('/nutrition', 'Nutrition'),
+      ('/history', 'Workout history'),
+      ('/ranks', 'Your Rank'),
+      ('/ranks/gallery', 'Search exercise ranks'),
+      ('/ranks/bodygraph', 'Bodygraph'),
     ];
-    for (final width in [375.0, 390.0, 430.0]) {
-      tester.view.physicalSize = Size(width, 844);
+
+    // Mobile viewports (375 iPhone SE, 390 iPhone 14/15, 430 Pro Max) + Tablet (768) + Desktop (1200)
+    for (final (width, height) in [
+      (375.0, 844.0),
+      (390.0, 844.0),
+      (430.0, 932.0),
+      (768.0, 1024.0),
+      (1200.0, 900.0),
+    ]) {
+      tester.view.physicalSize = Size(width, height);
       for (final (route, title) in cases) {
         router.go(route);
         await tester.pumpAndSettle();
-        expect(find.text(title), findsWidgets, reason: '$route at $width px');
+        expect(find.text(title), findsWidgets, reason: '$route at $width x $height px');
         final layoutError = tester.takeException();
         expect(
           layoutError,
           isNull,
           reason:
-              '$route at $width px: ${layoutError is FlutterError ? layoutError.toStringDeep() : layoutError}',
+              '$route at $width x $height px: ${layoutError is FlutterError ? layoutError.toStringDeep() : layoutError}',
         );
       }
     }

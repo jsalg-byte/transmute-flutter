@@ -131,4 +131,36 @@ void main() {
       expect(find.text('Start with the body'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'can toggle to OpenGym Atlas and view movement cues with tabular numerals',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final router = GoRouter(
+        routes: [
+          GoRoute(path: '/', builder: (_, _) => const ExerciseLibraryScreen()),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(child: MaterialApp.router(routerConfig: router)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Saved Movements'), findsOneWidget);
+      expect(find.text('OpenGym Atlas (1,324)'), findsOneWidget);
+
+      await tester.tap(find.text('OpenGym Atlas (1,324)'));
+      await tester.pump();
+      // Allow future to complete
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      await tester.pump();
+
+      expect(find.text('Taxonomy Filters'), findsOneWidget);
+      expect(find.text('BODY REGION'), findsOneWidget);
+      expect(find.text('EQUIPMENT'), findsOneWidget);
+    },
+  );
 }
