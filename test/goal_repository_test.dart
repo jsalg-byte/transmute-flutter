@@ -25,7 +25,7 @@ void main() {
     );
     await repository.updateStatus(goal.id, GoalStatus.completed);
 
-    final saved = (await repository.listGoals()).single;
+    final saved = (await repository.listGoals()).firstWhere((g) => g.id == goal.id);
     expect(saved.status, GoalStatus.completed);
     expect(saved.assessments.single.value, 67.5);
     expect(saved.assessments.single.decision, 'Keep progressing.');
@@ -34,29 +34,30 @@ void main() {
   test('mock bodyweight repository saves, lists, and deletes measurements', () async {
     final store = MockStore();
     final repository = MockBodyweightRepository(store);
+    final initialCount = (await repository.listMeasurements()).length;
 
     final m1 = await repository.logMeasurement(
-      measuredAt: '2026-10-01',
+      measuredAt: '2026-10-10',
       weightKg: 82.5,
       notes: 'Morning weigh-in',
     );
     expect(m1.weightKg, 82.5);
-    expect(m1.measuredAt, '2026-10-01');
+    expect(m1.measuredAt, '2026-10-10');
 
     final m2 = await repository.logMeasurement(
-      measuredAt: '2026-10-02',
+      measuredAt: '2026-10-11',
       weightKg: 82.1,
     );
     expect(m2.weightKg, 82.1);
 
     final list = await repository.listMeasurements();
-    expect(list.length, 2);
-    expect(list.first.measuredAt, '2026-10-02'); // Sorted desc
+    expect(list.length, initialCount + 2);
+    expect(list.first.measuredAt, '2026-10-11'); // Sorted desc
 
     await repository.deleteMeasurement(m1.id);
     final afterDelete = await repository.listMeasurements();
-    expect(afterDelete.length, 1);
-    expect(afterDelete.first.id, m2.id);
+    expect(afterDelete.length, initialCount + 1);
+    expect(afterDelete.any((m) => m.id == m1.id), isFalse);
   });
 
   test('strength goal calculates progressRatio and daysRemaining correctly', () {

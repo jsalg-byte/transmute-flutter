@@ -290,8 +290,56 @@ class MockStore {
     ),
   ];
   final List<NutritionMeal> meals = [];
-  final List<Goal> goals = [];
-  final List<BodyweightMeasurement> bodyweightMeasurements = [];
+  final List<Goal> goals = [
+    Goal(
+      id: 'mock-goal-bodyweight',
+      title: 'Target Bodyweight',
+      category: GoalCategory.body,
+      baseline: 83.0,
+      target: 78.0,
+      unit: 'kg',
+      targetDate: DateTime.now().add(const Duration(days: 60)),
+      status: GoalStatus.active,
+      assessments: [
+        GoalAssessment(
+          id: 'mock-bw-assess-1',
+          assessedAt: DateTime.now().subtract(const Duration(days: 1)),
+          value: 81.5,
+          reason: 'Consistent morning weigh-in.',
+        ),
+      ],
+    ),
+    Goal(
+      id: 'mock-goal-bench',
+      title: 'Barbell Bench Press Target',
+      category: GoalCategory.strength,
+      baseline: 80.0,
+      target: 100.0,
+      unit: 'kg',
+      targetDate: DateTime.now().add(const Duration(days: 75)),
+      status: GoalStatus.active,
+      exerciseId: 'bench-press',
+      exerciseName: 'Barbell Bench Press',
+      trackingMode: ExerciseTrackingMode.reps,
+      assessments: [
+        GoalAssessment(
+          id: 'mock-strength-assess-1',
+          assessedAt: DateTime.now().subtract(const Duration(days: 2)),
+          value: 87.5,
+          reason: 'Solid working triples.',
+        ),
+      ],
+    ),
+  ];
+  final List<BodyweightMeasurement> bodyweightMeasurements = [
+    BodyweightMeasurement(
+      id: 'mock-bw-1',
+      measuredAt: DateTime.now().toIso8601String().substring(0, 10),
+      weightKg: 81.5,
+      notes: 'Post-workout weigh-in',
+      createdAt: DateTime.now(),
+    ),
+  ];
   final List<TrainingBlock> blocks = [];
   final List<WeeklyReview> reviews = [];
   late List<FriendRequest> incomingFriends;
