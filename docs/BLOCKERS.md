@@ -63,13 +63,11 @@ workflow. Do not treat an unsigned build as a distributable iOS app.
 
 The usual project default is user-owned browser review. For the competitor
 upgrade and OpenGym elevation slices, the user explicitly authorized agent
-browser verification. Slices 1–7 (Milestones 1–3) have been fully elevated with
+browser verification. All 15 vertical slices (Milestones 1–4) have been fully elevated with
 `TransmutePanel` surface elevation, 1px structural borders, tabular numerals
 (`FontFeature.tabularFigures()`), 48px touch targets, Olympic barbell plate
-calculator dialog, and OpenGym 1,324-movement atlas integration. Responsive layout
+calculator dialog, persistent rest timer banner, and OpenGym 1,324-movement atlas integration. Responsive layout
 testing covers 375×844 (SE), 390×844 (iPhone 14/15), 430×932 (Pro Max), 768×1024
 (tablet), and 1200×900 (desktop) viewports across `/dashboard`, `/plans`,
 `/exercises`, `/progress`, `/nutrition`, `/history`, `/ranks`, `/ranks/gallery`,
-and `/ranks/bodygraph`. Production `release/web` has been compiled and checked in.
-Milestones 4 (Slices 8–15: Fasting, Nutrition, Social, Arcana, Profile/Settings)
-follow next in sequence.
+`/ranks/bodygraph`, `/fasting`, `/friends`, `/arcana`, `/goals`, and `/planning`. Production `release/web` has been compiled, checked in, and deployed to `https://transmute.mzootfb.xyz` (HTTP 200).
