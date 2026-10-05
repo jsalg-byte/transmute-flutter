@@ -255,6 +255,19 @@ abstract class FriendsRepository {
   Future<void> accept(String requestId);
   Future<void> reject(String requestId);
   Future<void> remove(String userId);
+
+  // Slice 15: Social feed, preferences, invitations, and leaderboards
+  Future<PaginatedFriendActivity> getActivityFeed({String? cursor, int? limit});
+  Future<SocialPrivacyPreferences> getSocialPreferences();
+  Future<SocialPrivacyPreferences> updateSocialPreferences({
+    bool? socialActivityOptIn,
+    bool? leagueOptIn,
+  });
+  Future<FriendInvitation> createInvitation();
+  Future<ResolvedFriendInvitation> resolveInvitation(String token);
+  Future<void> revokeInvitation(String token);
+  Future<LeaderboardResponse> getFriendsLeaderboard({String? period});
+  Future<LeagueResponse> getLeagueStandings({String? period});
 }
 
 abstract class PreferencesRepository {

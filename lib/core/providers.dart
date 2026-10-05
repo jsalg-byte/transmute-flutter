@@ -266,6 +266,22 @@ final sharedSessionProvider =
       (ref, sessionId) =>
           ref.watch(friendsRepositoryProvider).getSharedSession(sessionId),
     );
+final socialPreferencesProvider = FutureProvider<SocialPrivacyPreferences>(
+  (ref) => ref.watch(friendsRepositoryProvider).getSocialPreferences(),
+);
+final socialActivityFeedProvider = FutureProvider<PaginatedFriendActivity>(
+  (ref) => ref.watch(friendsRepositoryProvider).getActivityFeed(),
+);
+final friendsLeaderboardProvider =
+    FutureProvider.family<LeaderboardResponse, String?>(
+      (ref, period) =>
+          ref.watch(friendsRepositoryProvider).getFriendsLeaderboard(period: period),
+    );
+final leagueStandingsProvider =
+    FutureProvider.family<LeagueResponse, String?>(
+      (ref, period) =>
+          ref.watch(friendsRepositoryProvider).getLeagueStandings(period: period),
+    );
 final preferencesRepositoryProvider = Provider<PreferencesRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockPreferencesRepository(ref.watch(mockStoreProvider))

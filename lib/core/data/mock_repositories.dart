@@ -347,6 +347,11 @@ class MockStore {
   late List<FriendRequest> incomingFriends;
   late List<FriendRequest> outgoingFriends;
   late List<FriendActivity> friendActivity;
+  SocialPrivacyPreferences socialPreferences = const SocialPrivacyPreferences(
+    socialActivityOptIn: false,
+    leagueOptIn: false,
+  );
+  final List<FriendInvitation> invitations = [];
   final List<RoutineShare> routineShares = [];
   final List<Recipe> recipes = [
     const Recipe(
@@ -1534,6 +1539,138 @@ class MockFriendsRepository implements FriendsRepository {
         _store.incomingFriends.length + _store.outgoingFriends.length) {
       throw const AppFailure('friendship_not_found', 'Friendship not found.');
     }
+  }
+
+  @override
+  Future<PaginatedFriendActivity> getActivityFeed({String? cursor, int? limit}) async {
+    if (!_store.socialPreferences.socialActivityOptIn) {
+      return const PaginatedFriendActivity(activity: []);
+    }
+    return PaginatedFriendActivity(activity: _store.friendActivity);
+  }
+
+  @override
+  Future<SocialPrivacyPreferences> getSocialPreferences() async => _store.socialPreferences;
+
+  @override
+  Future<SocialPrivacyPreferences> updateSocialPreferences({
+    bool? socialActivityOptIn,
+    bool? leagueOptIn,
+  }) async {
+    _store.socialPreferences = SocialPrivacyPreferences(
+      socialActivityOptIn: socialActivityOptIn ?? _store.socialPreferences.socialActivityOptIn,
+      leagueOptIn: leagueOptIn ?? _store.socialPreferences.leagueOptIn,
+    );
+    return _store.socialPreferences;
+  }
+
+  @override
+  Future<FriendInvitation> createInvitation() async {
+    final token = _store.next('invite-token');
+    final inv = FriendInvitation(
+      token: token,
+      url: '/friends/invite/$token',
+      createdAt: DateTime.now(),
+    );
+    _store.invitations.add(inv);
+    return inv;
+  }
+
+  @override
+  Future<ResolvedFriendInvitation> resolveInvitation(String token) async {
+    final found = _store.invitations.where((i) => i.token == token).firstOrNull;
+    if (found == null && token != 'valid-invite-token') {
+      throw const AppFailure('invitation_not_found', 'Invitation not found or expired.');
+    }
+    return const ResolvedFriendInvitation(
+      inviterId: 'friend-alchemist',
+      username: 'alchemist',
+      name: 'Alchemist',
+    );
+  }
+
+  @override
+  Future<void> revokeInvitation(String token) async {
+    _store.invitations.removeWhere((i) => i.token == token);
+  }
+
+  @override
+  Future<LeaderboardResponse> getFriendsLeaderboard({String? period}) async {
+    final effectivePeriod = period ?? '2026-10';
+    final entries = <LeaderboardEntry>[
+      const LeaderboardEntry(
+        rank: 1,
+        userId: 'current-user',
+        username: 'transmuter',
+        name: 'Lead Alchemist',
+        xp: 450,
+        qualifiedSessions: 3,
+        isCurrentUser: true,
+      ),
+      if (_store.socialPreferences.socialActivityOptIn)
+        const LeaderboardEntry(
+          rank: 2,
+          userId: 'friend-alchemist',
+          username: 'alchemist',
+          name: 'Alchemist',
+          xp: 320,
+          qualifiedSessions: 2,
+          isCurrentUser: false,
+        ),
+    ];
+    return LeaderboardResponse(
+      period: effectivePeriod,
+      tieRule: 'XP, then qualified sessions, then earliest completion',
+      entries: entries,
+      currentUserEntry: entries.first,
+    );
+  }
+
+  @override
+  Future<LeagueResponse> getLeagueStandings({String? period}) async {
+    final effectivePeriod = period ?? '2026-10';
+    final entries = <LeagueStandingEntry>[
+      const LeagueStandingEntry(
+        rank: 1,
+        userId: 'current-user',
+        username: 'transmuter',
+        name: 'Lead Alchemist',
+        tier: 'Bronze',
+        xp: 450,
+        qualifiedSessions: 3,
+        isCurrentUser: true,
+      ),
+      const LeagueStandingEntry(
+        rank: 2,
+        userId: 'friend-alchemist',
+        username: 'alchemist',
+        name: 'Alchemist',
+        tier: 'Iron',
+        xp: 320,
+        qualifiedSessions: 2,
+        isCurrentUser: false,
+      ),
+      const LeagueStandingEntry(
+        rank: 3,
+        userId: 'friend-sparrow',
+        username: 'sparrow',
+        name: 'Sparrow',
+        tier: 'Lead',
+        xp: 150,
+        qualifiedSessions: 1,
+        isCurrentUser: false,
+      ),
+    ];
+    return LeagueResponse(
+      period: effectivePeriod,
+      cohortSize: entries.length,
+      tieRule: 'XP, then qualified sessions, then earliest completion',
+      isEligible: true,
+      eligibleExerciseCount: 12,
+      isOptedIn: _store.socialPreferences.leagueOptIn,
+      entries: entries,
+      currentUserEntry: entries.first,
+    );
   }
 }
 

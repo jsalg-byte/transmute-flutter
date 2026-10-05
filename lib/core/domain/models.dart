@@ -99,6 +99,120 @@ class FriendActivity {
   final int setCount;
 }
 
+class PaginatedFriendActivity {
+  const PaginatedFriendActivity({
+    required this.activity,
+    this.nextCursor,
+  });
+  final List<FriendActivity> activity;
+  final String? nextCursor;
+}
+
+class SocialPrivacyPreferences {
+  const SocialPrivacyPreferences({
+    required this.socialActivityOptIn,
+    required this.leagueOptIn,
+  });
+  final bool socialActivityOptIn;
+  final bool leagueOptIn;
+}
+
+class FriendInvitation {
+  const FriendInvitation({
+    required this.token,
+    required this.url,
+    required this.createdAt,
+  });
+  final String token;
+  final String url;
+  final DateTime createdAt;
+}
+
+class ResolvedFriendInvitation {
+  const ResolvedFriendInvitation({
+    required this.inviterId,
+    required this.username,
+    this.name,
+  });
+  final String inviterId;
+  final String username;
+  final String? name;
+}
+
+class LeaderboardEntry {
+  const LeaderboardEntry({
+    required this.rank,
+    required this.userId,
+    required this.username,
+    required this.xp,
+    required this.qualifiedSessions,
+    required this.isCurrentUser,
+    this.name,
+  });
+  final int rank;
+  final String userId;
+  final String username;
+  final String? name;
+  final int xp;
+  final int qualifiedSessions;
+  final bool isCurrentUser;
+}
+
+class LeaderboardResponse {
+  const LeaderboardResponse({
+    required this.period,
+    required this.tieRule,
+    required this.entries,
+    this.currentUserEntry,
+  });
+  final String period;
+  final String tieRule;
+  final List<LeaderboardEntry> entries;
+  final LeaderboardEntry? currentUserEntry;
+}
+
+class LeagueStandingEntry {
+  const LeagueStandingEntry({
+    required this.rank,
+    required this.userId,
+    required this.username,
+    required this.tier,
+    required this.xp,
+    required this.qualifiedSessions,
+    required this.isCurrentUser,
+    this.name,
+  });
+  final int rank;
+  final String userId;
+  final String username;
+  final String? name;
+  final String tier;
+  final int xp;
+  final int qualifiedSessions;
+  final bool isCurrentUser;
+}
+
+class LeagueResponse {
+  const LeagueResponse({
+    required this.period,
+    required this.cohortSize,
+    required this.tieRule,
+    required this.isEligible,
+    required this.eligibleExerciseCount,
+    required this.isOptedIn,
+    required this.entries,
+    this.currentUserEntry,
+  });
+  final String period;
+  final int cohortSize;
+  final String tieRule;
+  final bool isEligible;
+  final int eligibleExerciseCount;
+  final bool isOptedIn;
+  final List<LeagueStandingEntry> entries;
+  final LeagueStandingEntry? currentUserEntry;
+}
+
 class FriendsRecord {
   const FriendsRecord({
     required this.incoming,

@@ -851,6 +851,12 @@ class _DiscoveryGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final cards = <(IconData, String, String, String)>[
       (
+        Icons.emoji_events_outlined,
+        'Leaderboards',
+        'Compare verified monthly XP.',
+        '/friends/leaderboards',
+      ),
+      (
         Icons.local_fire_department_outlined,
         'Streak Calendar',
         'Track your qualified consistency.',

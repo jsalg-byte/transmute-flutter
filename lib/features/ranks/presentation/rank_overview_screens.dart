@@ -198,39 +198,246 @@ class _RankBodygraphScreenState extends ConsumerState<RankBodygraphScreen> {
 
 class RankLeaguesScreen extends ConsumerWidget {
   const RankLeaguesScreen({super.key});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) => AppShell(
-    title: 'Rank leagues',
-    child: ListView(
-      children: [
-        const RankTabs(selected: 'Leagues'),
-        const SizedBox(height: 22),
-        Icon(
-          Icons.groups_outlined,
-          size: 68,
-          color: TransmutePalette.of(context).oxide,
-        ),
-        const SizedBox(height: 12),
-        Text('Leagues', style: Theme.of(context).textTheme.displaySmall),
-        const SizedBox(height: 8),
-        ref
-            .watch(rankOverviewProvider)
-            .when(
-              loading: () => const LinearProgressIndicator(),
-              error: (_, __) => const Text('Eligibility is unavailable.'),
-              data: (data) => TransmuteStatePanel(
-                kind: TransmuteStateKind.empty,
-                title: data.overall.placementEligible
-                    ? 'Placement complete'
-                    : '${10 - data.overall.eligibleExerciseCount > 0 ? 10 - data.overall.eligibleExerciseCount : 0} ranked exercises to placement',
-                message: data.overall.placementEligible
-                    ? 'League participation will be an explicit opt-in when that verified cohort ships. No opponents are shown yet.'
-                    : 'Rank 10 mapped exercises across at least five groups to become eligible. This is not a public standing.',
+  Widget build(BuildContext context, WidgetRef ref) {
+    final leagueAsync = ref.watch(leagueStandingsProvider(null));
+    final theme = Theme.of(context);
+
+    return AppShell(
+      title: 'Rank leagues',
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        children: [
+          const RankTabs(selected: 'Leagues'),
+          const SizedBox(height: 18),
+          Text('Rank Leagues', style: theme.textTheme.displaySmall),
+          const SizedBox(height: 6),
+          const Text(
+            'Verified monthly league cohorts based on placement eligibility (10 ranked exercises across at least 5 muscle groups).',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+
+          leagueAsync.when(
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(40),
+                child: CircularProgressIndicator(),
               ),
             ),
+            error: (err, _) => TransmuteStatePanel(
+              kind: TransmuteStateKind.error,
+              title: 'Leagues unavailable',
+              message: 'Could not load league standings: $err',
+              action: TransmuteButton(
+                label: 'Retry',
+                onPressed: () => ref.invalidate(leagueStandingsProvider(null)),
+              ),
+            ),
+            data: (data) => _buildLeagueContent(context, ref, data),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLeagueContent(BuildContext context, WidgetRef ref, LeagueResponse data) {
+    final theme = Theme.of(context);
+
+    if (!data.isEligible) {
+      final remaining = 10 - data.eligibleExerciseCount;
+      return Column(
+        children: [
+          TransmuteStatePanel(
+            kind: TransmuteStateKind.empty,
+            title: remaining > 0 ? '$remaining exercises to placement' : 'Placement in progress',
+            message: 'You currently have ${data.eligibleExerciseCount}/10 ranked exercises. Rank at least 10 mapped exercises across 5 muscle groups to unlock league participation.',
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () => context.go('/ranks/gallery'),
+            icon: const Icon(Icons.fitness_center),
+            label: const Text('Browse Exercise Ranks'),
+          ),
+        ],
+      );
+    }
+
+    if (!data.isOptedIn) {
+      return Column(
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Icon(Icons.workspace_premium_outlined, size: 54, color: theme.colorScheme.primary),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Placement Complete!',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'You are eligible for Competitive Leagues! Participation is strictly opt-in. Opt in to compete against other verified lifters in your monthly cohort.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      await ref.read(friendsRepositoryProvider).updateSocialPreferences(leagueOptIn: true);
+                      ref.invalidate(socialPreferencesProvider);
+                      ref.invalidate(leagueStandingsProvider(null));
+                    },
+                    icon: const Icon(Icons.check),
+                    label: const Text('Opt In to Leagues'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Meta cohort info & Opt-out option
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      'Period: ${data.period}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                      onPressed: () async {
+                        await ref.read(friendsRepositoryProvider).updateSocialPreferences(leagueOptIn: false);
+                        ref.invalidate(socialPreferencesProvider);
+                        ref.invalidate(leagueStandingsProvider(null));
+                      },
+                      child: const Text('Leave League'),
+                    ),
+                  ],
+                ),
+                Text(
+                  'Cohort size: ${data.cohortSize} lifters · Tie Rule: ${data.tieRule}',
+                  style: TextStyle(fontSize: 12, color: theme.colorScheme.outline),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        if (data.entries.isEmpty)
+          const TransmuteStatePanel(
+            kind: TransmuteStateKind.empty,
+            title: 'No cohort lifters yet',
+            message: 'You are the first opted-in eligible lifter in this period cohort.',
+          )
+        else
+          ...data.entries.map((entry) {
+            final isTop3 = entry.rank <= 3;
+            final isCurrentUser = entry.isCurrentUser;
+
+            Color? rankColor;
+            if (entry.rank == 1) rankColor = const Color(0xFFFFD700);
+            else if (entry.rank == 2) rankColor = const Color(0xFFC0C0C0);
+            else if (entry.rank == 3) rankColor = const Color(0xFFCD7F32);
+
+            return Card(
+              color: isCurrentUser
+                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
+                  : null,
+              margin: const EdgeInsets.only(bottom: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: isCurrentUser
+                    ? BorderSide(color: theme.colorScheme.primary, width: 1.5)
+                    : BorderSide.none,
+              ),
+              child: ListTile(
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isTop3 ? rankColor?.withValues(alpha: 0.2) : theme.colorScheme.surfaceContainerHighest,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '${entry.rank}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isTop3 ? rankColor : null,
+                    ),
+                  ),
+                ),
+                title: Wrap(
+                  spacing: 6,
+                  runSpacing: 2,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      entry.name ?? entry.username,
+                      style: TextStyle(
+                        fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        entry.tier.toUpperCase(),
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: theme.colorScheme.onSecondaryContainer),
+                      ),
+                    ),
+                    if (isCurrentUser)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'YOU',
+                          style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                  ],
+                ),
+                subtitle: Text(
+                  '@${entry.username} · ${entry.qualifiedSessions} workouts',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                trailing: Text(
+                  '${entry.xp} XP',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+            );
+          }),
       ],
-    ),
-  );
+    );
+  }
 }
 
 class RankAnalysisScreen extends ConsumerWidget {

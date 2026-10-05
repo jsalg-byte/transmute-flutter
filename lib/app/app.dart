@@ -22,6 +22,8 @@ import '../features/planning/presentation/planning_screen.dart';
 import '../features/progress/presentation/progress_screen.dart';
 import '../features/ranks/presentation/ranks_screens.dart';
 import '../features/ranks/presentation/rank_overview_screens.dart';
+import '../features/social/presentation/social_hub_screen.dart';
+import '../features/social/presentation/leaderboards_screen.dart';
 import '../features/workout_history/presentation/history_screens.dart';
 import '../features/workout_history/presentation/training_calendar_screen.dart';
 import '../features/workout_plans/presentation/plan_screens.dart';
@@ -142,8 +144,12 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
         GoRoute(path: '/arcana', builder: (_, _) => const ArcanaScreen()),
         GoRoute(
           path: '/friends',
-          builder: (_, _) => const FriendsScreen(),
+          builder: (_, _) => const SocialHubScreen(),
           routes: [
+            GoRoute(
+              path: 'leaderboards',
+              builder: (_, _) => const LeaderboardsScreen(),
+            ),
             GoRoute(
               path: 'sessions/:sessionId',
               builder: (_, state) => SharedSessionScreen(

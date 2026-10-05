@@ -2015,6 +2015,145 @@ class ApiFriendsRepository implements FriendsRepository {
   Future<void> remove(String userId) async {
     await _request(() => _dio.delete<void>('/v1/friends/$userId'));
   }
+
+  @override
+  Future<PaginatedFriendActivity> getActivityFeed({String? cursor, int? limit}) async {
+    final queryParams = <String, dynamic>{};
+    if (cursor != null) queryParams['cursor'] = cursor;
+    if (limit != null) queryParams['limit'] = limit;
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>(
+        '/v1/friends/activity',
+        queryParameters: queryParams,
+      ),
+    );
+    final data = body.data!;
+    final list = ((data['activity'] as List<dynamic>?) ?? const [])
+        .map((item) => _friendActivity(item as Map<String, dynamic>))
+        .toList();
+    return PaginatedFriendActivity(
+      activity: list,
+      nextCursor: data['nextCursor'] as String?,
+    );
+  }
+
+  @override
+  Future<SocialPrivacyPreferences> getSocialPreferences() async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/social/preferences'),
+    );
+    final data = body.data!;
+    return SocialPrivacyPreferences(
+      socialActivityOptIn: data['socialActivityOptIn'] as bool? ?? true,
+      leagueOptIn: data['leagueOptIn'] as bool? ?? false,
+    );
+  }
+
+  @override
+  Future<SocialPrivacyPreferences> updateSocialPreferences({
+    bool? socialActivityOptIn,
+    bool? leagueOptIn,
+  }) async {
+    final payload = <String, dynamic>{};
+    if (socialActivityOptIn != null) payload['socialActivityOptIn'] = socialActivityOptIn;
+    if (leagueOptIn != null) payload['leagueOptIn'] = leagueOptIn;
+    final body = await _request(
+      () => _dio.patch<Map<String, dynamic>>(
+        '/v1/social/preferences',
+        data: payload,
+      ),
+    );
+    final data = body.data!;
+    return SocialPrivacyPreferences(
+      socialActivityOptIn: data['socialActivityOptIn'] as bool? ?? true,
+      leagueOptIn: data['leagueOptIn'] as bool? ?? false,
+    );
+  }
+
+  @override
+  Future<FriendInvitation> createInvitation() async {
+    final body = await _request(
+      () => _dio.post<Map<String, dynamic>>('/v1/friends/invitations'),
+    );
+    final data = body.data!;
+    return FriendInvitation(
+      token: data['token'] as String,
+      url: data['url'] as String,
+      createdAt: DateTime.parse(data['createdAt'] as String),
+    );
+  }
+
+  @override
+  Future<ResolvedFriendInvitation> resolveInvitation(String token) async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/friends/invitations/$token'),
+    );
+    final data = body.data!;
+    return ResolvedFriendInvitation(
+      inviterId: data['inviterId'] as String,
+      username: data['username'] as String,
+      name: data['name'] as String?,
+    );
+  }
+
+  @override
+  Future<void> revokeInvitation(String token) async {
+    await _request(() => _dio.delete<void>('/v1/friends/invitations/$token'));
+  }
+
+  @override
+  Future<LeaderboardResponse> getFriendsLeaderboard({String? period}) async {
+    final queryParams = <String, dynamic>{};
+    if (period != null) queryParams['period'] = period;
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>(
+        '/v1/leaderboards/friends',
+        queryParameters: queryParams,
+      ),
+    );
+    final data = body.data!;
+    final entries = ((data['entries'] as List<dynamic>?) ?? const [])
+        .map((e) => _leaderboardEntry(e as Map<String, dynamic>))
+        .toList();
+    final currentEntry = data['currentUserEntry'] == null
+        ? null
+        : _leaderboardEntry(data['currentUserEntry'] as Map<String, dynamic>);
+    return LeaderboardResponse(
+      period: data['period'] as String,
+      tieRule: data['tieRule'] as String,
+      entries: entries,
+      currentUserEntry: currentEntry,
+    );
+  }
+
+  @override
+  Future<LeagueResponse> getLeagueStandings({String? period}) async {
+    final queryParams = <String, dynamic>{};
+    if (period != null) queryParams['period'] = period;
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>(
+        '/v1/leagues',
+        queryParameters: queryParams,
+      ),
+    );
+    final data = body.data!;
+    final entries = ((data['entries'] as List<dynamic>?) ?? const [])
+        .map((e) => _leagueStandingEntry(e as Map<String, dynamic>))
+        .toList();
+    final currentEntry = data['currentUserEntry'] == null
+        ? null
+        : _leagueStandingEntry(data['currentUserEntry'] as Map<String, dynamic>);
+    return LeagueResponse(
+      period: data['period'] as String,
+      cohortSize: data['cohortSize'] as int,
+      tieRule: data['tieRule'] as String,
+      isEligible: data['isEligible'] as bool,
+      eligibleExerciseCount: data['eligibleExerciseCount'] as int,
+      isOptedIn: data['isOptedIn'] as bool,
+      entries: entries,
+      currentUserEntry: currentEntry,
+    );
+  }
 }
 
 class ApiPreferencesRepository implements PreferencesRepository {
@@ -2889,6 +3028,27 @@ FriendActivity _friendActivity(Map<String, dynamic> map) => FriendActivity(
   routineName: map['routineName'] as String?,
   dayName: map['dayName'] as String?,
   setCount: map['setCount'] as int,
+);
+
+LeaderboardEntry _leaderboardEntry(Map<String, dynamic> map) => LeaderboardEntry(
+  rank: map['rank'] as int,
+  userId: map['userId'] as String,
+  username: map['username'] as String,
+  name: map['name'] as String?,
+  xp: (map['xp'] as num).toInt(),
+  qualifiedSessions: (map['qualifiedSessions'] as num).toInt(),
+  isCurrentUser: map['isCurrentUser'] as bool? ?? false,
+);
+
+LeagueStandingEntry _leagueStandingEntry(Map<String, dynamic> map) => LeagueStandingEntry(
+  rank: map['rank'] as int,
+  userId: map['userId'] as String,
+  username: map['username'] as String,
+  name: map['name'] as String?,
+  tier: map['tier'] as String? ?? 'Initiate',
+  xp: (map['xp'] as num).toInt(),
+  qualifiedSessions: (map['qualifiedSessions'] as num).toInt(),
+  isCurrentUser: map['isCurrentUser'] as bool? ?? false,
 );
 UserPreferences _preferences(Map<String, dynamic> map) => UserPreferences(
   weightUnit: map['weight_unit'] == 'kg' ? WeightUnit.kg : WeightUnit.lb,
