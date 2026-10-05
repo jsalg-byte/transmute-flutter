@@ -206,6 +206,15 @@ abstract class ProgressRepository {
 
 abstract class NutritionRepository {
   Future<NutritionRecord> read();
+  Future<DailyNutritionTarget?> getDailyTarget({String? date});
+  Future<DailyNutritionTarget> saveDailyTarget({
+    required int caloriesTarget,
+    double proteinGTarget = 0,
+    double carbsGTarget = 0,
+    double fatGTarget = 0,
+    String? effectiveDate,
+  });
+  Future<NutritionDiaryDay> getDiaryDay(String date);
   Future<Food> createFood(Food food);
   Future<void> createMeal(
     MealType type,

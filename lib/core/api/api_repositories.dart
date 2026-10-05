@@ -1561,6 +1561,92 @@ class ApiNutritionRepository implements NutritionRepository {
   }
 
   @override
+  Future<DailyNutritionTarget?> getDailyTarget({String? date}) async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/nutrition/targets'),
+    );
+    final targetMap = body.data?['target'] as Map<String, dynamic>?;
+    if (targetMap == null) return null;
+    return DailyNutritionTarget(
+      id: targetMap['id'] as String,
+      caloriesTarget: (targetMap['caloriesTarget'] as num).toInt(),
+      proteinGTarget: _number(targetMap['proteinGTarget']),
+      carbsGTarget: _number(targetMap['carbsGTarget']),
+      fatGTarget: _number(targetMap['fatGTarget']),
+      effectiveDate: targetMap['effectiveDate'] as String,
+    );
+  }
+
+  @override
+  Future<DailyNutritionTarget> saveDailyTarget({
+    required int caloriesTarget,
+    double proteinGTarget = 0,
+    double carbsGTarget = 0,
+    double fatGTarget = 0,
+    String? effectiveDate,
+  }) async {
+    final payload = <String, dynamic>{
+      'caloriesTarget': caloriesTarget,
+      'proteinGTarget': proteinGTarget,
+      'carbsGTarget': carbsGTarget,
+      'fatGTarget': fatGTarget,
+    };
+    if (effectiveDate != null) payload['effectiveDate'] = effectiveDate;
+    final body = await _request(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/nutrition/targets',
+        data: payload,
+      ),
+    );
+    final targetMap = body.data!['target'] as Map<String, dynamic>;
+    return DailyNutritionTarget(
+      id: targetMap['id'] as String,
+      caloriesTarget: (targetMap['caloriesTarget'] as num).toInt(),
+      proteinGTarget: _number(targetMap['proteinGTarget']),
+      carbsGTarget: _number(targetMap['carbsGTarget']),
+      fatGTarget: _number(targetMap['fatGTarget']),
+      effectiveDate: targetMap['effectiveDate'] as String,
+    );
+  }
+
+  @override
+  Future<NutritionDiaryDay> getDiaryDay(String date) async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>(
+        '/v1/nutrition/diary',
+        queryParameters: {'date': date},
+      ),
+    );
+    final data = body.data!;
+    final targetMap = data['target'] as Map<String, dynamic>?;
+    final target = targetMap == null
+        ? null
+        : DailyNutritionTarget(
+            id: targetMap['id'] as String,
+            caloriesTarget: (targetMap['caloriesTarget'] as num).toInt(),
+            proteinGTarget: _number(targetMap['proteinGTarget']),
+            carbsGTarget: _number(targetMap['carbsGTarget']),
+            fatGTarget: _number(targetMap['fatGTarget']),
+            effectiveDate: targetMap['effectiveDate'] as String,
+          );
+    final consumed = data['consumed'] as Map<String, dynamic>;
+    final mealsList = (data['meals'] as List<dynamic>)
+        .map((item) => _nutritionMeal(item as Map<String, dynamic>))
+        .toList();
+
+    return NutritionDiaryDay(
+      date: data['date'] as String,
+      target: target,
+      consumedCalories: (consumed['calories'] as num).toInt(),
+      consumedProteinG: _number(consumed['proteinG']),
+      consumedCarbsG: _number(consumed['carbsG']),
+      consumedFatG: _number(consumed['fatG']),
+      remainingCalories: (data['remainingCalories'] as num?)?.toInt(),
+      meals: mealsList,
+    );
+  }
+
+  @override
   Future<Food> createFood(Food food) async {
     final body = await _request(
       () => _dio.post<Map<String, dynamic>>(

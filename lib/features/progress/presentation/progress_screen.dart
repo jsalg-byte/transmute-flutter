@@ -556,7 +556,7 @@ class _Calendar extends StatelessWidget {
               builder: (context, constraints) {
                 final rowCount = (cells.length / 7).ceil();
                 final cellWidth = constraints.maxWidth / 7;
-                final cellHeight = (cellWidth * .88).clamp(38.0, 52.0);
+                final cellHeight = (cellWidth * .96).clamp(44.0, 58.0);
                 final height = rowCount * cellHeight;
                 return SizedBox(
                   height: height,

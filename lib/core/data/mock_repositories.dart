@@ -290,6 +290,7 @@ class MockStore {
     ),
   ];
   final List<NutritionMeal> meals = [];
+  final List<DailyNutritionTarget> dailyTargets = [];
   final List<Goal> goals = [
     Goal(
       id: 'mock-goal-bodyweight',
@@ -622,6 +623,73 @@ class MockNutritionRepository implements NutritionRepository {
     meals: [..._store.meals]
       ..sort((a, b) => b.consumedAt.compareTo(a.consumedAt)),
   );
+
+  @override
+  Future<DailyNutritionTarget?> getDailyTarget({String? date}) async {
+    final targetDate = date ?? DateTime.now().toIso8601String().substring(0, 10);
+    final applicable = _store.dailyTargets
+        .where((t) => t.effectiveDate.compareTo(targetDate) <= 0)
+        .toList();
+    if (applicable.isEmpty) return null;
+    applicable.sort((a, b) => b.effectiveDate.compareTo(a.effectiveDate));
+    return applicable.first;
+  }
+
+  @override
+  Future<DailyNutritionTarget> saveDailyTarget({
+    required int caloriesTarget,
+    double proteinGTarget = 0,
+    double carbsGTarget = 0,
+    double fatGTarget = 0,
+    String? effectiveDate,
+  }) async {
+    final date = effectiveDate ?? DateTime.now().toIso8601String().substring(0, 10);
+    _store.dailyTargets.removeWhere((t) => t.effectiveDate == date);
+    final target = DailyNutritionTarget(
+      id: _store.next('target'),
+      caloriesTarget: caloriesTarget,
+      proteinGTarget: proteinGTarget,
+      carbsGTarget: carbsGTarget,
+      fatGTarget: fatGTarget,
+      effectiveDate: date,
+    );
+    _store.dailyTargets.add(target);
+    return target;
+  }
+
+  @override
+  Future<NutritionDiaryDay> getDiaryDay(String date) async {
+    final target = await getDailyTarget(date: date);
+    final meals = _store.meals.where((m) {
+      final mDate = m.consumedAt.toLocal().toIso8601String().substring(0, 10);
+      return mDate == date;
+    }).toList();
+
+    int totalCals = 0;
+    double totalP = 0;
+    double totalC = 0;
+    double totalF = 0;
+
+    for (final meal in meals) {
+      totalCals += meal.caloriesKcal.round();
+      totalP += meal.proteinG;
+      totalC += meal.carbsG;
+      totalF += meal.fatG;
+    }
+
+    final remaining = target != null ? target.caloriesTarget - totalCals : null;
+
+    return NutritionDiaryDay(
+      date: date,
+      target: target,
+      consumedCalories: totalCals,
+      consumedProteinG: double.parse(totalP.toStringAsFixed(1)),
+      consumedCarbsG: double.parse(totalC.toStringAsFixed(1)),
+      consumedFatG: double.parse(totalF.toStringAsFixed(1)),
+      remainingCalories: remaining,
+      meals: meals,
+    );
+  }
 
   @override
   Future<Food> createFood(Food food) async {

@@ -427,7 +427,47 @@ enum ServingUnit {
   serving,
 }
 
-enum MealType { breakfast, lunch, dinner, snack }
+enum MealType { breakfast, lunch, dinner, snack, uncategorized }
+
+class DailyNutritionTarget {
+  const DailyNutritionTarget({
+    required this.id,
+    required this.caloriesTarget,
+    required this.proteinGTarget,
+    required this.carbsGTarget,
+    required this.fatGTarget,
+    required this.effectiveDate,
+  });
+
+  final String id;
+  final int caloriesTarget;
+  final double proteinGTarget;
+  final double carbsGTarget;
+  final double fatGTarget;
+  final String effectiveDate;
+}
+
+class NutritionDiaryDay {
+  const NutritionDiaryDay({
+    required this.date,
+    required this.target,
+    required this.consumedCalories,
+    required this.consumedProteinG,
+    required this.consumedCarbsG,
+    required this.consumedFatG,
+    required this.remainingCalories,
+    required this.meals,
+  });
+
+  final String date;
+  final DailyNutritionTarget? target;
+  final int consumedCalories;
+  final double consumedProteinG;
+  final double consumedCarbsG;
+  final double consumedFatG;
+  final int? remainingCalories;
+  final List<NutritionMeal> meals;
+}
 
 class Food {
   const Food({

@@ -22,28 +22,56 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final record = ref.watch(nutritionRecordProvider);
+    final dateStr = _apiDate(_day);
+    final recordAsync = ref.watch(nutritionRecordProvider);
+    final diaryAsync = ref.watch(nutritionDiaryDayProvider(dateStr));
+
     return AppShell(
       title: 'Nutrition',
-      child: record.when(
+      child: recordAsync.when(
         skipLoadingOnRefresh: true,
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (_, __) => Center(
           child: ElevatedButton(
-            onPressed: () => ref.invalidate(nutritionRecordProvider),
+            onPressed: () {
+              ref.invalidate(nutritionRecordProvider);
+              ref.invalidate(nutritionDiaryDayProvider(dateStr));
+            },
             child: const Text('Retry nutrition record'),
           ),
         ),
-        data: _content,
+        data: (record) => diaryAsync.when(
+          skipLoadingOnRefresh: true,
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, __) => Center(
+            child: ElevatedButton(
+              onPressed: () => ref.invalidate(nutritionDiaryDayProvider(dateStr)),
+              child: const Text('Retry diary'),
+            ),
+          ),
+          data: (diary) => _content(record, diary),
+        ),
       ),
     );
   }
 
-  Widget _content(NutritionRecord record) {
+  Widget _content(NutritionRecord record, NutritionDiaryDay diary) {
     final meals = record.meals
         .where((meal) => DateUtils.isSameDay(meal.consumedAt.toLocal(), _day))
         .toList();
-    final totals = _Totals.fromMeals(meals);
+
+    // Recently logged unique foods
+    final recentFoods = <Food>[];
+    final seenIds = <String>{};
+    for (final m in record.meals) {
+      if (!seenIds.contains(m.foodId)) {
+        seenIds.add(m.foodId);
+        final food = record.foods.where((f) => f.id == m.foodId).firstOrNull;
+        if (food != null) recentFoods.add(food);
+      }
+      if (recentFoods.length >= 6) break;
+    }
+
     return ListView(
       children: [
         Row(
@@ -53,6 +81,11 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                 'Nutrition',
                 style: Theme.of(context).textTheme.displaySmall,
               ),
+            ),
+            IconButton(
+              tooltip: 'Set daily target',
+              icon: const Icon(Icons.tune),
+              onPressed: () => _openTargetDialog(diary.target),
             ),
             PopupMenuButton<String>(
               onSelected: (value) {
@@ -81,75 +114,191 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         const SizedBox(height: 16),
         _DayHeader(
           day: _day,
-          totals: totals,
+          diary: diary,
           onPrevious: () =>
               setState(() => _day = _day.subtract(const Duration(days: 1))),
           onNext: () =>
               setState(() => _day = _day.add(const Duration(days: 1))),
-        ),
-        const SizedBox(height: 16),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: ElevatedButton.icon(
-            onPressed: _saving ? null : () => _openMealDialog(record),
-            icon: const Icon(Icons.add_circle_outline),
-            label: const Text('Log meal'),
-          ),
+          onSetTarget: () => _openTargetDialog(diary.target),
+          onAddMeal: () => _openMealDialog(record),
         ),
         const SizedBox(height: 24),
+        if (recentFoods.isNotEmpty) ...[
+          Text(
+            'Recently Logged',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: recentFoods.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final food = recentFoods[index];
+                return ActionChip(
+                  avatar: const Icon(Icons.add, size: 16),
+                  label: Text('${food.name} (${food.caloriesKcal} cal)'),
+                  onPressed: _saving
+                      ? null
+                      : () => _quickAddFood(record, food),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
         Text(
           'Food record · ${_displayDate(_day)}',
           style: Theme.of(context).textTheme.titleLarge,
         ),
         const SizedBox(height: 8),
         if (meals.isEmpty)
-          const Card(
+          Card(
             child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'No food logged on this date. Tap Log meal to search your foods.',
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.no_meals_outlined,
+                    size: 40,
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'No food logged on this date.',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Tap Log meal or use the sections below to track your meals.',
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             ),
-          )
-        else
-          ...MealType.values.expand((type) {
-            final group = meals.where((meal) => meal.mealType == type).toList();
-            if (group.isEmpty) return <Widget>[];
-            return <Widget>[
-              Padding(
-                padding: const EdgeInsets.only(top: 12, bottom: 4),
-                child: Row(
-                  children: [
-                    Icon(_mealIcon(type), size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      _mealLabel(type),
-                      style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ...MealType.values.map((type) {
+          final group = meals.where((meal) => meal.mealType == type).toList();
+          final groupCals = group.fold<double>(0, (sum, m) => sum + m.caloriesKcal).round();
+
+          return Card(
+            margin: const EdgeInsets.only(top: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(_mealIcon(type), size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _mealLabel(type),
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                      if (group.isNotEmpty)
+                        Text(
+                          '$groupCals kcal',
+                          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                        ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline),
+                        tooltip: 'Add to ${_mealLabel(type)}',
+                        onPressed: _saving ? null : () => _openMealDialog(record, type),
+                      ),
+                    ],
+                  ),
+                  if (group.isNotEmpty) ...[
+                    const Divider(height: 16),
+                    ...group.map(
+                      (meal) => _MealTile(
+                        meal: meal,
+                        onEdit: () => _editMeal(meal),
+                        onDelete: () => _deleteMeal(meal),
+                        onPhoto: () => _uploadMealPhoto(meal),
+                      ),
                     ),
-                  ],
-                ),
+                  ] else
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 38),
+                        ),
+                        onPressed: _saving ? null : () => _openMealDialog(record, type),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: Text('Add ${_mealLabel(type)}'),
+                      ),
+                    ),
+                ],
               ),
-              ...group.map(
-                (meal) => _MealTile(
-                  meal: meal,
-                  onEdit: () => _editMeal(meal),
-                  onDelete: () => _deleteMeal(meal),
-                  onPhoto: () => _uploadMealPhoto(meal),
-                ),
-              ),
-            ];
-          }),
+            ),
+          );
+        }),
       ],
     );
   }
 
-  Future<void> _openMealDialog(NutritionRecord record) async {
+  Future<void> _quickAddFood(NutritionRecord record, Food food) async {
+    try {
+      setState(() => _saving = true);
+      final grams = _defaultGrams(food);
+      await ref.read(nutritionRepositoryProvider).createMeal(
+        MealType.snack,
+        [MealItemInput(foodId: food.id, grams: grams)],
+        consumedAt: _dayAtNow(_day),
+      );
+      ref.invalidate(nutritionRecordProvider);
+      final dateStr = _apiDate(_day);
+      ref.invalidate(nutritionDiaryDayProvider(dateStr));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Logged ${food.name}.')),
+        );
+      }
+    } on AppFailure catch (error) {
+      _failure(context, error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _openTargetDialog(DailyNutritionTarget? current) async {
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (_) => _DailyTargetDialog(currentTarget: current),
+    );
+    if (updated == true) {
+      final dateStr = _apiDate(_day);
+      ref.invalidate(dailyNutritionTargetProvider(null));
+      ref.invalidate(dailyNutritionTargetProvider(dateStr));
+      ref.invalidate(nutritionDiaryDayProvider(dateStr));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Daily target updated.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _openMealDialog(NutritionRecord record, [MealType? type]) async {
     final saved = await showDialog<bool>(
       context: context,
-      builder: (_) => _MealLogDialog(record: record, day: _day),
+      builder: (_) => _MealLogDialog(record: record, day: _day, initialType: type),
     );
     if (saved == true) {
       ref.invalidate(nutritionRecordProvider);
+      final dateStr = _apiDate(_day);
+      ref.invalidate(nutritionDiaryDayProvider(dateStr));
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -349,168 +498,500 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
 class _DayHeader extends StatelessWidget {
   const _DayHeader({
     required this.day,
-    required this.totals,
+    required this.diary,
     required this.onPrevious,
     required this.onNext,
+    required this.onSetTarget,
+    required this.onAddMeal,
   });
+
   final DateTime day;
-  final _Totals totals;
+  final NutritionDiaryDay diary;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
-  @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              IconButton(
-                onPressed: onPrevious,
-                tooltip: 'Previous day',
-                icon: const Icon(Icons.chevron_left),
-              ),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: DesignMotion.duration(
-                    context,
-                    DesignMotion.instant,
-                  ),
-                  switchInCurve: DesignMotion.curve,
-                  switchOutCurve: DesignMotion.curve,
-                  transitionBuilder: (child, animation) =>
-                      FadeTransition(opacity: animation, child: child),
-                  child: Text(
-                    _displayDate(day),
-                    key: ValueKey(_dateOnly(day)),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: onNext,
-                tooltip: 'Next day',
-                icon: const Icon(Icons.chevron_right),
-              ),
-            ],
-          ),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 500;
-              final macros = [
-                _Macro(
-                  label: 'Cals',
-                  value: '${totals.calories.round()} cals',
-                  icon: Icons.monitor_weight_outlined,
-                  compact: compact,
-                ),
-                _Macro(
-                  label: 'Protein',
-                  value: '${totals.protein.toStringAsFixed(1)} g',
-                  icon: Icons.fitness_center_outlined,
-                  compact: compact,
-                ),
-                _Macro(
-                  label: 'Carbs',
-                  value: '${totals.carbs.toStringAsFixed(1)} g',
-                  icon: Icons.bakery_dining_outlined,
-                  compact: compact,
-                ),
-                _Macro(
-                  label: 'Fat',
-                  value: '${totals.fat.toStringAsFixed(1)} g',
-                  icon: Icons.local_drink_outlined,
-                  compact: compact,
-                ),
-              ];
-              if (!compact) {
-                return Wrap(
-                  spacing: 16,
-                  runSpacing: 6,
-                  alignment: WrapAlignment.center,
-                  children: macros,
-                );
-              }
-              return Row(
-                children: [for (final macro in macros) Expanded(child: macro)],
-              );
-            },
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _Macro extends StatelessWidget {
-  const _Macro({
-    required this.label,
-    required this.value,
-    required this.icon,
-    this.compact = false,
-  });
-  final String label;
-  final String value;
-  final IconData icon;
-  final bool compact;
-
-  Widget _value(BuildContext context, TextStyle? style) => AnimatedSwitcher(
-    duration: DesignMotion.duration(context, DesignMotion.instant),
-    switchInCurve: DesignMotion.curve,
-    switchOutCurve: DesignMotion.curve,
-    transitionBuilder: (child, animation) =>
-        FadeTransition(opacity: animation, child: child),
-    child: Text(
-      value,
-      key: ValueKey(value),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: style,
-    ),
-  );
+  final VoidCallback onSetTarget;
+  final VoidCallback onAddMeal;
 
   @override
   Widget build(BuildContext context) {
-    if (compact) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _value(context, Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 3),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 15),
-              const SizedBox(width: 3),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelSmall,
+    final theme = Theme.of(context);
+    final target = diary.target;
+    final consumed = diary.consumedCalories;
+    final remaining = diary.remainingCalories;
+
+    final double progress;
+    if (target != null && target.caloriesTarget > 0) {
+      progress = (consumed / target.caloriesTarget).clamp(0.0, 1.0);
+    } else {
+      progress = 0.0;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Date navigation row
+            Row(
+              children: [
+                IconButton(
+                  onPressed: onPrevious,
+                  tooltip: 'Previous day',
+                  icon: const Icon(Icons.chevron_left),
                 ),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: DesignMotion.duration(
+                      context,
+                      DesignMotion.instant,
+                    ),
+                    switchInCurve: DesignMotion.curve,
+                    switchOutCurve: DesignMotion.curve,
+                    transitionBuilder: (child, animation) =>
+                        FadeTransition(opacity: animation, child: child),
+                    child: Text(
+                      _displayDate(day),
+                      key: ValueKey(_dateOnly(day)),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: onNext,
+                  tooltip: 'Next day',
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Top calorie summary: circular gauge left, numbers right
+            Row(
+              children: [
+                // Circular calorie progress gauge
+                SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox(
+                        width: 90,
+                        height: 90,
+                        child: CircularProgressIndicator(
+                          value: target != null ? progress : 0.0,
+                          strokeWidth: 8,
+                          backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            target != null && consumed > target.caloriesTarget
+                                ? theme.colorScheme.error
+                                : theme.colorScheme.primary,
+                          ),
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (remaining != null) ...[
+                            Text(
+                              '${remaining.abs()}',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: remaining < 0 ? theme.colorScheme.error : null,
+                              ),
+                            ),
+                            Text(
+                              remaining < 0 ? 'Over' : 'Remaining',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: remaining < 0
+                                    ? theme.colorScheme.error
+                                    : theme.colorScheme.outline,
+                              ),
+                            ),
+                          ] else ...[
+                            Text(
+                              '$consumed',
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'Consumed',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.outline,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+
+                // Target, Food, and Remaining numeric stack
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _StatRow(
+                        label: 'Goal',
+                        value: target != null
+                            ? '${target.caloriesTarget} kcal'
+                            : 'Not set',
+                        actionLabel: target == null ? 'Set' : 'Edit',
+                        onAction: onSetTarget,
+                      ),
+                      const SizedBox(height: 6),
+                      _StatRow(
+                        label: 'Food',
+                        value: '$consumed kcal',
+                      ),
+                      const SizedBox(height: 6),
+                      _StatRow(
+                        label: 'Remaining',
+                        value: remaining != null
+                            ? '${remaining < 0 ? "-" : ""}${remaining.abs()} kcal'
+                            : '—',
+                        valueColor: remaining != null && remaining < 0
+                            ? theme.colorScheme.error
+                            : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Macro progress bars
+            _MacroBar(
+              label: 'Protein',
+              consumed: diary.consumedProteinG,
+              target: target?.proteinGTarget,
+              unit: 'g',
+              color: Colors.blueAccent,
+            ),
+            const SizedBox(height: 8),
+            _MacroBar(
+              label: 'Carbs',
+              consumed: diary.consumedCarbsG,
+              target: target?.carbsGTarget,
+              unit: 'g',
+              color: Colors.amberAccent.shade700,
+            ),
+            const SizedBox(height: 8),
+            _MacroBar(
+              label: 'Fat',
+              consumed: diary.consumedFatG,
+              target: target?.fatGTarget,
+              unit: 'g',
+              color: Colors.redAccent,
+            ),
+            const SizedBox(height: 16),
+
+            // Full-width Add Meal action button at bottom of header card
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onAddMeal,
+                icon: const Icon(Icons.add),
+                label: const Text('Add Meal'),
               ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  const _StatRow({
+    required this.label,
+    required this.value,
+    this.actionLabel,
+    this.onAction,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
+        ),
+        if (actionLabel != null && onAction != null) ...[
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: onAction,
+            child: Text(
+              actionLabel!,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
-      );
-    }
-    return Column(
-      children: [
-        _value(context, Theme.of(context).textTheme.titleMedium),
-        Text(label),
-        const SizedBox(height: 4),
-        Icon(icon, size: 18),
       ],
     );
   }
 }
 
+class _MacroBar extends StatelessWidget {
+  const _MacroBar({
+    required this.label,
+    required this.consumed,
+    required this.target,
+    required this.unit,
+    required this.color,
+  });
+
+  final String label;
+  final double consumed;
+  final double? target;
+  final String unit;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasTarget = target != null && target! > 0;
+    final progress = hasTarget ? (consumed / target!).clamp(0.0, 1.0) : 0.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.labelMedium,
+            ),
+            Text(
+              hasTarget
+                  ? '${consumed.toStringAsFixed(1)} / ${target!.toStringAsFixed(0)} $unit'
+                  : '${consumed.toStringAsFixed(1)} $unit',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: hasTarget ? progress : 0.0,
+            minHeight: 6,
+            backgroundColor: theme.colorScheme.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DailyTargetDialog extends ConsumerStatefulWidget {
+  const _DailyTargetDialog({this.currentTarget});
+
+  final DailyNutritionTarget? currentTarget;
+
+  @override
+  ConsumerState<_DailyTargetDialog> createState() => _DailyTargetDialogState();
+}
+
+class _DailyTargetDialogState extends ConsumerState<_DailyTargetDialog> {
+  late final TextEditingController _calories = TextEditingController(
+    text: widget.currentTarget != null ? '${widget.currentTarget!.caloriesTarget}' : '',
+  );
+  late final TextEditingController _protein = TextEditingController(
+    text: widget.currentTarget != null && widget.currentTarget!.proteinGTarget > 0
+        ? '${widget.currentTarget!.proteinGTarget.round()}'
+        : '',
+  );
+  late final TextEditingController _carbs = TextEditingController(
+    text: widget.currentTarget != null && widget.currentTarget!.carbsGTarget > 0
+        ? '${widget.currentTarget!.carbsGTarget.round()}'
+        : '',
+  );
+  late final TextEditingController _fat = TextEditingController(
+    text: widget.currentTarget != null && widget.currentTarget!.fatGTarget > 0
+        ? '${widget.currentTarget!.fatGTarget.round()}'
+        : '',
+  );
+
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _calories.dispose();
+    _protein.dispose();
+    _carbs.dispose();
+    _fat.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Daily Nutrition Target'),
+      content: SizedBox(
+        width: 400,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Set your daily caloric and macronutrient targets. Remaining calories in the meal diary reflect food consumed against this target.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _calories,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Calories Target (kcal) *',
+                  hintText: 'e.g. 2200',
+                  prefixIcon: Icon(Icons.local_fire_department_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _protein,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Protein Target (g)',
+                  hintText: 'e.g. 160',
+                  prefixIcon: Icon(Icons.fitness_center_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _carbs,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Carbohydrates Target (g)',
+                  hintText: 'e.g. 250',
+                  prefixIcon: Icon(Icons.bakery_dining_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _fat,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Fat Target (g)',
+                  hintText: 'e.g. 70',
+                  prefixIcon: Icon(Icons.local_drink_outlined),
+                ),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save Target'),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _save() async {
+    final cals = int.tryParse(_calories.text.trim());
+    if (cals == null || cals <= 0 || cals > 15000) {
+      setState(() => _error = 'Please enter a valid calorie target between 1 and 15,000.');
+      return;
+    }
+
+    final p = double.tryParse(_protein.text.trim()) ?? 0.0;
+    final c = double.tryParse(_carbs.text.trim()) ?? 0.0;
+    final f = double.tryParse(_fat.text.trim()) ?? 0.0;
+
+    try {
+      setState(() {
+        _saving = true;
+        _error = null;
+      });
+
+      await ref.read(nutritionRepositoryProvider).saveDailyTarget(
+        caloriesTarget: cals,
+        proteinGTarget: p,
+        carbsGTarget: c,
+        fatGTarget: f,
+      );
+
+      if (mounted) Navigator.pop(context, true);
+    } on AppFailure catch (error) {
+      setState(() {
+        _saving = false;
+        _error = error.message;
+      });
+    } catch (_) {
+      setState(() {
+        _saving = false;
+        _error = 'Failed to save daily target.';
+      });
+    }
+  }
+}
+
+
 class _MealLogDialog extends ConsumerStatefulWidget {
-  const _MealLogDialog({required this.record, required this.day});
+  const _MealLogDialog({
+    required this.record,
+    required this.day,
+    this.initialType,
+  });
   final NutritionRecord record;
   final DateTime day;
+  final MealType? initialType;
 
   @override
   ConsumerState<_MealLogDialog> createState() => _MealLogDialogState();
@@ -520,7 +1001,7 @@ class _MealLogDialogState extends ConsumerState<_MealLogDialog> {
   late final TextEditingController _query = TextEditingController();
   late List<Food> _foods = [...widget.record.foods];
   final Map<String, double> _draft = {};
-  MealType _type = MealType.breakfast;
+  late MealType _type = widget.initialType ?? MealType.breakfast;
   bool _saving = false;
 
   @override
@@ -1298,12 +1779,6 @@ class _Totals {
   final double protein;
   final double carbs;
   final double fat;
-  factory _Totals.fromMeals(List<NutritionMeal> meals) => _Totals(
-    calories: meals.fold(0, (sum, meal) => sum + meal.caloriesKcal),
-    protein: meals.fold(0, (sum, meal) => sum + meal.proteinG),
-    carbs: meals.fold(0, (sum, meal) => sum + meal.carbsG),
-    fat: meals.fold(0, (sum, meal) => sum + meal.fatG),
-  );
   factory _Totals.fromDraft(List<Food> foods, Map<String, double> grams) {
     double total(String Function(Food) field) => foods.fold(0, (sum, food) {
       final serving = food.servingSizeValue ?? 100;
@@ -1355,6 +1830,7 @@ String _mealLabel(MealType type) => switch (type) {
   MealType.lunch => 'Lunch',
   MealType.dinner => 'Dinner',
   MealType.snack => 'Snack',
+  MealType.uncategorized => 'Uncategorized',
 };
 
 IconData _mealIcon(MealType type) => switch (type) {
@@ -1362,6 +1838,7 @@ IconData _mealIcon(MealType type) => switch (type) {
   MealType.lunch => Icons.lunch_dining_outlined,
   MealType.dinner => Icons.dinner_dining_outlined,
   MealType.snack => Icons.restaurant_outlined,
+  MealType.uncategorized => Icons.category_outlined,
 };
 void _failure(BuildContext context, AppFailure error) {
   if (context.mounted)
