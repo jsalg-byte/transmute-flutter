@@ -165,6 +165,7 @@ abstract class ExerciseRankRepository {
   });
   Future<RankOverview> getOverview();
   Future<List<OverallRankHistoryPoint>> getHistory();
+  Future<RankAnalysisData> getAnalysis();
 }
 
 abstract class QuickAddRepository {
@@ -193,6 +194,10 @@ abstract class FastingRepository {
 
 abstract class ProgressRepository {
   Future<ProgressRecord> read();
+  Future<TrainingAnalytics> getTrainingAnalytics({
+    TrainingPeriod period = TrainingPeriod.fourteenDays,
+    TrainingMetric metric = TrainingMetric.volume,
+  });
   Future<void> create(ProgressPhotoUpload upload);
   Future<Uint8List> readImageBytes(String id);
   Future<void> updateCapturedAt(String id, DateTime capturedAt);

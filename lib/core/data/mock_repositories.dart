@@ -418,6 +418,83 @@ class MockProgressRepository implements ProgressRepository {
   );
 
   @override
+  Future<TrainingAnalytics> getTrainingAnalytics({
+    TrainingPeriod period = TrainingPeriod.fourteenDays,
+    TrainingMetric metric = TrainingMetric.volume,
+  }) async {
+    final now = DateTime.now();
+    final cutoff = now.subtract(Duration(days: period.days));
+    final relevant = _store.completed
+        .where((s) => s.completedAt != null && s.completedAt!.isAfter(cutoff))
+        .toList();
+
+    int totalDuration = 0;
+    double totalVolume = 0;
+    int totalReps = 0;
+    int workingSets = 0;
+
+    final byDate = <String, ({int count, int duration, double volume, int reps})>{};
+
+    for (final s in relevant) {
+      final d = s.duration.inSeconds;
+      totalDuration += d;
+      final dateKey = s.completedAt!.toIso8601String().substring(0, 10);
+      double sVol = 0;
+      int sReps = 0;
+
+      for (final ex in s.exercises) {
+        for (final set in ex.sets.where((st) => !st.isWarmup)) {
+          workingSets++;
+          if (set.durationSeconds == null) {
+            sReps += set.reps;
+            totalReps += set.reps;
+            if (set.weightKg > 0) {
+              final vol = set.weightKg * set.reps;
+              sVol += vol;
+              totalVolume += vol;
+            }
+          }
+        }
+      }
+
+      final prev = byDate[dateKey];
+      if (prev == null) {
+        byDate[dateKey] = (count: 1, duration: d, volume: sVol, reps: sReps);
+      } else {
+        byDate[dateKey] = (
+          count: prev.count + 1,
+          duration: prev.duration + d,
+          volume: prev.volume + sVol,
+          reps: prev.reps + sReps,
+        );
+      }
+    }
+
+    final daily = byDate.entries.map((e) => TrainingDailyBucket(
+      date: e.key,
+      sessionCount: e.value.count,
+      durationSeconds: e.value.duration,
+      volumeKg: e.value.volume,
+      reps: e.value.reps,
+    )).toList()
+      ..sort((a, b) => a.date.compareTo(b.date));
+
+    return TrainingAnalytics(
+      period: period,
+      metric: metric,
+      summary: TrainingAnalyticsSummary(
+        workoutCount: relevant.length,
+        totalDurationSeconds: totalDuration,
+        totalVolumeKg: totalVolume,
+        totalReps: totalReps,
+        workingSetCount: workingSets,
+        personalRecordCount: 0,
+      ),
+      daily: daily,
+    );
+  }
+
+  @override
   Future<void> create(ProgressPhotoUpload upload) async {
     if (!upload.mimeType.startsWith('image/')) {
       throw const AppFailure('invalid_progress_photo', 'Choose an image file.');
@@ -2435,6 +2512,83 @@ class MockExerciseRankRepository implements ExerciseRankRepository {
         eligibleExerciseCount: overview.overall.eligibleExerciseCount,
       ),
     ];
+  }
+
+  @override
+  Future<RankAnalysisData> getAnalysis() async {
+    final allRanks = await listRanks();
+    final ranked = allRanks.where((r) => r.isRanked).toList();
+
+    // Group by category
+    final byCat = <String, List<ExerciseRank>>{};
+    for (final r in allRanks) {
+      byCat.putIfAbsent(r.exercise.category, () => []).add(r);
+    }
+
+    final categories = byCat.entries.map((e) {
+      final inCat = e.value;
+      final rankedInCat = inCat.where((r) => r.isRanked).toList();
+      double? avgRatio;
+      ExerciseRankTier? avgTier;
+      if (rankedInCat.isNotEmpty) {
+        final sum = rankedInCat.fold<double>(
+          0,
+          (prev, r) => prev + (r.bestValue! / r.baselineValue!),
+        );
+        avgRatio = sum / rankedInCat.length;
+        avgTier = _preview(
+          rankedInCat.first.exercise,
+          rankedInCat.first.trackingMode ?? ExerciseTrackingMode.reps,
+          avgRatio,
+          1,
+        ).tier;
+      }
+      return RankCategorySummary(
+        category: e.key,
+        rankedCount: rankedInCat.length,
+        totalCount: inCat.length,
+        averageRatio: avgRatio,
+        averageTier: avgTier,
+      );
+    }).toList()
+      ..sort((a, b) => a.category.compareTo(b.category));
+
+    // Tier distribution
+    final byTier = <ExerciseRankTier, int>{};
+    for (final r in ranked) {
+      if (r.tier != null) {
+        byTier[r.tier!] = (byTier[r.tier!] ?? 0) + 1;
+      }
+    }
+    final tierDistribution = byTier.entries
+        .map((e) => RankTierCount(tier: e.key, count: e.value))
+        .toList()
+      ..sort((a, b) => a.tier.index.compareTo(b.tier.index));
+
+    // Upcoming targets
+    final withNext = ranked.where((r) => r.nextThreshold != null).toList()
+      ..sort((a, b) => (b.progressPoints ?? 0).compareTo(a.progressPoints ?? 0));
+
+    final upcomingTargets = withNext.take(6).map((r) => RankUpcomingTarget(
+      exerciseId: r.exercise.id,
+      exerciseName: r.exercise.name,
+      category: r.exercise.category,
+      muscleGroup: r.exercise.muscleGroup,
+      trackingMode: r.trackingMode ?? ExerciseTrackingMode.reps,
+      metric: r.metric ?? ExerciseRankMetric.estimatedOneRepMaxKg,
+      currentValue: r.bestValue ?? 0,
+      baselineValue: r.baselineValue ?? 0,
+      tier: r.tier ?? ExerciseRankTier.bronze,
+      progressPoints: r.progressPoints ?? 0,
+      nextThreshold: r.nextThreshold,
+    )).toList();
+
+    return RankAnalysisData(
+      categories: categories,
+      tierDistribution: tierDistribution,
+      weeklyRankUps: const [],
+      upcomingTargets: upcomingTargets,
+    );
   }
 
   ExerciseRank? _rankFor(

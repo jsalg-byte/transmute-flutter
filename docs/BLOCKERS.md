@@ -10,7 +10,10 @@ dashboard load now returns active-workout and recovery content rather than
 perpetual loaders. The migration's final partial unique index was deliberately
 not applied: two users each have two existing `active` sessions. A dedicated
 data-reconciliation decision is required before enforcing that index; no
-sessions were deleted or altered to make the migration pass.
+sessions were deleted or altered to make the migration pass. The router now
+also retains a protected deep link through the existing auth loading splash,
+so a signed-in restoration does not briefly route through public onboarding or
+lose its destination.
 
 ## Routine slice 3 source versus deployment
 

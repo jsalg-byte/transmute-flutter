@@ -719,6 +719,144 @@ class OverallRankHistoryPoint {
   final ExerciseRankTier? tier;
 }
 
+enum TrainingPeriod {
+  sevenDays('7d', 7),
+  fourteenDays('14d', 14),
+  thirtyDays('30d', 30);
+
+  const TrainingPeriod(this.wireValue, this.days);
+  final String wireValue;
+  final int days;
+}
+
+enum TrainingMetric {
+  volume('volume', 'Volume'),
+  duration('duration', 'Duration'),
+  reps('reps', 'Reps');
+
+  const TrainingMetric(this.wireValue, this.label);
+  final String wireValue;
+  final String label;
+}
+
+class TrainingDailyBucket {
+  const TrainingDailyBucket({
+    required this.date,
+    required this.sessionCount,
+    required this.durationSeconds,
+    required this.volumeKg,
+    required this.reps,
+  });
+  final String date;
+  final int sessionCount;
+  final int durationSeconds;
+  final double volumeKg;
+  final int reps;
+}
+
+class TrainingAnalyticsSummary {
+  const TrainingAnalyticsSummary({
+    required this.workoutCount,
+    required this.totalDurationSeconds,
+    required this.totalVolumeKg,
+    required this.totalReps,
+    required this.workingSetCount,
+    required this.personalRecordCount,
+  });
+  final int workoutCount;
+  final int totalDurationSeconds;
+  final double totalVolumeKg;
+  final int totalReps;
+  final int workingSetCount;
+  final int personalRecordCount;
+}
+
+class TrainingAnalytics {
+  const TrainingAnalytics({
+    required this.period,
+    required this.metric,
+    required this.summary,
+    required this.daily,
+  });
+  final TrainingPeriod period;
+  final TrainingMetric metric;
+  final TrainingAnalyticsSummary summary;
+  final List<TrainingDailyBucket> daily;
+}
+
+class RankCategorySummary {
+  const RankCategorySummary({
+    required this.category,
+    required this.rankedCount,
+    required this.totalCount,
+    this.averageRatio,
+    this.averageTier,
+  });
+  final String category;
+  final int rankedCount;
+  final int totalCount;
+  final double? averageRatio;
+  final ExerciseRankTier? averageTier;
+}
+
+class RankTierCount {
+  const RankTierCount({
+    required this.tier,
+    required this.count,
+  });
+  final ExerciseRankTier tier;
+  final int count;
+}
+
+class WeeklyRankUpCount {
+  const WeeklyRankUpCount({
+    required this.weekStart,
+    required this.count,
+  });
+  final String weekStart;
+  final int count;
+}
+
+class RankUpcomingTarget {
+  const RankUpcomingTarget({
+    required this.exerciseId,
+    required this.exerciseName,
+    required this.category,
+    this.muscleGroup,
+    required this.trackingMode,
+    required this.metric,
+    required this.currentValue,
+    required this.baselineValue,
+    required this.tier,
+    required this.progressPoints,
+    this.nextThreshold,
+  });
+  final String exerciseId;
+  final String exerciseName;
+  final String category;
+  final String? muscleGroup;
+  final ExerciseTrackingMode trackingMode;
+  final ExerciseRankMetric metric;
+  final double currentValue;
+  final double baselineValue;
+  final ExerciseRankTier tier;
+  final int progressPoints;
+  final double? nextThreshold;
+}
+
+class RankAnalysisData {
+  const RankAnalysisData({
+    required this.categories,
+    required this.tierDistribution,
+    required this.weeklyRankUps,
+    required this.upcomingTargets,
+  });
+  final List<RankCategorySummary> categories;
+  final List<RankTierCount> tierDistribution;
+  final List<WeeklyRankUpCount> weeklyRankUps;
+  final List<RankUpcomingTarget> upcomingTargets;
+}
+
 class CatalogExercise {
   const CatalogExercise({required this.name, required this.slug});
   final String name;

@@ -57,14 +57,21 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
             state.matchedLocation == '/' ||
             state.matchedLocation == '/login' ||
             shareRoute;
-        if (loading) return publicRoute ? null : '/';
+        // Keep a protected deep link intact while secure storage and `/v1/me`
+        // restore the session. Previously this redirected to `/`, briefly
+        // exposed the public entry route, and then always landed a signed-in
+        // user on Today instead of the link they opened.
+        if (loading) {
+          if (publicRoute) return null;
+          return '/?next=${Uri.encodeComponent(state.uri.toString())}';
+        }
         if (!loggedIn && shareRoute) {
           return '/login?next=${Uri.encodeComponent(state.uri.toString())}';
         }
         if (!loggedIn && !publicRoute) return '/';
         if (loggedIn && publicRoute) {
           final next = state.uri.queryParameters['next'];
-          if (next != null && next.startsWith('/routine-shares/')) return next;
+          if (_isSafeInternalNext(next)) return next!;
           return _auth.freshRegistration ? '/welcome' : '/dashboard';
         }
         return null;
@@ -99,7 +106,7 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
             ),
             GoRoute(
               path: 'analysis',
-              builder: (_, _) => const RankAnalysisPlaceholderScreen(),
+              builder: (_, _) => const RankAnalysisScreen(),
             ),
             GoRoute(
               path: 'gallery',
@@ -230,6 +237,9 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
     );
   }
 }
+
+bool _isSafeInternalNext(String? route) =>
+    route != null && route.startsWith('/') && !route.startsWith('//');
 
 class _RouterRefresh extends ChangeNotifier {
   void refresh() => notifyListeners();

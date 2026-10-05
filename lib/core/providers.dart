@@ -142,6 +142,9 @@ final overallRankHistoryProvider =
     FutureProvider<List<OverallRankHistoryPoint>>(
       (ref) => ref.watch(exerciseRankRepositoryProvider).getHistory(),
     );
+final rankAnalysisProvider = FutureProvider<RankAnalysisData>(
+  (ref) => ref.watch(exerciseRankRepositoryProvider).getAnalysis(),
+);
 final quickAddRepositoryProvider = Provider<QuickAddRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockQuickAddRepository(ref.watch(mockStoreProvider))
@@ -175,6 +178,15 @@ final progressPhotoBytesProvider = FutureProvider.autoDispose
 final progressRecordProvider = FutureProvider<ProgressRecord>(
   (ref) => ref.watch(progressRepositoryProvider).read(),
 );
+final trainingAnalyticsProvider =
+    FutureProvider.family<
+      TrainingAnalytics,
+      ({TrainingPeriod period, TrainingMetric metric})
+    >(
+      (ref, params) => ref
+          .watch(progressRepositoryProvider)
+          .getTrainingAnalytics(period: params.period, metric: params.metric),
+    );
 final nutritionRepositoryProvider = Provider<NutritionRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockNutritionRepository(ref.watch(mockStoreProvider))
@@ -1021,6 +1033,8 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     ref.invalidate(exerciseRanksProvider);
     ref.invalidate(rankOverviewProvider);
     ref.invalidate(overallRankHistoryProvider);
+    ref.invalidate(rankAnalysisProvider);
+    ref.invalidate(trainingAnalyticsProvider);
     return result;
   }
 

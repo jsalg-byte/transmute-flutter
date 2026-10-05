@@ -247,15 +247,21 @@ class _TrainingSummary extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final history = ref.watch(historyProvider);
+    final analyticsAsync = ref.watch(
+      trainingAnalyticsProvider(
+        (period: TrainingPeriod.fourteenDays, metric: TrainingMetric.volume),
+      ),
+    );
     final unit =
         ref.watch(preferencesProvider).asData?.value.weightUnit ??
         WeightUnit.kg;
-    return history.when(
+    final palette = TransmutePalette.of(context);
+
+    return analyticsAsync.when(
       skipLoadingOnRefresh: true,
       loading: () => const TransmuteStatePanel(
         kind: TransmuteStateKind.loading,
-        title: 'Loading training history',
+        title: 'Loading training summary',
         message: 'Your workout entry remains available.',
       ),
       error: (_, _) => TransmuteStatePanel(
@@ -263,93 +269,207 @@ class _TrainingSummary extends ConsumerWidget {
         title: 'Training summary unavailable',
         message: 'Your workout entry remains available.',
         action: TransmuteButton(
-          label: 'Retry history',
+          label: 'Retry summary',
           icon: Icons.refresh,
-          onPressed: () => ref.invalidate(historyProvider),
+          onPressed: () => ref.invalidate(
+            trainingAnalyticsProvider(
+              (
+                period: TrainingPeriod.fourteenDays,
+                metric: TrainingMetric.volume,
+              ),
+            ),
+          ),
         ),
       ),
-      data: (summaries) {
-        final recent = summaries.take(14).toList();
-        if (recent.isEmpty) {
+      data: (analytics) {
+        if (analytics.summary.workoutCount == 0) {
           return TransmuteStatePanel(
             kind: TransmuteStateKind.empty,
-            title: 'No completed workouts yet',
-            message: 'Your first finished session will appear here.',
+            title: 'No completed workouts in last 14 days',
+            message: 'Your next finished session will appear in this summary.',
             action: TransmuteButton(
               label: 'View history',
               onPressed: () => context.go('/history'),
             ),
           );
         }
-        final volumeKg = recent.fold<double>(
-          0,
-          (sum, row) => sum + row.totalVolumeKg,
-        );
-        final duration = recent.fold<int>(
-          0,
-          (sum, row) => sum + row.durationSeconds,
-        );
+
+        final volumeKg = analytics.summary.totalVolumeKg;
         final displayVolume = unit == WeightUnit.lb
             ? volumeKg * 2.2046226218
             : volumeKg;
-        return TransmutePanel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                '${recent.length} completed workouts',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 24,
-                runSpacing: 12,
-                children: [
-                  _SummaryMetric(
-                    label: 'Volume',
-                    value:
-                        '${displayVolume.toStringAsFixed(0)} ${unit == WeightUnit.lb ? 'lb' : 'kg'}',
-                  ),
-                  _SummaryMetric(
-                    label: 'Duration',
-                    value: '${(duration / 60).round()} min',
-                  ),
-                  _SummaryMetric(
-                    label: 'Working sets',
-                    value:
-                        '${recent.fold<int>(0, (sum, row) => sum + row.workingSetCount)}',
-                  ),
-                ],
-              ),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => context.go('/history'),
-                  icon: const Icon(Icons.history),
-                  label: const Text('View history'),
+        final durationMin = (analytics.summary.totalDurationSeconds / 60).round();
+
+        // Daily volume for sparkline
+        final maxDailyVol = analytics.daily.fold<double>(
+          0,
+          (m, b) => b.volumeKg > m ? b.volumeKg : m,
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Dominant volume card with mini bar sparkline
+            TransmutePanel(
+              child: InkWell(
+                onTap: () => context.go('/profile'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'TOTAL VOLUME (14D)',
+                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: palette.muted,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.1,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${displayVolume.toStringAsFixed(0)} ${unit == WeightUnit.lb ? 'lb' : 'kg'}',
+                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${analytics.summary.workoutCount} workouts completed',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Right mini bar sparkline
+                        if (analytics.daily.isNotEmpty && maxDailyVol > 0)
+                          Semantics(
+                            label: 'Volume trend sparkline over 14 days',
+                            child: SizedBox(
+                              height: 48,
+                              width: 90,
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  for (final bucket in analytics.daily.take(14))
+                                    Container(
+                                      width: 4,
+                                      margin: const EdgeInsets.symmetric(horizontal: 1),
+                                      height: (bucket.volumeKg / maxDailyVol * 44).clamp(4.0, 48.0),
+                                      decoration: BoxDecoration(
+                                        color: palette.oxide,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 10),
+            // Three compact tiles: Duration, Records, Sets (burned calories honestly labeled unmeasured)
+            Row(
+              children: [
+                Expanded(
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.timer_outlined, size: 20, color: palette.oxide),
+                          const SizedBox(height: 6),
+                          Text(
+                            '$durationMin min',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Duration',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.fitness_center_outlined, size: 20, color: palette.oxide),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${analytics.summary.workingSetCount}',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Working sets',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.emoji_events_outlined, size: 20, color: palette.gold),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${analytics.summary.personalRecordCount}',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Records',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => context.go('/history'),
+                icon: const Icon(Icons.history),
+                label: const Text('View history'),
+              ),
+            ),
+          ],
         );
       },
     );
   }
-}
-
-class _SummaryMetric extends StatelessWidget {
-  const _SummaryMetric({required this.label, required this.value});
-  final String label;
-  final String value;
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
-      const SizedBox(height: 2),
-      Text(value, style: Theme.of(context).textTheme.titleLarge),
-    ],
-  );
 }
 
 class _FeedView extends ConsumerWidget {

@@ -233,26 +233,524 @@ class RankLeaguesScreen extends ConsumerWidget {
   );
 }
 
-class RankAnalysisPlaceholderScreen extends StatelessWidget {
-  const RankAnalysisPlaceholderScreen({super.key});
+class RankAnalysisScreen extends ConsumerWidget {
+  const RankAnalysisScreen({super.key});
+
   @override
-  Widget build(BuildContext context) => AppShell(
-    title: 'Rank analysis',
-    child: ListView(
-      children: [
-        const RankTabs(selected: 'Analysis'),
-        const SizedBox(height: 22),
-        Text('Analysis', style: Theme.of(context).textTheme.displaySmall),
-        const SizedBox(height: 10),
-        const TransmuteStatePanel(
-          kind: TransmuteStateKind.empty,
-          title: 'Analysis arrives next',
-          message:
-              'Rank distribution and performance-history statistics are the next slice. Your saved bodygraph and history stay available now.',
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final analysisAsync = ref.watch(rankAnalysisProvider);
+    final unit =
+        ref.watch(preferencesProvider).asData?.value.weightUnit ??
+        WeightUnit.kg;
+
+    return AppShell(
+      title: 'Rank analysis',
+      child: ListView(
+        children: [
+          const RankTabs(selected: 'Analysis'),
+          const SizedBox(height: 22),
+          Text('Analysis', style: Theme.of(context).textTheme.displaySmall),
+          const SizedBox(height: 8),
+          const Text(
+            'Performance history, category averages and rank distribution.',
+          ),
+          const SizedBox(height: 18),
+          analysisAsync.when(
+            loading: () => const LinearProgressIndicator(),
+            error: (_, _) => TransmuteStatePanel(
+              kind: TransmuteStateKind.error,
+              title: 'Analysis unavailable',
+              message: 'Your saved rank analysis could not be loaded.',
+              action: TransmuteButton(
+                label: 'Retry',
+                icon: Icons.refresh,
+                onPressed: () => ref.invalidate(rankAnalysisProvider),
+              ),
+            ),
+            data: (data) {
+              final hasRankedExercises =
+                  data.categories.any((c) => c.rankedCount > 0) ||
+                  data.upcomingTargets.isNotEmpty ||
+                  data.tierDistribution.any((t) => t.count > 0);
+
+              if (!hasRankedExercises) {
+                return Column(
+                  children: [
+                    const TransmuteStatePanel(
+                      kind: TransmuteStateKind.empty,
+                      title: 'No ranked exercise analysis yet',
+                      message:
+                          'Category averages, upcoming targets, and tier distributions appear once you log qualifying sets across sessions.',
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TransmuteButton(
+                        label: 'Explore exercise ranks',
+                        icon: Icons.grid_view_outlined,
+                        onPressed: () => context.go('/ranks/gallery'),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _CategoryAveragesCard(categories: data.categories),
+                  const SizedBox(height: 20),
+                  if (data.upcomingTargets.isNotEmpty) ...[
+                    _UpcomingTargetsCard(
+                      targets: data.upcomingTargets,
+                      unit: unit,
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                  _WeeklyRankUpsCard(weeklyRankUps: data.weeklyRankUps),
+                  const SizedBox(height: 20),
+                  _TierDistributionCard(
+                    distribution: data.tierDistribution,
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+typedef RankAnalysisPlaceholderScreen = RankAnalysisScreen;
+
+Color _tierColor(ExerciseRankTier tier, TransmutePalette palette) {
+  switch (tier) {
+    case ExerciseRankTier.bronze:
+      return const Color(0xFFCD7F32);
+    case ExerciseRankTier.silver:
+      return const Color(0xFFC0C0C0);
+    case ExerciseRankTier.gold:
+      return palette.gold;
+    case ExerciseRankTier.platinum:
+      return const Color(0xFF00CED1);
+    case ExerciseRankTier.transmuted:
+      return palette.oxide;
+  }
+}
+
+String _formatTargetValue(
+  double value,
+  ExerciseTrackingMode mode,
+  ExerciseRankMetric metric,
+  WeightUnit unit,
+) {
+  if (mode == ExerciseTrackingMode.timed ||
+      metric == ExerciseRankMetric.maxDurationSeconds) {
+    final s = value.round();
+    if (s < 60) return '${s}s';
+    final m = s ~/ 60;
+    final rem = s % 60;
+    return rem > 0 ? '${m}m ${rem}s' : '${m}m';
+  }
+  if (metric == ExerciseRankMetric.maxReps) {
+    return '${value.round()} reps';
+  }
+  final displayVal = unit == WeightUnit.lb ? value * 2.2046226218 : value;
+  return '${displayVal.toStringAsFixed(1)} ${unit == WeightUnit.lb ? 'lb' : 'kg'}';
+}
+
+class _CategoryAveragesCard extends StatelessWidget {
+  const _CategoryAveragesCard({required this.categories});
+  final List<RankCategorySummary> categories;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    return TransmutePanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Category averages',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Average rank tier and strength progress across equipment categories',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: palette.muted),
+          ),
+          const SizedBox(height: 12),
+          for (final cat in categories) ...[
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(
+                _categoryIcon(cat.category),
+                color: palette.oxide,
+              ),
+              title: Text(
+                cat.category[0].toUpperCase() + cat.category.substring(1),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                '${cat.rankedCount} of ${cat.totalCount} ranked',
+              ),
+              trailing: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    cat.averageTier != null
+                        ? _tierName(cat.averageTier!)
+                        : 'Unranked',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: cat.averageTier != null
+                          ? _tierColor(cat.averageTier!, palette)
+                          : palette.muted,
+                    ),
+                  ),
+                  if (cat.averageRatio != null)
+                    Text(
+                      '${(cat.averageRatio! * 100).toStringAsFixed(0)}% score',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                ],
+              ),
+            ),
+            if (cat != categories.last) const Divider(height: 1),
+          ],
+        ],
+      ),
+    );
+  }
+
+  IconData _categoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'barbell':
+        return Icons.fitness_center;
+      case 'dumbbell':
+        return Icons.fitness_center_outlined;
+      case 'bodyweight':
+        return Icons.accessibility_new;
+      case 'machine':
+        return Icons.precision_manufacturing_outlined;
+      case 'cable':
+        return Icons.cable_outlined;
+      default:
+        return Icons.sports_gymnastics;
+    }
+  }
+}
+
+class _UpcomingTargetsCard extends StatelessWidget {
+  const _UpcomingTargetsCard({
+    required this.targets,
+    required this.unit,
+  });
+  final List<RankUpcomingTarget> targets;
+  final WeightUnit unit;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    return TransmutePanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Next rank targets',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Exercises closest to promoting to the next tier',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: palette.muted),
+          ),
+          const SizedBox(height: 12),
+          for (final target in targets) ...[
+            InkWell(
+              onTap: () => context.go('/ranks/gallery/${target.exerciseId}'),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.workspace_premium_outlined,
+                          color: _tierColor(target.tier, palette),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            target.exerciseName,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Text(
+                          _tierName(target.tier),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: _tierColor(target.tier, palette),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${target.category.toUpperCase()}${target.muscleGroup != null ? ' · ${target.muscleGroup}' : ''}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: palette.muted),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Current: ${_formatTargetValue(target.currentValue, target.trackingMode, target.metric, unit)}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        Text(
+                          '${target.progressPoints} / 100 pts',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: (target.progressPoints / 100).clamp(0.0, 1.0),
+                        minHeight: 6,
+                        backgroundColor: palette.divider,
+                        color: palette.oxide,
+                      ),
+                    ),
+                    if (target.nextThreshold != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Next tier threshold: ${_formatTargetValue(target.nextThreshold!, target.trackingMode, target.metric, unit)}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: palette.oxide,
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            if (target != targets.last) const Divider(height: 1),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _WeeklyRankUpsCard extends StatelessWidget {
+  const _WeeklyRankUpsCard({required this.weeklyRankUps});
+  final List<WeeklyRankUpCount> weeklyRankUps;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    final totalRankUps =
+        weeklyRankUps.fold<int>(0, (sum, w) => sum + w.count);
+
+    return TransmutePanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Weekly promotions',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              if (totalRankUps > 0)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: palette.oxide.withValues(alpha: .15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '+$totalRankUps total',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: palette.oxide,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'New rank tiers achieved across recent training weeks',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: palette.muted),
+          ),
+          const SizedBox(height: 12),
+          if (weeklyRankUps.isEmpty || totalRankUps == 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No rank promotions recorded in recent weeks.',
+                style: TextStyle(color: palette.muted),
+              ),
+            )
+          else ...[
+            for (final week in weeklyRankUps) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Week of ${week.weekStart}'),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: week.count > 0
+                            ? palette.oxide.withValues(alpha: .2)
+                            : palette.divider,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        week.count > 0
+                            ? '+${week.count} rank up${week.count == 1 ? '' : 's'}'
+                            : '0',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: week.count > 0
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: week.count > 0 ? palette.oxide : palette.muted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (week != weeklyRankUps.last) const Divider(height: 1),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TierDistributionCard extends StatelessWidget {
+  const _TierDistributionCard({required this.distribution});
+  final List<RankTierCount> distribution;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    final rankedTiers = distribution;
+    final totalRanked =
+        rankedTiers.fold<int>(0, (sum, t) => sum + t.count);
+
+    return TransmutePanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Tier distribution',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Distribution of all ranked exercises by tier ($totalRanked ranked)',
+            style: Theme.of(context)
+                .textTheme
+                .bodySmall
+                ?.copyWith(color: palette.muted),
+          ),
+          const SizedBox(height: 14),
+          if (totalRanked == 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No exercises currently ranked.',
+                style: TextStyle(color: palette.muted),
+              ),
+            )
+          else ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                height: 12,
+                child: Row(
+                  children: [
+                    for (final tierCount in rankedTiers)
+                      if (tierCount.count > 0)
+                        Expanded(
+                          flex: tierCount.count,
+                          child: Container(
+                            color: _tierColor(tierCount.tier, palette),
+                          ),
+                        ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                for (final tierCount in rankedTiers)
+                  if (tierCount.count > 0)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: _tierColor(tierCount.tier, palette),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${_tierName(tierCount.tier)}: ${tierCount.count}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 class _OverallHero extends StatelessWidget {

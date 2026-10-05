@@ -744,6 +744,28 @@ class ApiExerciseRankRepository implements ExerciseRankRepository {
         .map((item) => _overallHistory(item as Map<String, dynamic>))
         .toList();
   }
+
+  @override
+  Future<RankAnalysisData> getAnalysis() async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/ranks/analysis'),
+    );
+    final data = body.data!;
+    return RankAnalysisData(
+      categories: ((data['categories'] as List<dynamic>?) ?? const [])
+          .map((item) => _rankCategorySummary(item as Map<String, dynamic>))
+          .toList(),
+      tierDistribution: ((data['tierDistribution'] as List<dynamic>?) ?? const [])
+          .map((item) => _rankTierCount(item as Map<String, dynamic>))
+          .toList(),
+      weeklyRankUps: ((data['weeklyRankUps'] as List<dynamic>?) ?? const [])
+          .map((item) => _weeklyRankUpCount(item as Map<String, dynamic>))
+          .toList(),
+      upcomingTargets: ((data['upcomingTargets'] as List<dynamic>?) ?? const [])
+          .map((item) => _rankUpcomingTarget(item as Map<String, dynamic>))
+          .toList(),
+    );
+  }
 }
 
 class ApiSessionRepository implements SessionRepository {
@@ -1412,6 +1434,48 @@ class ApiProgressRepository implements ProgressRepository {
           .toList(),
       sessions: (record['sessions'] as List<dynamic>)
           .map((item) => _progressSession(item as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  @override
+  Future<TrainingAnalytics> getTrainingAnalytics({
+    TrainingPeriod period = TrainingPeriod.fourteenDays,
+    TrainingMetric metric = TrainingMetric.volume,
+  }) async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>(
+        '/v1/progress/training',
+        queryParameters: {
+          'period': period.wireValue,
+          'metric': metric.wireValue,
+        },
+      ),
+    );
+    final data = body.data!;
+    final summaryData = data['summary'] as Map<String, dynamic>;
+    final dailyList = (data['daily'] as List<dynamic>?) ?? const [];
+    return TrainingAnalytics(
+      period: period,
+      metric: metric,
+      summary: TrainingAnalyticsSummary(
+        workoutCount: summaryData['workoutCount'] as int,
+        totalDurationSeconds: summaryData['totalDurationSeconds'] as int,
+        totalVolumeKg: (summaryData['totalVolumeKg'] as num).toDouble(),
+        totalReps: summaryData['totalReps'] as int,
+        workingSetCount: summaryData['workingSetCount'] as int,
+        personalRecordCount: summaryData['personalRecordCount'] as int,
+      ),
+      daily: dailyList
+          .map(
+            (item) => TrainingDailyBucket(
+              date: item['date'] as String,
+              sessionCount: item['sessionCount'] as int,
+              durationSeconds: item['durationSeconds'] as int,
+              volumeKg: (item['volumeKg'] as num).toDouble(),
+              reps: item['reps'] as int,
+            ),
+          )
           .toList(),
     );
   }
@@ -2135,6 +2199,47 @@ OverallRankHistoryPoint _overallHistory(Map<String, dynamic> map) =>
       eligibleExerciseCount: map['eligibleExerciseCount'] as int,
       score: (map['score'] as num?)?.toDouble(),
       tier: _rankTier(map['tier'] as String?),
+    );
+
+RankCategorySummary _rankCategorySummary(Map<String, dynamic> map) =>
+    RankCategorySummary(
+      category: map['category'] as String,
+      rankedCount: map['rankedCount'] as int,
+      totalCount: map['totalCount'] as int,
+      averageRatio: (map['averageRatio'] as num?)?.toDouble(),
+      averageTier: _rankTier(map['averageTier'] as String?),
+    );
+
+RankTierCount _rankTierCount(Map<String, dynamic> map) => RankTierCount(
+      tier: _rankTier(map['tier'] as String?) ?? ExerciseRankTier.bronze,
+      count: map['count'] as int,
+    );
+
+WeeklyRankUpCount _weeklyRankUpCount(Map<String, dynamic> map) =>
+    WeeklyRankUpCount(
+      weekStart: map['weekStart'] as String,
+      count: map['count'] as int,
+    );
+
+RankUpcomingTarget _rankUpcomingTarget(Map<String, dynamic> map) =>
+    RankUpcomingTarget(
+      exerciseId: map['exerciseId'] as String,
+      exerciseName: map['exerciseName'] as String,
+      category: map['category'] as String,
+      muscleGroup: map['muscleGroup'] as String?,
+      trackingMode: map['trackingMode'] == 'timed'
+          ? ExerciseTrackingMode.timed
+          : ExerciseTrackingMode.reps,
+      metric: switch (map['metric'] as String?) {
+        'max_duration_seconds' => ExerciseRankMetric.maxDurationSeconds,
+        'max_reps' => ExerciseRankMetric.maxReps,
+        _ => ExerciseRankMetric.estimatedOneRepMaxKg,
+      },
+      currentValue: (map['currentValue'] as num).toDouble(),
+      baselineValue: (map['baselineValue'] as num).toDouble(),
+      tier: _rankTier(map['tier'] as String?) ?? ExerciseRankTier.bronze,
+      progressPoints: map['progressPoints'] as int,
+      nextThreshold: (map['nextThreshold'] as num?)?.toDouble(),
     );
 
 ExerciseRank _rankPreview(

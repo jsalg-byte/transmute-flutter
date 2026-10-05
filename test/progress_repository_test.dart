@@ -61,4 +61,26 @@ void main() {
       );
     },
   );
+
+  test('mock progress repository returns valid training analytics', () async {
+    final repository = MockProgressRepository(MockStore());
+
+    final weekAnalytics = await repository.getTrainingAnalytics(
+      period: TrainingPeriod.sevenDays,
+      metric: TrainingMetric.volume,
+    );
+    expect(weekAnalytics.period, TrainingPeriod.sevenDays);
+    expect(weekAnalytics.metric, TrainingMetric.volume);
+    expect(weekAnalytics.daily, isNotEmpty);
+    expect(weekAnalytics.summary.workoutCount, isNonNegative);
+    expect(weekAnalytics.summary.totalVolumeKg, isNonNegative);
+
+    final monthAnalytics = await repository.getTrainingAnalytics(
+      period: TrainingPeriod.thirtyDays,
+      metric: TrainingMetric.duration,
+    );
+    expect(monthAnalytics.period, TrainingPeriod.thirtyDays);
+    expect(monthAnalytics.metric, TrainingMetric.duration);
+    expect(monthAnalytics.daily, isNotEmpty);
+  });
 }

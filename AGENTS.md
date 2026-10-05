@@ -2,10 +2,12 @@
 
 ## Orient first
 
+- Start with [docs/README.md](docs/README.md) for the short repo map and authoritative-document list.
 - Read [architecture](docs/ARCHITECTURE.md) for the actual layer/state map and [decisions](docs/DECISIONS.md) for fixes and constraints that are easy to break.
 - In [API_CONTRACT.md](docs/API_CONTRACT.md), use **Expo adapter contract (implemented core loop)** plus its failure/offline and general rules as the current contract. The later focused-demo endpoint/DTO tables are explicitly retired historical material; do not implement those routes in production code.
 - Planning/spec documents (`PRD`, parity plan, build spec, launch roadmap, implementation checklist, vertical slices) describe intent or snapshots. When they disagree with current source or the implemented API contract, verify before following them.
 - The Fastify API is a separate repository at `/Users/mzootfb/Sites/transmute-mobile`. API behavior or SQL migrations belong there; do not treat this Flutter checkout as the server or database.
+- Production serves the Flutter repo's checked-in `release/web` at `https://transmute.mzootfb.xyz`; its API is the sibling Fastify service at `https://api.transmute.mzootfb.xyz`. Treat the Expo client source in the sibling repo as a separate app unless the requested feature specifically targets it.
 
 ## Change boundaries
 
@@ -46,6 +48,7 @@ Use `http://localhost:8081` exactly; CORS treats `127.0.0.1:8081` as a different
 ## Production web and migrations
 
 - Production serves checked-in `release/web` through `Dockerfile`/Nginx. A plain `flutter build web` updates only `build/web`. For a requested production web release, run `./scripts/build_web_release.sh`, then include its generated `release/web` bundle with the source commit; otherwise Coolify may serve the previous UI. See [DEPLOYMENT.md](docs/DEPLOYMENT.md).
+- API migrations are numbered SQL in the sibling repo and are not automatically run by Coolify. Timed exercise tracking is migration 008; shared demos are 009; the bundled reverse-curl demo mapping is 010. Recheck actual production schema before applying anything—migration files can be present while the database is still behind.
 - Docker/Coolify does not apply API migrations. Inspect the exact schema and migration before applying one, then verify the affected authenticated API behavior; `/health` alone is insufficient. Migration history and live server state must be checked at task time.
 - Do not put credentials or private service values in Dart defines or the generated bundle. The API base URL is public configuration.
 

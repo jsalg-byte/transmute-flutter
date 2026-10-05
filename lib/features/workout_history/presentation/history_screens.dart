@@ -213,6 +213,11 @@ class _DeleteSessionButtonState extends ConsumerState<_DeleteSessionButton> {
       ref.invalidate(progressRecordProvider);
       ref.invalidate(dailyOverviewProvider);
       ref.invalidate(recentRecordProvider);
+      ref.invalidate(trainingAnalyticsProvider);
+      ref.invalidate(rankAnalysisProvider);
+      ref.invalidate(exerciseRanksProvider);
+      ref.invalidate(rankOverviewProvider);
+      ref.invalidate(overallRankHistoryProvider);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Session deleted.')));
