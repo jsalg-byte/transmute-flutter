@@ -39,7 +39,7 @@ void main() {
 
     const cases = [
       ('/dashboard', "Today's Workout"),
-      ('/plans', 'Plans'),
+      ('/plans', 'Routine folders'),
       ('/exercises', 'Exercise library'),
       ('/progress', 'Progress'),
       ('/nutrition', 'Nutrition'),

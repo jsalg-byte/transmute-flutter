@@ -389,6 +389,17 @@ final latestBodyweightProvider = Provider<BodyweightMeasurement?>((ref) {
   if (measurements == null || measurements.isEmpty) return null;
   return measurements.first;
 });
+
+final progressionRepositoryProvider = Provider<ProgressionRepository>(
+  (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
+      ? MockProgressionRepository(ref.watch(mockStoreProvider))
+      : ApiProgressionRepository(ref.watch(dioProvider)),
+);
+
+final progressionProvider = FutureProvider<ProgressionData>(
+  (ref) => ref.watch(progressionRepositoryProvider).getProgression(),
+);
+
 final planningRepositoryProvider = Provider<PlanningRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockPlanningRepository(ref.watch(mockStoreProvider))
@@ -1050,6 +1061,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     ref.invalidate(overallRankHistoryProvider);
     ref.invalidate(rankAnalysisProvider);
     ref.invalidate(trainingAnalyticsProvider);
+    ref.invalidate(progressionProvider);
     return result;
   }
 

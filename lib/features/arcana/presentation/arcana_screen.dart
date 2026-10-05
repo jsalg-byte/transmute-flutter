@@ -353,8 +353,14 @@ class _ArcanaCard extends StatelessWidget {
                         card.number,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
+                      const SizedBox(width: 8),
                       const Spacer(),
-                      _StageChip(stage: card.stage),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: _StageChip(stage: card.stage),
+                        ),
+                      ),
                     ],
                   ),
                   const Spacer(),

@@ -1979,6 +1979,26 @@ class ApiBodyweightRepository implements BodyweightRepository {
       _request(() => _dio.delete<void>('/v1/bodyweight/$id'));
 }
 
+class ApiProgressionRepository implements ProgressionRepository {
+  ApiProgressionRepository(this._dio);
+  final Dio _dio;
+
+  @override
+  Future<ProgressionData> getProgression() async {
+    final response = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/progression'),
+    );
+    return _progressionData(response.data!);
+  }
+
+  @override
+  Future<void> claimReward(String rewardId) async {
+    await _request(
+      () => _dio.post<Map<String, dynamic>>('/v1/rewards/$rewardId/claim'),
+    );
+  }
+}
+
 class ApiPlanningRepository implements PlanningRepository {
   ApiPlanningRepository(this._dio);
   final Dio _dio;
@@ -2159,6 +2179,56 @@ BodyweightMeasurement _bodyweightMeasurement(Map<String, dynamic> map) =>
           ? DateTime.tryParse(map['createdAt'] as String)
           : null,
     );
+
+ProgressionData _progressionData(Map<String, dynamic> map) => ProgressionData(
+  lifetimeXp: map['lifetimeXp'] as int? ?? 0,
+  currentLevel: map['currentLevel'] as int? ?? 1,
+  currentLevelXp: map['currentLevelXp'] as int? ?? 0,
+  nextLevelThreshold: map['nextLevelThreshold'] as int? ?? 100,
+  xpToNextLevel: map['xpToNextLevel'] as int? ?? 100,
+  levelProgressRatio: (map['levelProgressRatio'] as num?)?.toDouble() ?? 0.0,
+  todayXpEarned: map['todayXpEarned'] as int? ?? 0,
+  todayXpCap: map['todayXpCap'] as int? ?? 300,
+  recentTransactions: ((map['recentTransactions'] as List<dynamic>?) ?? const [])
+      .map((t) => ProgressionTransaction(
+            id: t['id'] as String,
+            sourceType: t['sourceType'] as String,
+            xpAmount: t['xpAmount'] as int,
+            reason: t['reason'] as String,
+            eventDate: t['eventDate'] as String,
+            createdAt: DateTime.parse(t['createdAt'] as String),
+          ))
+      .toList(),
+  milestones: ((map['milestones'] as List<dynamic>?) ?? const [])
+      .map((m) => MilestoneQuest(
+            id: m['id'] as String,
+            title: m['title'] as String,
+            subtitle: m['subtitle'] as String,
+            category: m['category'] as String,
+            progress: (m['progress'] as num).toDouble(),
+            currentValue: m['currentValue'] as num,
+            targetValue: m['targetValue'] as num,
+            unit: m['unit'] as String,
+            actionRoute: m['actionRoute'] as String,
+            actionLabel: m['actionLabel'] as String,
+          ))
+      .toList(),
+  rewards: ((map['rewards'] as List<dynamic>?) ?? const [])
+      .map((r) => RewardItem(
+            id: r['id'] as String,
+            name: r['name'] as String,
+            description: r['description'] as String,
+            requiredLevel: r['requiredLevel'] as int,
+            emblemKey: r['emblemKey'] as String,
+            isClaimed: r['isClaimed'] as bool? ?? false,
+            canClaim: r['canClaim'] as bool? ?? false,
+            claimedAt: r['claimedAt'] != null
+                ? DateTime.tryParse(r['claimedAt'] as String)
+                : null,
+          ))
+      .toList(),
+);
+
 GoalAssessment _assessment(Map<String, dynamic> map) => GoalAssessment(
   id: map['id'] as String,
   assessedAt: DateTime.parse(map['assessed_on'] as String),

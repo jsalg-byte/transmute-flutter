@@ -270,6 +270,12 @@ abstract class BodyweightRepository {
   Future<void> deleteMeasurement(String id);
 }
 
+abstract class ProgressionRepository {
+  Future<ProgressionData> getProgression();
+  Future<void> claimReward(String rewardId);
+}
+
+
 abstract class PlanningRepository {
   Future<List<TrainingBlock>> listBlocks();
   Future<TrainingBlock> createBlock(TrainingBlock block);

@@ -1408,3 +1408,98 @@ double toKg(double value, WeightUnit unit) =>
 /// canonical in kilograms.
 double fromKg(double value, WeightUnit unit) =>
     unit == WeightUnit.lb ? value * 2.2046226218 : value;
+
+class ProgressionTransaction {
+  const ProgressionTransaction({
+    required this.id,
+    required this.sourceType,
+    required this.xpAmount,
+    required this.reason,
+    required this.eventDate,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String sourceType;
+  final int xpAmount;
+  final String reason;
+  final String eventDate;
+  final DateTime createdAt;
+}
+
+class MilestoneQuest {
+  const MilestoneQuest({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.category,
+    required this.progress,
+    required this.currentValue,
+    required this.targetValue,
+    required this.unit,
+    required this.actionRoute,
+    required this.actionLabel,
+  });
+
+  final String id;
+  final String title;
+  final String subtitle;
+  final String category;
+  final double progress; // 0.0 to 1.0
+  final num currentValue;
+  final num targetValue;
+  final String unit;
+  final String actionRoute;
+  final String actionLabel;
+}
+
+class RewardItem {
+  const RewardItem({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.requiredLevel,
+    required this.emblemKey,
+    required this.isClaimed,
+    required this.canClaim,
+    this.claimedAt,
+  });
+
+  final String id;
+  final String name;
+  final String description;
+  final int requiredLevel;
+  final String emblemKey;
+  final bool isClaimed;
+  final bool canClaim;
+  final DateTime? claimedAt;
+}
+
+class ProgressionData {
+  const ProgressionData({
+    required this.lifetimeXp,
+    required this.currentLevel,
+    required this.currentLevelXp,
+    required this.nextLevelThreshold,
+    required this.xpToNextLevel,
+    required this.levelProgressRatio,
+    required this.todayXpEarned,
+    required this.todayXpCap,
+    required this.recentTransactions,
+    required this.milestones,
+    required this.rewards,
+  });
+
+  final int lifetimeXp;
+  final int currentLevel;
+  final int currentLevelXp;
+  final int nextLevelThreshold;
+  final int xpToNextLevel;
+  final double levelProgressRatio; // 0.0 to 1.0
+  final int todayXpEarned;
+  final int todayXpCap;
+  final List<ProgressionTransaction> recentTransactions;
+  final List<MilestoneQuest> milestones;
+  final List<RewardItem> rewards;
+}
+

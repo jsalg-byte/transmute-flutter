@@ -34,10 +34,10 @@ void main() {
       const Offset(-500, 0),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add day'));
+    await tester.tap(find.text('Add routine'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Core day');
-    await tester.tap(find.text('Add').last);
+    await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
     expect(

@@ -24,9 +24,11 @@ void main() {
 
     expect(find.text('Personal Arcana'), findsOneWidget);
     expect(find.text('1 of 15 revealed'), findsOneWidget);
-    expect(find.bySemanticsLabel('0 The Fool, Revealed'), findsOneWidget);
+    final cardFinder = find.bySemanticsLabel('0 The Fool, Revealed');
+    await tester.scrollUntilVisible(cardFinder, 300);
+    expect(cardFinder, findsOneWidget);
 
-    await tester.tap(find.bySemanticsLabel('0 The Fool, Revealed'));
+    await tester.tap(cardFinder);
     await tester.pumpAndSettle();
     expect(find.text('Evidence'), findsOneWidget);
     expect(
@@ -36,7 +38,9 @@ void main() {
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Refined'));
+    final refinedFinder = find.widgetWithText(ChoiceChip, 'Refined');
+    await tester.scrollUntilVisible(refinedFinder, -300);
+    await tester.tap(refinedFinder);
     await tester.pumpAndSettle();
     expect(find.textContaining('No cards have reached this stage yet'), findsOneWidget);
   });

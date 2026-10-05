@@ -82,57 +82,357 @@ class _ForYouView extends ConsumerWidget {
   }
 }
 
-class _ProgressionBanner extends StatelessWidget {
+class _ProgressionBanner extends ConsumerWidget {
   const _ProgressionBanner();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final palette = TransmutePalette.of(context);
-    return TransmutePanel(
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'YOUR PROGRESSION',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: palette.oxide,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
+    final progressionAsync = ref.watch(progressionProvider);
+
+    return progressionAsync.when(
+      loading: () => TransmutePanel(
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'YOUR PROGRESSION',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: palette.oxide,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                        ),
                   ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  'Every session adds to the record.',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 5),
-                Text(
-                  'Explore the evidence and milestones you have earned in Arcana.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 7),
-                TextButton.icon(
-                  onPressed: () => context.go('/arcana'),
-                  icon: const Icon(Icons.auto_awesome_outlined),
-                  label: const Text('Explore Arcana'),
-                ),
-              ],
+                  const SizedBox(height: 7),
+                  Text(
+                    'Loading progression...',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          ExcludeSemantics(
-            child: SvgPicture.asset(
-              'assets/transmute/ouroboros.svg',
-              width: 66,
-              height: 66,
-              colorFilter: ColorFilter.mode(palette.gold, BlendMode.srcIn),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
+      error: (_, _) => TransmutePanel(
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'YOUR PROGRESSION',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: palette.oxide,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                        ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    'Every session adds to the record.',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 5),
+                  TextButton.icon(
+                    onPressed: () => context.go('/arcana'),
+                    icon: const Icon(Icons.auto_awesome_outlined),
+                    label: const Text('Explore Arcana'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      data: (data) {
+        final activeQuest = data.milestones.firstOrNull;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TransmutePanel(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isCompact = constraints.maxWidth < 340;
+                  final content = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: palette.oxide.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: palette.oxide.withValues(alpha: 0.4),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              'LEVEL ${data.currentLevel}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.0,
+                                color: palette.ink,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${data.lifetimeXp} XP',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: palette.muted,
+                                ),
+                          ),
+                          Text(
+                            'Today: ${data.todayXpEarned}/${data.todayXpCap} XP',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: palette.oxide,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 2,
+                        alignment: WrapAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Level ${data.currentLevel + 1}',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                          Text(
+                            '${data.xpToNextLevel} XP remaining',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: palette.muted,
+                                ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: LinearProgressIndicator(
+                          value: data.levelProgressRatio,
+                          minHeight: 6,
+                          backgroundColor: palette.divider,
+                          valueColor: AlwaysStoppedAnimation<Color>(palette.oxide),
+                        ),
+                      ),
+                    ],
+                  );
+
+                  final ouroboros = InkWell(
+                    onTap: () => context.go('/profile'),
+                    child: ExcludeSemantics(
+                      child: SvgPicture.asset(
+                        'assets/transmute/ouroboros.svg',
+                        width: isCompact ? 38 : 54,
+                        height: isCompact ? 38 : 54,
+                        colorFilter: ColorFilter.mode(palette.gold, BlendMode.srcIn),
+                      ),
+                    ),
+                  );
+
+                  if (isCompact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            ouroboros,
+                            const SizedBox(width: 10),
+                            Expanded(child: content),
+                          ],
+                        ),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: content),
+                      const SizedBox(width: 14),
+                      ouroboros,
+                    ],
+                  );
+                },
+              ),
+            ),
+            if (activeQuest != null) ...[
+              const SizedBox(height: 12),
+              TransmutePanel(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isCompact = constraints.maxWidth < 340;
+                    if (isCompact) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              SizedBox(
+                                width: 44,
+                                height: 44,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      value: activeQuest.progress,
+                                      strokeWidth: 4,
+                                      backgroundColor: palette.divider,
+                                      valueColor: AlwaysStoppedAnimation<Color>(palette.oxide),
+                                    ),
+                                    Text(
+                                      '${(activeQuest.progress * 100).toInt()}%',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: palette.ink,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'CURRENT QUEST · ${activeQuest.category.toUpperCase()}',
+                                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                            color: palette.oxide,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.0,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      activeQuest.title,
+                                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            activeQuest.subtitle,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: palette.muted,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          FilledButton.tonal(
+                            onPressed: () => context.go(activeQuest.actionRoute),
+                            style: FilledButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                            ),
+                            child: Text(
+                              activeQuest.actionLabel,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        SizedBox(
+                          width: 50,
+                          height: 50,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              CircularProgressIndicator(
+                                value: activeQuest.progress,
+                                strokeWidth: 4,
+                                backgroundColor: palette.divider,
+                                valueColor: AlwaysStoppedAnimation<Color>(palette.oxide),
+                              ),
+                              Text(
+                                '${(activeQuest.progress * 100).toInt()}%',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: palette.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'CURRENT QUEST · ${activeQuest.category.toUpperCase()}',
+                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                      color: palette.oxide,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.0,
+                                    ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                activeQuest.title,
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                activeQuest.subtitle,
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: palette.muted,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.tonal(
+                          onPressed: () => context.go(activeQuest.actionRoute),
+                          style: FilledButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          child: Text(
+                            activeQuest.actionLabel,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

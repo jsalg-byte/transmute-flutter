@@ -340,6 +340,7 @@ class MockStore {
       createdAt: DateTime.now(),
     ),
   ];
+  final Set<String> claimedRewards = {'emblem_apprentice'};
   final List<TrainingBlock> blocks = [];
   final List<WeeklyReview> reviews = [];
   late List<FriendRequest> incomingFriends;
@@ -3488,6 +3489,154 @@ class MockPlanningRepository implements PlanningRepository {
     return review;
   }
 }
+
+class MockProgressionRepository implements ProgressionRepository {
+  MockProgressionRepository(this._store);
+  final MockStore _store;
+
+  @override
+  Future<ProgressionData> getProgression() async {
+    final completedCount = _store.completed.length;
+    // Calculate lifetime XP based on completed sessions
+    // Each completed session with >= 3 sets gets 100 XP + working sets * 10
+    int lifetimeXp = 0;
+    for (final session in _store.completed) {
+      if (session.workingSetCount >= 3) {
+        lifetimeXp += 100;
+      }
+      lifetimeXp += (session.workingSetCount.clamp(0, 10)) * 10;
+    }
+    // Base starter XP for demo account
+    if (lifetimeXp == 0) lifetimeXp = 120;
+
+    int level = 1;
+    while (lifetimeXp >= (100 * level * (level + 1)) ~/ 2) {
+      level++;
+    }
+    final currentThreshold = (100 * (level - 1) * level) ~/ 2;
+    final nextThreshold = (100 * level * (level + 1)) ~/ 2;
+    final span = nextThreshold - currentThreshold;
+    final currentLevelXp = lifetimeXp - currentThreshold;
+    final xpToNextLevel = (nextThreshold - lifetimeXp).clamp(0, nextThreshold);
+    final progressRatio = span > 0 ? (currentLevelXp / span).clamp(0.0, 1.0) : 1.0;
+
+    final rewards = [
+      RewardItem(
+        id: 'emblem_apprentice',
+        name: 'Apprentice Insignia',
+        description: 'Begin your journey into personal transmutation.',
+        requiredLevel: 1,
+        emblemKey: 'ouroboros',
+        isClaimed: _store.claimedRewards.contains('emblem_apprentice'),
+        canClaim: !_store.claimedRewards.contains('emblem_apprentice') && level >= 1,
+      ),
+      RewardItem(
+        id: 'emblem_purify',
+        name: 'Purification Seal',
+        description: 'Awarded for reaching Level 2 in consistent training.',
+        requiredLevel: 2,
+        emblemKey: 'purify',
+        isClaimed: _store.claimedRewards.contains('emblem_purify'),
+        canClaim: !_store.claimedRewards.contains('emblem_purify') && level >= 2,
+      ),
+      RewardItem(
+        id: 'emblem_black_sulfur',
+        name: 'Black Sulfur Sigil',
+        description: 'Attained upon mastering Level 3 progression.',
+        requiredLevel: 3,
+        emblemKey: 'black_sulfur',
+        isClaimed: _store.claimedRewards.contains('emblem_black_sulfur'),
+        canClaim: !_store.claimedRewards.contains('emblem_black_sulfur') && level >= 3,
+      ),
+      RewardItem(
+        id: 'emblem_water',
+        name: 'Aquatic Dissolution Emblem',
+        description: 'Attained upon reaching Level 4 transmutation.',
+        requiredLevel: 4,
+        emblemKey: 'water',
+        isClaimed: _store.claimedRewards.contains('emblem_water'),
+        canClaim: !_store.claimedRewards.contains('emblem_water') && level >= 4,
+      ),
+      RewardItem(
+        id: 'emblem_putrefaction',
+        name: 'Nigredo Transmutation Crest',
+        description: 'The highest honor of early transmutation at Level 5.',
+        requiredLevel: 5,
+        emblemKey: 'putrefaction',
+        isClaimed: _store.claimedRewards.contains('emblem_putrefaction'),
+        canClaim: !_store.claimedRewards.contains('emblem_putrefaction') && level >= 5,
+      ),
+    ];
+
+    final targetWorkouts = completedCount < 5 ? 5 : ((completedCount ~/ 5) + 1) * 5;
+
+    final milestones = [
+      MilestoneQuest(
+        id: 'quest_level',
+        title: 'Advance to Level ${level + 1}',
+        subtitle: 'Earn $xpToNextLevel more XP from verified workout sets.',
+        category: 'level',
+        progress: progressRatio,
+        currentValue: currentLevelXp,
+        targetValue: span,
+        unit: 'XP',
+        actionRoute: '/workout',
+        actionLabel: 'Train now',
+      ),
+      MilestoneQuest(
+        id: 'quest_workouts',
+        title: 'Workout Consistency',
+        subtitle: 'Complete $targetWorkouts verified training sessions.',
+        category: 'workout',
+        progress: (completedCount / targetWorkouts).clamp(0.0, 1.0),
+        currentValue: completedCount,
+        targetValue: targetWorkouts,
+        unit: 'workouts',
+        actionRoute: '/workout',
+        actionLabel: 'Start workout',
+      ),
+    ];
+
+    final transactions = [
+      ProgressionTransaction(
+        id: 'tx-init',
+        sourceType: 'workout_session',
+        xpAmount: 100,
+        reason: 'Completed qualified workout',
+        eventDate: DateTime.now().toIso8601String().substring(0, 10),
+        createdAt: DateTime.now(),
+      ),
+      ProgressionTransaction(
+        id: 'tx-sets',
+        sourceType: 'workout_set',
+        xpAmount: 20,
+        reason: 'Completed working sets',
+        eventDate: DateTime.now().toIso8601String().substring(0, 10),
+        createdAt: DateTime.now(),
+      ),
+    ];
+
+    return ProgressionData(
+      lifetimeXp: lifetimeXp,
+      currentLevel: level,
+      currentLevelXp: currentLevelXp,
+      nextLevelThreshold: nextThreshold,
+      xpToNextLevel: xpToNextLevel,
+      levelProgressRatio: progressRatio,
+      todayXpEarned: 120,
+      todayXpCap: 300,
+      recentTransactions: transactions,
+      milestones: milestones,
+      rewards: rewards,
+    );
+  }
+
+  @override
+  Future<void> claimReward(String rewardId) async {
+    _store.claimedRewards.add(rewardId);
+  }
+}
+
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;

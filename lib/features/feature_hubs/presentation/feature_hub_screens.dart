@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/domain/models.dart';
@@ -122,13 +123,8 @@ class ProfileHubScreen extends ConsumerWidget {
             subtitle: 'Manage units, theme and active plan.',
             route: '/settings',
           ),
-          const SizedBox(height: 18),
-          const TransmuteStatePanel(
-            kind: TransmuteStateKind.empty,
-            title: 'Levels and streaks are coming',
-            message:
-                'Your verified workouts will power the level, rewards and training calendar sections in the progression phase.',
-          ),
+          const SizedBox(height: 20),
+          const _ProfileLevelsAndRewardsSection(),
         ],
       ),
     );
@@ -642,4 +638,284 @@ class _ProfileStrengthGoalsSection extends ConsumerWidget {
     );
   }
 }
+
+class _ProfileLevelsAndRewardsSection extends ConsumerWidget {
+  const _ProfileLevelsAndRewardsSection();
+
+  String _emblemAsset(String key) {
+    switch (key) {
+      case 'purify':
+        return 'assets/transmute/purify.svg';
+      case 'black_sulfur':
+        return 'assets/transmute/black-sulfur.svg';
+      case 'water':
+        return 'assets/transmute/water.svg';
+      case 'putrefaction':
+        return 'assets/transmute/putrefaction.svg';
+      default:
+        return 'assets/transmute/ouroboros.svg';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = TransmutePalette.of(context);
+    final progressionAsync = ref.watch(progressionProvider);
+
+    return progressionAsync.when(
+      loading: () => const TransmuteStatePanel(
+        kind: TransmuteStateKind.loading,
+        title: 'Loading progression',
+        message: 'Calculating your level and milestone progression...',
+      ),
+      error: (_, _) => TransmuteStatePanel(
+        kind: TransmuteStateKind.error,
+        title: 'Progression unavailable',
+        message: 'Could not load your progression and rewards.',
+        action: TransmuteButton(
+          label: 'Retry',
+          icon: Icons.refresh,
+          onPressed: () => ref.invalidate(progressionProvider),
+        ),
+      ),
+      data: (data) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Progression & Rewards',
+                style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 12),
+            TransmutePanel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: palette.oxide.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: palette.oxide.withValues(alpha: 0.35),
+                            width: 2,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: SvgPicture.asset(
+                          'assets/transmute/ouroboros.svg',
+                          width: 38,
+                          height: 38,
+                          colorFilter: ColorFilter.mode(palette.gold, BlendMode.srcIn),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'LEVEL ${data.currentLevel}',
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.1,
+                                      ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '${data.lifetimeXp} Lifetime XP',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: palette.muted,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${data.currentLevelXp} / ${data.nextLevelThreshold - (data.nextLevelThreshold - data.currentLevelXp - data.xpToNextLevel)} XP to Level ${data.currentLevel + 1}',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: palette.muted,
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: data.levelProgressRatio,
+                                minHeight: 8,
+                                backgroundColor: palette.divider,
+                                valueColor: AlwaysStoppedAnimation<Color>(palette.oxide),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${data.xpToNextLevel} XP needed for next tier',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: palette.muted,
+                              fontStyle: FontStyle.italic,
+                            ),
+                      ),
+                      Text(
+                        'Daily Cap: ${data.todayXpEarned}/${data.todayXpCap} XP',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: palette.oxide,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Alchemy Insignias & Rewards',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    )),
+            const SizedBox(height: 8),
+            for (final reward in data.rewards) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: TransmutePanel(
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: reward.isClaimed
+                              ? palette.oxide.withValues(alpha: 0.15)
+                              : palette.surface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: reward.isClaimed
+                                ? palette.oxide
+                                : palette.divider,
+                          ),
+                        ),
+                        child: SvgPicture.asset(
+                          _emblemAsset(reward.emblemKey),
+                          colorFilter: ColorFilter.mode(
+                            reward.isClaimed
+                                ? palette.gold
+                                : palette.muted.withValues(alpha: 0.5),
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  reward.name,
+                                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: palette.divider,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'Lv.${reward.requiredLevel}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: palette.muted,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              reward.description,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: palette.muted,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (reward.isClaimed)
+                        Chip(
+                          avatar: const Icon(Icons.check, size: 14),
+                          label: const Text('Claimed', style: TextStyle(fontSize: 11)),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                        )
+                      else if (reward.canClaim)
+                        FilledButton(
+                          onPressed: () async {
+                            try {
+                              await ref
+                                  .read(progressionRepositoryProvider)
+                                  .claimReward(reward.id);
+                              ref.invalidate(progressionProvider);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Claimed ${reward.name}!')),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Failed to claim: $e')),
+                                );
+                              }
+                            }
+                          },
+                          style: FilledButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                          child: const Text('Claim', style: TextStyle(fontSize: 12)),
+                        )
+                      else
+                        OutlinedButton(
+                          onPressed: null,
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                          ),
+                          child: Text(
+                            'Lv.${reward.requiredLevel}',
+                            style: TextStyle(fontSize: 11, color: palette.muted),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
 

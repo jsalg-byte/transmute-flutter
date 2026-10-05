@@ -196,8 +196,16 @@ class AppShell extends ConsumerWidget {
     if (width < 600) {
       return Scaffold(
         appBar: AppBar(
-          title: const _Wordmark(compact: true),
-          actions: [_destinationMenu(context, ref)],
+          titleSpacing: 12,
+          title: const FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: _Wordmark(compact: true),
+          ),
+          actions: [
+            const _HeaderLevelBadge(),
+            _destinationMenu(context, ref),
+          ],
         ),
         body: content,
         bottomNavigationBar: NavigationBar(
@@ -241,7 +249,10 @@ class AppShell extends ConsumerWidget {
             child: Scaffold(
               appBar: AppBar(
                 title: Text(title),
-                actions: [_destinationMenu(context, ref)],
+                actions: [
+                  const _HeaderLevelBadge(),
+                  _destinationMenu(context, ref),
+                ],
               ),
               body: content,
             ),
@@ -609,3 +620,79 @@ Future<void> _setThemePreference(
     }
   }
 }
+
+class _HeaderLevelBadge extends ConsumerWidget {
+  const _HeaderLevelBadge();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progressionAsync = ref.watch(progressionProvider);
+    final palette = TransmutePalette.of(context);
+
+    return progressionAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (data) {
+        return MediaQuery.withClampedTextScaling(
+          maxScaleFactor: 1.2,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => context.go('/profile'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: palette.oxide.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: palette.oxide.withValues(alpha: 0.4),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.shield_outlined,
+                          size: 13,
+                          color: palette.oxide,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          'Lv.${data.currentLevel}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: palette.ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 28,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: data.levelProgressRatio,
+                        minHeight: 4,
+                        backgroundColor: palette.divider,
+                        valueColor: AlwaysStoppedAnimation<Color>(palette.oxide),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
