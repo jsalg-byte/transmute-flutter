@@ -1503,3 +1503,64 @@ class ProgressionData {
   final List<RewardItem> rewards;
 }
 
+enum CalendarDayType { qualified, completed, rest, future }
+
+class CalendarDayStatus {
+  const CalendarDayStatus({
+    required this.date,
+    required this.type,
+    required this.workingSetCount,
+    required this.workoutCount,
+    required this.totalDurationSeconds,
+  });
+
+  final String date; // YYYY-MM-DD
+  final CalendarDayType type;
+  final int workingSetCount;
+  final int workoutCount;
+  final int totalDurationSeconds;
+}
+
+class CalendarMonthData {
+  const CalendarMonthData({
+    required this.year,
+    required this.month,
+    required this.days,
+  });
+
+  final int year;
+  final int month;
+  final List<CalendarDayStatus> days;
+}
+
+class StreakWeekDay {
+  const StreakWeekDay({
+    required this.dayOfWeek,
+    required this.date,
+    required this.isQualified,
+    required this.isToday,
+    required this.isFuture,
+  });
+
+  final String dayOfWeek; // 'Su', 'Mo', etc.
+  final String date; // YYYY-MM-DD
+  final bool isQualified;
+  final bool isToday;
+  final bool isFuture;
+}
+
+class StreakData {
+  const StreakData({
+    required this.currentStreak,
+    required this.bestStreak,
+    required this.lastQualifiedDate,
+    required this.weekDays,
+    required this.calendarMonth,
+  });
+
+  final int currentStreak;
+  final int bestStreak;
+  final String? lastQualifiedDate;
+  final List<StreakWeekDay> weekDays;
+  final CalendarMonthData calendarMonth;
+}

@@ -400,6 +400,19 @@ final progressionProvider = FutureProvider<ProgressionData>(
   (ref) => ref.watch(progressionRepositoryProvider).getProgression(),
 );
 
+final streakRepositoryProvider = Provider<StreakRepository>(
+  (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
+      ? MockStreakRepository(ref.watch(mockStoreProvider))
+      : ApiStreakRepository(ref.watch(dioProvider)),
+);
+
+final streakProvider = FutureProvider.family<StreakData, ({int? year, int? month})>(
+  (ref, params) => ref.watch(streakRepositoryProvider).getStreaks(
+        year: params.year,
+        month: params.month,
+      ),
+);
+
 final planningRepositoryProvider = Provider<PlanningRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockPlanningRepository(ref.watch(mockStoreProvider))
@@ -1062,6 +1075,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     ref.invalidate(rankAnalysisProvider);
     ref.invalidate(trainingAnalyticsProvider);
     ref.invalidate(progressionProvider);
+    ref.invalidate(streakProvider);
     return result;
   }
 

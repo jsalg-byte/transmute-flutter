@@ -89,6 +89,8 @@ class ProfileHubScreen extends ConsumerWidget {
           const SizedBox(height: 20),
           const _ProfileActivitySection(),
           const SizedBox(height: 20),
+          const _ProfileStreakAndMemoriesSection(),
+          const SizedBox(height: 20),
           const _ProfileStrengthGoalsSection(),
           const SizedBox(height: 24),
           Text('Your record', style: Theme.of(context).textTheme.headlineSmall),
@@ -917,5 +919,172 @@ class _ProfileLevelsAndRewardsSection extends ConsumerWidget {
     );
   }
 }
+
+class _ProfileStreakAndMemoriesSection extends ConsumerWidget {
+  const _ProfileStreakAndMemoriesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final streakAsync = ref.watch(streakProvider((year: null, month: null)));
+    final palette = TransmutePalette.of(context);
+
+    return streakAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (streakData) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Memories calendar header & compact 2-week view
+            Row(
+              children: [
+                Icon(Icons.calendar_month, size: 20, color: palette.oxide),
+                const SizedBox(width: 8),
+                Text(
+                  'Memories',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => context.go('/calendar'),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('View All'),
+                      SizedBox(width: 2),
+                      Icon(Icons.chevron_right, size: 18),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TransmutePanel(
+              child: Column(
+                children: [
+                  // Week row (Current 7 days)
+                  Row(
+                    children: [
+                      for (final day in streakData.weekDays)
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Text(
+                                day.dayOfWeek,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: palette.muted,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Tooltip(
+                                message: '${day.date}: ${day.isQualified ? 'Qualified' : day.isFuture ? 'Future' : 'Rest'}',
+                                child: Container(
+                                  width: 32,
+                                  height: 32,
+                                  decoration: BoxDecoration(
+                                    color: day.isQualified
+                                        ? palette.oxide
+                                        : day.isFuture
+                                        ? Colors.transparent
+                                        : palette.raised,
+                                    shape: BoxShape.circle,
+                                    border: day.isToday
+                                        ? Border.all(color: palette.oxide, width: 2)
+                                        : Border.all(color: palette.divider),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      day.date.length >= 10
+                                          ? '${int.tryParse(day.date.substring(8)) ?? ''}'
+                                          : '',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: day.isQualified || day.isToday
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
+                                        color: day.isQualified
+                                            ? Colors.black
+                                            : day.isFuture
+                                            ? palette.muted.withValues(alpha: 0.4)
+                                            : palette.muted,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Streaks card
+            TransmutePanel(
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: palette.raised,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.local_fire_department,
+                      color: palette.oxide,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Streaks',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${streakData.currentStreak} day${streakData.currentStreak == 1 ? '' : 's'} current · Best: ${streakData.bestStreak} day${streakData.bestStreak == 1 ? '' : 's'}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: palette.muted,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          streakData.currentStreak > 0
+                              ? 'Durable habit built on verified qualified sessions.'
+                              : 'Complete a workout with ≥3 working sets to start a streak.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: palette.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.go('/calendar'),
+                    child: const Text('Details'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 
 

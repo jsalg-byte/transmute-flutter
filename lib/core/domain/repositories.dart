@@ -275,6 +275,10 @@ abstract class ProgressionRepository {
   Future<void> claimReward(String rewardId);
 }
 
+abstract class StreakRepository {
+  Future<StreakData> getStreaks({int? year, int? month});
+  Future<void> updateTimezone(String timezone);
+}
 
 abstract class PlanningRepository {
   Future<List<TrainingBlock>> listBlocks();

@@ -3637,7 +3637,138 @@ class MockProgressionRepository implements ProgressionRepository {
   }
 }
 
+class MockStreakRepository implements StreakRepository {
+  MockStreakRepository(this._store);
+  final MockStore _store;
+
+  @override
+  Future<StreakData> getStreaks({int? year, int? month}) async {
+    final now = DateTime.now();
+    final targetYear = year ?? now.year;
+    final targetMonth = month ?? now.month;
+
+    // Days in target month
+    final lastDay = DateTime(targetYear, targetMonth + 1, 0).day;
+
+    // Collect completed session dates from store
+    final sessionDates = <String, int>{};
+    for (final s in _store.completed) {
+      if (s.completedAt != null) {
+        final dStr = s.completedAt!.toIso8601String().substring(0, 10);
+        // Count working sets across exercises
+        int sets = 0;
+        for (final ex in s.exercises) {
+          sets += ex.sets.where((set) => !set.isWarmup).length;
+        }
+        sessionDates[dStr] = (sessionDates[dStr] ?? 0) + sets;
+      }
+    }
+
+    final days = <CalendarDayStatus>[];
+    for (int d = 1; d <= lastDay; d++) {
+      final dateStr = '$targetYear-${targetMonth.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}';
+      final dateObj = DateTime(targetYear, targetMonth, d);
+      final isFuture = dateObj.isAfter(DateTime(now.year, now.month, now.day));
+      final workingSets = sessionDates[dateStr] ?? 0;
+
+      CalendarDayType type;
+      if (isFuture) {
+        type = CalendarDayType.future;
+      } else if (workingSets >= 3) {
+        type = CalendarDayType.qualified;
+      } else if (workingSets > 0) {
+        type = CalendarDayType.completed;
+      } else {
+        type = CalendarDayType.rest;
+      }
+
+      days.add(
+        CalendarDayStatus(
+          date: dateStr,
+          type: type,
+          workingSetCount: workingSets,
+          workoutCount: workingSets > 0 ? 1 : 0,
+          totalDurationSeconds: workingSets > 0 ? 2700 : 0,
+        ),
+      );
+    }
+
+    // Week days (current week: Sun -> Sat)
+    final todayWeekday = now.weekday % 7; // 0 for Sun
+    final sunday = now.subtract(Duration(days: todayWeekday));
+    const dayNames = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+    final weekDays = <StreakWeekDay>[];
+    for (int i = 0; i < 7; i++) {
+      final d = sunday.add(Duration(days: i));
+      final dStr = d.toIso8601String().substring(0, 10);
+      final isFuture = d.isAfter(DateTime(now.year, now.month, now.day));
+      final sets = sessionDates[dStr] ?? 0;
+
+      weekDays.add(
+        StreakWeekDay(
+          dayOfWeek: dayNames[i],
+          date: dStr,
+          isQualified: sets >= 3,
+          isToday: dStr == now.toIso8601String().substring(0, 10),
+          isFuture: isFuture,
+        ),
+      );
+    }
+
+    // Streaks calculation from qualified dates
+    final sortedQualified = sessionDates.entries
+        .where((e) => e.value >= 3)
+        .map((e) => e.key)
+        .toList()
+      ..sort();
+
+    int bestStreak = sortedQualified.isEmpty ? 0 : 1;
+    int temp = 1;
+    for (int i = 1; i < sortedQualified.length; i++) {
+      final prev = DateTime.parse(sortedQualified[i - 1]);
+      final curr = DateTime.parse(sortedQualified[i]);
+      if (curr.difference(prev).inDays == 1) {
+        temp++;
+        if (temp > bestStreak) bestStreak = temp;
+      } else {
+        temp = 1;
+      }
+    }
+
+    final todayStr = now.toIso8601String().substring(0, 10);
+    final yesterdayStr = now.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10);
+    final lastQual = sortedQualified.isNotEmpty ? sortedQualified.last : null;
+
+    int currentStreak = 0;
+    if (lastQual == todayStr || lastQual == yesterdayStr) {
+      DateTime walk = DateTime.parse(lastQual!);
+      while (sortedQualified.contains(walk.toIso8601String().substring(0, 10))) {
+        currentStreak++;
+        walk = walk.subtract(const Duration(days: 1));
+      }
+    }
+
+    return StreakData(
+      currentStreak: currentStreak,
+      bestStreak: bestStreak,
+      lastQualifiedDate: lastQual,
+      weekDays: weekDays,
+      calendarMonth: CalendarMonthData(
+        year: targetYear,
+        month: targetMonth,
+        days: days,
+      ),
+    );
+  }
+
+  @override
+  Future<void> updateTimezone(String timezone) async {
+    // In mock store, timezone is acknowledged without mutating other preferences.
+  }
+}
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }
+

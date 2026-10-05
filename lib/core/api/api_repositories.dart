@@ -1999,6 +1999,29 @@ class ApiProgressionRepository implements ProgressionRepository {
   }
 }
 
+class ApiStreakRepository implements StreakRepository {
+  ApiStreakRepository(this._dio);
+  final Dio _dio;
+
+  @override
+  Future<StreakData> getStreaks({int? year, int? month}) async {
+    final query = <String, dynamic>{};
+    if (year != null) query['year'] = year;
+    if (month != null) query['month'] = month;
+    final response = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/streaks', queryParameters: query),
+    );
+    return _streakData(response.data!);
+  }
+
+  @override
+  Future<void> updateTimezone(String timezone) async {
+    await _request(
+      () => _dio.patch<Map<String, dynamic>>('/v1/user/timezone', data: {'timezone': timezone}),
+    );
+  }
+}
+
 class ApiPlanningRepository implements PlanningRepository {
   ApiPlanningRepository(this._dio);
   final Dio _dio;
@@ -2228,6 +2251,52 @@ ProgressionData _progressionData(Map<String, dynamic> map) => ProgressionData(
           ))
       .toList(),
 );
+
+StreakData _streakData(Map<String, dynamic> map) {
+  final calMonth = map['calendarMonth'] as Map<String, dynamic>? ?? {};
+  final rawDays = (calMonth['days'] as List<dynamic>?) ?? const [];
+  final days = rawDays.map((d) {
+    final dm = d as Map<String, dynamic>;
+    final statusStr = dm['status'] as String? ?? 'rest';
+    final type = switch (statusStr) {
+      'qualified' => CalendarDayType.qualified,
+      'completed' => CalendarDayType.completed,
+      'future' => CalendarDayType.future,
+      _ => CalendarDayType.rest,
+    };
+    return CalendarDayStatus(
+      date: dm['date'] as String,
+      type: type,
+      workingSetCount: dm['workingSetCount'] as int? ?? 0,
+      workoutCount: dm['workoutCount'] as int? ?? 0,
+      totalDurationSeconds: dm['totalDurationSeconds'] as int? ?? 0,
+    );
+  }).toList();
+
+  final rawWeek = (map['weekDays'] as List<dynamic>?) ?? const [];
+  final weekDays = rawWeek.map((w) {
+    final wm = w as Map<String, dynamic>;
+    return StreakWeekDay(
+      dayOfWeek: wm['dayOfWeek'] as String? ?? '',
+      date: wm['date'] as String? ?? '',
+      isQualified: wm['isQualified'] as bool? ?? false,
+      isToday: wm['isToday'] as bool? ?? false,
+      isFuture: wm['isFuture'] as bool? ?? false,
+    );
+  }).toList();
+
+  return StreakData(
+    currentStreak: map['currentStreak'] as int? ?? 0,
+    bestStreak: map['bestStreak'] as int? ?? 0,
+    lastQualifiedDate: map['lastQualifiedDate'] as String?,
+    weekDays: weekDays,
+    calendarMonth: CalendarMonthData(
+      year: calMonth['year'] as int? ?? DateTime.now().year,
+      month: calMonth['month'] as int? ?? DateTime.now().month,
+      days: days,
+    ),
+  );
+}
 
 GoalAssessment _assessment(Map<String, dynamic> map) => GoalAssessment(
   id: map['id'] as String,

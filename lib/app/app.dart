@@ -22,6 +22,7 @@ import '../features/progress/presentation/progress_screen.dart';
 import '../features/ranks/presentation/ranks_screens.dart';
 import '../features/ranks/presentation/rank_overview_screens.dart';
 import '../features/workout_history/presentation/history_screens.dart';
+import '../features/workout_history/presentation/training_calendar_screen.dart';
 import '../features/workout_plans/presentation/plan_screens.dart';
 import '../features/workout_plans/presentation/routine_share_screens.dart';
 import '../shared/design_system/design_system.dart';
@@ -180,6 +181,10 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
         GoRoute(
           path: '/session',
           builder: (_, _) => const ActiveSessionScreen(),
+        ),
+        GoRoute(
+          path: '/calendar',
+          builder: (_, _) => const TrainingCalendarScreen(),
         ),
         GoRoute(
           path: '/history',
