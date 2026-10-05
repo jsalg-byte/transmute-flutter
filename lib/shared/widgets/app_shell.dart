@@ -63,7 +63,7 @@ class AppShell extends ConsumerWidget {
   static const _primary = <_ShellDestination>[
     _ShellDestination('Today', '/dashboard', Icons.home_outlined),
     _ShellDestination('Train', '/plans', Icons.fitness_center_outlined),
-    _ShellDestination('Exercises', '/exercises', Icons.sports_gymnastics),
+    _ShellDestination('Nutrition', '/nutrition', Icons.restaurant_outlined),
     _ShellDestination('Progress', '/history', Icons.trending_up_outlined),
     _ShellDestination('Hub', '_hub', Icons.grid_view_outlined),
   ];
@@ -283,10 +283,9 @@ class AppShell extends ConsumerWidget {
           location.startsWith('/plans/') ||
           location == '/session';
     }
-    if (route == '/exercises') {
-      return location == '/exercises' ||
-          location.startsWith('/exercises/') ||
-          location == '/';
+    if (route == '/nutrition') {
+      return location == '/nutrition' ||
+          location.startsWith('/nutrition/');
     }
     if (route == '/history') {
       return location == '/history' ||

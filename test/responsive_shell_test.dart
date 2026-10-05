@@ -84,7 +84,7 @@ void main() {
     for (final label in [
       'Today',
       'Train',
-      'Exercises',
+      'Nutrition',
       'Progress',
       'Hub',
     ]) {
@@ -155,7 +155,7 @@ void main() {
     final paths = <String>[
       '/dashboard',
       '/plans',
-      '/exercises',
+      '/nutrition',
       '/history',
     ];
     final router = GoRouter(
@@ -182,7 +182,7 @@ void main() {
 
     for (final (label, path) in [
       ('Train', '/plans'),
-      ('Exercises', '/exercises'),
+      ('Nutrition', '/nutrition'),
       ('Progress', '/history'),
     ]) {
       await tester.tap(find.widgetWithText(NavigationDestination, label));
@@ -205,7 +205,7 @@ void main() {
     for (final label in [
       'Today',
       'Train',
-      'Exercises',
+      'Nutrition',
       'Progress',
       'More destinations',
     ]) {
