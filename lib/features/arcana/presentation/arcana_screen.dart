@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/theme/transmute_palette.dart';
 import '../../../shared/widgets/app_shell.dart';
 
@@ -223,41 +224,44 @@ class _CollectionProgress extends StatelessWidget {
   final int total;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$revealed of $total revealed',
-                  style: Theme.of(context).textTheme.titleLarge,
+  Widget build(BuildContext context) => TransmutePanel(
+    padding: const EdgeInsets.all(16),
+    child: Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$revealed of $total revealed',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  revealed == total
-                      ? 'Every card has a durable record.'
-                      : '${total - revealed} milestone${total - revealed == 1 ? '' : 's'} remain ahead.',
-                  style: TextStyle(color: TransmutePalette.of(context).muted),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            width: 104,
-            child: Semantics(
-              label: '$revealed of $total cards revealed',
-              value: '$revealed of $total',
-              child: LinearProgressIndicator(
-                value: total == 0 ? 0 : revealed / total,
               ),
+              const SizedBox(height: 4),
+              Text(
+                revealed == total
+                    ? 'Every card has a durable record.'
+                    : '${total - revealed} milestone${total - revealed == 1 ? '' : 's'} remain ahead.',
+                style: TextStyle(
+                  color: TransmutePalette.of(context).muted,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          width: 104,
+          child: Semantics(
+            label: '$revealed of $total cards revealed',
+            value: '$revealed of $total',
+            child: LinearProgressIndicator(
+              value: total == 0 ? 0 : revealed / total,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -300,20 +304,42 @@ class _PinnedThread extends StatelessWidget {
           final card = match.isEmpty ? null : match.first;
           return SizedBox(
             width: width,
-            child: Card(
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                title: Text(_slotLabel(slot)),
-                subtitle: Text(
-                  card == null ? 'No card pinned' : '${card.number} · ${card.name}',
-                ),
-                trailing: card == null
-                    ? const Icon(Icons.add_circle_outline)
-                    : const Icon(Icons.arrow_forward),
+            child: TransmutePanel(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              child: InkWell(
                 onTap: card == null ? null : () => onOpen(card),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _slotLabel(slot),
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            card == null ? 'No card pinned' : '${card.number} · ${card.name}',
+                            style: TextStyle(
+                              color: TransmutePalette.of(context).muted,
+                              fontSize: 13,
+                              fontFeatures: const [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    card == null
+                        ? const Icon(Icons.add_circle_outline)
+                        : const Icon(Icons.arrow_forward),
+                  ],
+                ),
               ),
             ),
           );

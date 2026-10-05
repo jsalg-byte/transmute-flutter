@@ -9,7 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
-import '../../../shared/design_system/design_tokens.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/widgets/app_shell.dart';
 
 class NutritionScreen extends ConsumerStatefulWidget {
@@ -149,36 +149,25 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
           onAddMeal: () => _openMealDialog(record),
         ),
         const SizedBox(height: 16),
-        InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => context.push('/recipes'),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
-                  Theme.of(context).colorScheme.surfaceContainerHighest,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
-              ),
-            ),
+        TransmutePanel(
+          padding: const EdgeInsets.all(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => context.push('/recipes'),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.25),
+                    ),
                   ),
                   child: Icon(
                     Icons.soup_kitchen_outlined,
-                    size: 28,
+                    size: 24,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),
@@ -190,7 +179,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                       Text(
                         'Discover Curated Recipes',
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w700,
                             ),
                       ),
                       const SizedBox(height: 2),
@@ -206,7 +195,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
                 const SizedBox(width: 8),
                 Icon(
                   Icons.arrow_forward_ios,
-                  size: 16,
+                  size: 14,
                   color: Theme.of(context).colorScheme.primary,
                 ),
               ],

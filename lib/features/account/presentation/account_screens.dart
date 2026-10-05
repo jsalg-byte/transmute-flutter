@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/theme/transmute_palette.dart';
 import '../../../shared/widgets/app_shell.dart';
 
@@ -320,72 +321,68 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _weightCard(UserPreferences preferences) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Weight unit', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          SegmentedButton<WeightUnit>(
-            segments: const [
-              ButtonSegment(value: WeightUnit.lb, label: Text('lbs')),
-              ButtonSegment(value: WeightUnit.kg, label: Text('kg')),
-            ],
-            selected: {preferences.weightUnit},
-            onSelectionChanged: _saving
-                ? null
-                : (value) => _setWeight(value.first),
-          ),
-        ],
-      ),
+  Widget _weightCard(UserPreferences preferences) => TransmutePanel(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Weight unit', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        SegmentedButton<WeightUnit>(
+          segments: const [
+            ButtonSegment(value: WeightUnit.lb, label: Text('lbs')),
+            ButtonSegment(value: WeightUnit.kg, label: Text('kg')),
+          ],
+          selected: {preferences.weightUnit},
+          onSelectionChanged: _saving
+              ? null
+              : (value) => _setWeight(value.first),
+        ),
+      ],
     ),
   );
   Widget _activePlanCard(
     UserPreferences preferences,
     AsyncValue<List<WorkoutPlan>> plans,
-  ) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Active workout plan',
-            style: Theme.of(context).textTheme.titleLarge,
+  ) => TransmutePanel(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Active workout plan',
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 6),
+        const Text('Today uses this plan’s first scheduled workout day.'),
+        const SizedBox(height: 10),
+        plans.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (_, __) => const Text(
+            'Plans are unavailable. Retry from Plans before selecting one.',
           ),
-          const SizedBox(height: 6),
-          const Text('Today uses this plan’s first scheduled workout day.'),
-          const SizedBox(height: 10),
-          plans.when(
-            loading: () => const LinearProgressIndicator(),
-            error: (_, __) => const Text(
-              'Plans are unavailable. Retry from Plans before selecting one.',
-            ),
-            data: (items) => DropdownButtonFormField<String?>(
-              initialValue:
-                  items.any((plan) => plan.id == preferences.activePlanId)
-                  ? preferences.activePlanId
-                  : null,
-              decoration: const InputDecoration(labelText: 'Plan'),
-              items: [
-                const DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text('No active plan'),
+          data: (items) => DropdownButtonFormField<String?>(
+            initialValue:
+                items.any((plan) => plan.id == preferences.activePlanId)
+                ? preferences.activePlanId
+                : null,
+            decoration: const InputDecoration(labelText: 'Plan'),
+            items: [
+              const DropdownMenuItem<String?>(
+                value: null,
+                child: Text('No active plan'),
+              ),
+              ...items.map(
+                (plan) => DropdownMenuItem<String?>(
+                  value: plan.id,
+                  child: Text(plan.name),
                 ),
-                ...items.map(
-                  (plan) => DropdownMenuItem<String?>(
-                    value: plan.id,
-                    child: Text(plan.name),
-                  ),
-                ),
-              ],
-              onChanged: _saving ? null : _setActivePlan,
-            ),
+              ),
+            ],
+            onChanged: _saving ? null : _setActivePlan,
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
   Widget _themeCard(UserPreferences _) {
@@ -394,17 +391,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final useCuteTheme = cuteTheme.asData?.value ?? false;
     final cuteColorBlindMode = ref.watch(cuteColorBlindModeProvider);
     final useCuteColorBlindMode = cuteColorBlindMode.asData?.value ?? false;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 6),
-            const Text(
-              'Choose the visual system and color treatment for this device.',
-            ),
+    return TransmutePanel(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 6),
+          const Text(
+            'Choose the visual system and color treatment for this device.',
+          ),
             const SizedBox(height: 12),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
@@ -497,8 +493,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ],
         ),
-      ),
-    );
+      );
   }
 
   Future<void> _setWeight(WeightUnit unit) => _run(() async {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/widgets/app_shell.dart';
 
 class PlanningScreen extends ConsumerWidget {
@@ -89,43 +90,47 @@ class _BlockCard extends ConsumerWidget {
   final TrainingBlock block;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  block.name,
-                  style: Theme.of(context).textTheme.titleMedium,
+  Widget build(BuildContext context, WidgetRef ref) => TransmutePanel(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                block.name,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-              PopupMenuButton<TrainingBlockStatus>(
-                tooltip: 'Change block status',
-                onSelected: (status) => _setBlockStatus(context, ref, status),
-                itemBuilder: (_) => TrainingBlockStatus.values
-                    .map(
-                      (status) => PopupMenuItem(
-                        value: status,
-                        child: Text(status.name),
-                      ),
-                    )
-                    .toList(),
-                child: Chip(label: Text(block.status.name)),
-              ),
-            ],
-          ),
-          Text(
-            '${_date(block.startDate)} – ${_date(block.endDate)} · ${block.targetSessionsPerWeek} sessions/week',
-          ),
-          if (block.note?.isNotEmpty == true) ...[
-            const SizedBox(height: 4),
-            Text(block.note!),
+            ),
+            PopupMenuButton<TrainingBlockStatus>(
+              tooltip: 'Change block status',
+              onSelected: (status) => _setBlockStatus(context, ref, status),
+              itemBuilder: (_) => TrainingBlockStatus.values
+                  .map(
+                    (status) => PopupMenuItem(
+                      value: status,
+                      child: Text(status.name),
+                    ),
+                  )
+                  .toList(),
+              child: Chip(label: Text(block.status.name)),
+            ),
           ],
-          const Divider(height: 22),
+        ),
+        Text(
+          '${_date(block.startDate)} – ${_date(block.endDate)} · ${block.targetSessionsPerWeek} sessions/week',
+          style: const TextStyle(
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
+        ),
+        if (block.note?.isNotEmpty == true) ...[
+          const SizedBox(height: 4),
+          Text(block.note!),
+        ],
+        const Divider(height: 22),
           Row(
             children: [
               const Expanded(
@@ -174,8 +179,7 @@ class _BlockCard extends ConsumerWidget {
             ),
         ],
       ),
-    ),
-  );
+    );
 
   Future<void> _setBlockStatus(
     BuildContext context,

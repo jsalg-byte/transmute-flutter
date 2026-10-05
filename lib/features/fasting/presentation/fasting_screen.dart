@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/widgets/app_shell.dart';
 
 class FastingScreen extends ConsumerStatefulWidget {
@@ -59,27 +60,54 @@ class _FastingScreenState extends ConsumerState<FastingScreen> {
             ),
             const SizedBox(height: 6),
             if (data.logs.isEmpty)
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('No completed fasts yet.'),
-                ),
+              TransmutePanel(
+                padding: const EdgeInsets.all(16),
+                child: const Text('No completed fasts yet.'),
               )
             else
               ...data.logs.map(
-                (log) => Card(
-                  child: ListTile(
-                    title: Text(_duration(log.durationMinutes)),
-                    subtitle: Text(
-                      '${_dateTime(log.startedAt)} — ${_dateTime(log.endedAt)}'
-                      '${log.targetMinutes == null ? '' : ' · Target ${_duration(log.targetMinutes!)}'}'
-                      '${log.note?.isEmpty == false ? '\n${log.note}' : ''}',
-                    ),
-                    isThreeLine: log.note?.isNotEmpty == true,
-                    trailing: IconButton(
-                      tooltip: 'Remove fasting record',
-                      onPressed: () => _remove(log),
-                      icon: const Icon(Icons.delete_outline),
+                (log) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: TransmutePanel(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _duration(log.durationMinutes),
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${_dateTime(log.startedAt)} — ${_dateTime(log.endedAt)}'
+                                '${log.targetMinutes == null ? '' : ' · Target ${_duration(log.targetMinutes!)}'}',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                              if (log.note?.isNotEmpty == true) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  log.note!,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove fasting record',
+                          onPressed: () => _remove(log),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -261,27 +289,25 @@ class _ActiveFastCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (active == null) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'No active fast',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Start a target when it is useful context for your day.',
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: onStart,
-                child: const Text('Start fast'),
-              ),
-            ],
-          ),
+      return TransmutePanel(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'No active fast',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Start a target when it is useful context for your day.',
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: onStart,
+              child: const Text('Start fast'),
+            ),
+          ],
         ),
       );
     }
@@ -292,36 +318,41 @@ class _ActiveFastCard extends StatelessWidget {
     final progress = active!.targetMinutes == null
         ? null
         : (elapsed / active!.targetMinutes!).clamp(0.0, 1.0);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Fast in progress',
-              style: Theme.of(context).textTheme.titleLarge,
+    return TransmutePanel(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Fast in progress',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${_duration(elapsed)} elapsed · started ${_dateTime(active!.startedAt)}',
+            style: TextStyle(
+              fontFeatures: const [FontFeature.tabularFigures()],
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(height: 6),
+          ),
+          if (active!.targetMinutes != null) ...[
+            const SizedBox(height: 10),
+            LinearProgressIndicator(value: progress),
+            const SizedBox(height: 4),
             Text(
-              '${_duration(elapsed)} elapsed · started ${_dateTime(active!.startedAt)}',
-            ),
-            if (active!.targetMinutes != null) ...[
-              const SizedBox(height: 10),
-              LinearProgressIndicator(value: progress),
-              const SizedBox(height: 4),
-              Text(
-                '${(progress! * 100).round()}% of ${_duration(active!.targetMinutes!)} target',
+              '${(progress! * 100).round()}% of ${_duration(active!.targetMinutes!)} target',
+              style: const TextStyle(
+                fontFeatures: [FontFeature.tabularFigures()],
               ),
-            ],
-            if (active!.note?.isNotEmpty == true) ...[
-              const SizedBox(height: 6),
-              Text(active!.note!),
-            ],
-            const SizedBox(height: 12),
-            ElevatedButton(onPressed: onEnd, child: const Text('End fast')),
+            ),
           ],
-        ),
+          if (active!.note?.isNotEmpty == true) ...[
+            const SizedBox(height: 6),
+            Text(active!.note!),
+          ],
+          const SizedBox(height: 12),
+          ElevatedButton(onPressed: onEnd, child: const Text('End fast')),
+        ],
       ),
     );
   }

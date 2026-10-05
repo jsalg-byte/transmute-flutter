@@ -48,7 +48,16 @@ Set inputs identify exercise, set number, value and unit to assistive technology
 - **Effort Rating (RPE / RIR)**:
   - Optional RPE (6.0–10.0 in 0.5 steps) or RIR (0–4) stepper on working sets.
 - **Tabular Numerals**:
-  - All numeric displays across sets, weights, reps, and timer digits enforce `FontFeature.tabularFigures()`.
+  - All numeric displays across sets, weights, reps, timers, dates, and percentages enforce `FontFeature.tabularFigures()`.
+
+## Milestone 4 UI/UX Elevation (Slices 8–15 Completed, 2026-10-05)
+- **Fasting (`/#/fasting`)**: Elevated to `TransmutePanel`, tabular figures on countdown clock and elapsed percentages, tactile state feedback.
+- **Nutrition & Recipes (`/#/nutrition`)**: Clean 1px structural borders on recipe discovery cards, macros, and meal logs.
+- **Social Hub & Leaderboards (`/#/friends`, `/#/friends/leaderboards`)**: Replaced generic cards with `TransmutePanel`, tabular figures on monthly leaderboard rankings, participant counts, and XP metrics. Responsive `Wrap` layouts on narrow mobile viewports (375px+).
+- **Arcana Progression (`/#/arcana`)**: `TransmutePanel` integration for collection progress and pinned threads with tabular unlock criteria.
+- **Goals & Assessments (`/#/goals`)**: Elevated target cards with tabular baseline, target, and current progress metrics, responsive action wraps.
+- **Training Block Planning (`/#/planning`)**: `TransmutePanel` block cards with tabular session counts and date ranges.
+- **Account & Settings (`/#/account`)**: Consistent surface tokens for weight unit, active workout plan, and appearance palettes.
 
 ## Verification evidence
 

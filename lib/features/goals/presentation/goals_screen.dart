@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/widgets/app_shell.dart';
 
 class GoalsScreen extends ConsumerWidget {
@@ -90,46 +91,51 @@ class _GoalCard extends ConsumerWidget {
         ? goal.baseline
         : goal.assessments.first.value;
     final ratio = _progress(goal.baseline, goal.target, current);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    goal.title,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+    return TransmutePanel(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  goal.title,
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                PopupMenuButton<GoalStatus>(
-                  tooltip: 'Change goal status',
-                  onSelected: (status) => _setStatus(context, ref, status),
-                  itemBuilder: (_) => GoalStatus.values
-                      .map(
-                        (status) => PopupMenuItem(
-                          value: status,
-                          child: Text(status.name),
-                        ),
-                      )
-                      .toList(),
-                  child: Chip(label: Text(goal.status.name)),
-                ),
-              ],
+              ),
+              PopupMenuButton<GoalStatus>(
+                tooltip: 'Change goal status',
+                onSelected: (status) => _setStatus(context, ref, status),
+                itemBuilder: (_) => GoalStatus.values
+                    .map(
+                      (status) => PopupMenuItem(
+                        value: status,
+                        child: Text(status.name),
+                      ),
+                    )
+                    .toList(),
+                child: Chip(label: Text(goal.status.name)),
+              ),
+            ],
+          ),
+          Text(
+            '${goal.category.name}'
+            '${goal.exerciseName != null ? ' · ${goal.exerciseName}' : ''}'
+            ' · ${goal.baseline} → ${goal.target} ${goal.unit} by ${goal.targetDate.month}/${goal.targetDate.day}/${goal.targetDate.year}',
+            style: const TextStyle(
+              fontFeatures: [FontFeature.tabularFigures()],
             ),
-            Text(
-              '${goal.category.name}'
-              '${goal.exerciseName != null ? ' · ${goal.exerciseName}' : ''}'
-              ' · ${goal.baseline} → ${goal.target} ${goal.unit} by ${goal.targetDate.month}/${goal.targetDate.day}/${goal.targetDate.year}',
+          ),
+          const SizedBox(height: 10),
+          LinearProgressIndicator(value: ratio),
+          const SizedBox(height: 4),
+          Text(
+            '${current.toStringAsFixed(1)} ${goal.unit} · ${(ratio * 100).round()}% toward target',
+            style: const TextStyle(
+              fontFeatures: [FontFeature.tabularFigures()],
             ),
-            const SizedBox(height: 10),
-            LinearProgressIndicator(value: ratio),
-            const SizedBox(height: 4),
-            Text(
-              '${current.toStringAsFixed(1)} ${goal.unit} · ${(ratio * 100).round()}% toward target',
-            ),
+          ),
             if (goal.assessments.isNotEmpty) ...[
               const SizedBox(height: 10),
               const Text(
@@ -150,14 +156,17 @@ class _GoalCard extends ConsumerWidget {
                   ),
             ],
             const SizedBox(height: 8),
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
               children: [
                 IconButton(
                   tooltip: 'Delete goal',
                   icon: const Icon(Icons.delete_outline, size: 20),
                   onPressed: () => _deleteGoal(context, ref),
                 ),
-                const Spacer(),
                 TextButton.icon(
                   onPressed: () => _assess(context, ref),
                   icon: const Icon(Icons.fact_check_outlined),
@@ -167,8 +176,7 @@ class _GoalCard extends ConsumerWidget {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 
   Future<void> _deleteGoal(BuildContext context, WidgetRef ref) async {

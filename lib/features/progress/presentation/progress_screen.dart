@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
-import '../../../shared/design_system/design_tokens.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/widgets/app_shell.dart';
 
 class ProgressScreen extends ConsumerStatefulWidget {
@@ -502,32 +502,33 @@ class _Calendar extends StatelessWidget {
         ),
       );
     }
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  onPressed: onPrevious,
-                  tooltip: 'Previous month',
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                Expanded(
-                  child: Text(
-                    '${_monthName(month.month)} ${month.year}',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge,
+    return TransmutePanel(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                onPressed: onPrevious,
+                tooltip: 'Previous month',
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Expanded(
+                child: Text(
+                  '${_monthName(month.month)} ${month.year}',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-                IconButton(
-                  onPressed: onNext,
-                  tooltip: 'Next month',
-                  icon: const Icon(Icons.chevron_right),
-                ),
-              ],
-            ),
+              ),
+              IconButton(
+                onPressed: onNext,
+                tooltip: 'Next month',
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
             Row(
               children: [
                 for (final day in [
@@ -574,8 +575,7 @@ class _Calendar extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -596,16 +596,20 @@ class _DayDetail extends StatelessWidget {
   final ValueChanged<ProgressPhoto> onDelete;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(_date(day), style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 10),
-          if (photos.isEmpty && sessions.isEmpty)
-            const Text('No work or progress photo recorded on this date.'),
+  Widget build(BuildContext context) => TransmutePanel(
+    padding: const EdgeInsets.all(16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _date(day),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (photos.isEmpty && sessions.isEmpty)
+          const Text('No work or progress photo recorded on this date.'),
           if (photos.isNotEmpty) ...[
             const Text(
               'Progress photos',
@@ -640,8 +644,7 @@ class _DayDetail extends StatelessWidget {
           ],
         ],
       ),
-    ),
-  );
+    );
 }
 
 class _Timeline extends StatelessWidget {

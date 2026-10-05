@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/domain/models.dart';
 import '../../../core/providers.dart';
+import '../../../shared/design_system/design_system.dart';
 import '../../../shared/widgets/app_shell.dart';
 
 class SocialHubScreen extends ConsumerStatefulWidget {
@@ -56,50 +57,49 @@ class _SocialHubScreenState extends ConsumerState<SocialHubScreen> {
           const SizedBox(height: 16),
 
           // Reference [18]: Large prominent Leaderboards Action Card
-          Card(
-            color: Theme.of(context).colorScheme.surfaceContainerHigh,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          TransmutePanel(
+            padding: const EdgeInsets.all(16),
             child: InkWell(
               onTap: () => context.go('/friends/leaderboards'),
-              borderRadius: BorderRadius.circular(16),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primaryContainer,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.emoji_events_outlined,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 28,
+              borderRadius: BorderRadius.circular(12),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.25),
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Monthly Friends Leaderboard',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'View monthly verified XP rankings among your accepted training partners.',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                        ],
-                      ),
+                    child: Icon(
+                      Icons.emoji_events_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 24,
                     ),
-                    const Icon(Icons.chevron_right),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Monthly Friends Leaderboard',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'View monthly verified XP rankings among your accepted training partners.',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right),
+                ],
               ),
             ),
           ),
@@ -230,27 +230,51 @@ class _SocialHubScreenState extends ConsumerState<SocialHubScreen> {
             ),
           )
         else
-          ...accepted.map((friend) => Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: CircleAvatar(
-                child: Text(
-                  (friend.name?.isNotEmpty == true ? friend.name![0] : friend.username[0]).toUpperCase(),
-                ),
-              ),
-              title: Text(friend.name ?? friend.username),
-              subtitle: Text('@${friend.username}'),
-              trailing: PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert),
-                onSelected: (value) {
-                  if (value == 'remove') {
-                    _confirmRemoveFriend(friend);
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'remove',
-                    child: Text('Remove friend', style: TextStyle(color: Colors.redAccent)),
+          ...accepted.map((friend) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: TransmutePanel(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    child: Text(
+                      (friend.name?.isNotEmpty == true ? friend.name![0] : friend.username[0]).toUpperCase(),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          friend.name ?? friend.username,
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          '@${friend.username}',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    onSelected: (value) {
+                      if (value == 'remove') {
+                        _confirmRemoveFriend(friend);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'remove',
+                        child: Text('Remove friend', style: TextStyle(color: Colors.redAccent)),
+                      ),
+                    ],
                   ),
                 ],
               ),

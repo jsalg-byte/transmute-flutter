@@ -71,33 +71,40 @@ class _LeaderboardsScreenState extends ConsumerState<LeaderboardsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Meta Card: Period, Cohort & Tie Rule
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      'Period: ${data.period}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+        TransmutePanel(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  Text(
+                    'Period: ${data.period}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: [FontFeature.tabularFigures()],
                     ),
-                    Text(
-                      '${data.entries.length} ${data.entries.length == 1 ? 'participant' : 'participants'}',
-                      style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13),
+                  ),
+                  Text(
+                    '${data.entries.length} ${data.entries.length == 1 ? 'participant' : 'participants'}',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 13,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Tie Rule: ${data.tieRule}',
-                  style: TextStyle(fontSize: 12, color: theme.colorScheme.outline),
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Tie Rule: ${data.tieRule}',
+                style: TextStyle(fontSize: 12, color: theme.colorScheme.outline),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -114,75 +121,88 @@ class _LeaderboardsScreenState extends ConsumerState<LeaderboardsScreen> {
             final isCurrentUser = entry.isCurrentUser;
 
             Color? rankColor;
-            if (entry.rank == 1) rankColor = const Color(0xFFFFD700);
-            else if (entry.rank == 2) rankColor = const Color(0xFFC0C0C0);
-            else if (entry.rank == 3) rankColor = const Color(0xFFCD7F32);
+            if (entry.rank == 1) {
+              rankColor = const Color(0xFFFFD700);
+            } else if (entry.rank == 2) {
+              rankColor = const Color(0xFFC0C0C0);
+            } else if (entry.rank == 3) {
+              rankColor = const Color(0xFFCD7F32);
+            }
 
-            return Card(
-              color: isCurrentUser
-                  ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
-                  : null,
-              margin: const EdgeInsets.only(bottom: 8),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: isCurrentUser
-                    ? BorderSide(color: theme.colorScheme.primary, width: 1.5)
-                    : BorderSide.none,
-              ),
-              child: ListTile(
-                leading: Container(
-                  width: 36,
-                  height: 36,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: isTop3 ? rankColor?.withValues(alpha: 0.2) : theme.colorScheme.surfaceContainerHighest,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '${entry.rank}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: isTop3 ? rankColor : null,
-                    ),
-                  ),
-                ),
-                title: Row(
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: TransmutePanel(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
                   children: [
-                    Flexible(
+                    Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isTop3 ? rankColor?.withValues(alpha: 0.2) : theme.colorScheme.surfaceContainerHighest,
+                        shape: BoxShape.circle,
+                      ),
                       child: Text(
-                        entry.name ?? entry.username,
-                        overflow: TextOverflow.ellipsis,
+                        '${entry.rank}',
                         style: TextStyle(
-                          fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: FontWeight.bold,
+                          color: isTop3 ? rankColor : null,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
                     ),
-                    if (isCurrentUser) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'YOU',
-                          style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  entry.name ?? entry.username,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                              if (isCurrentUser) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.primary,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    'YOU',
+                                    style: TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          Text(
+                            '@${entry.username} · ${entry.qualifiedSessions} ${entry.qualifiedSessions == 1 ? 'workout' : 'workouts'}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
+                    Text(
+                      '${entry.xp} XP',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
                   ],
-                ),
-                subtitle: Text(
-                  '@${entry.username} · ${entry.qualifiedSessions} ${entry.qualifiedSessions == 1 ? 'workout' : 'workouts'}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                trailing: Text(
-                  '${entry.xp} XP',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                  ),
                 ),
               ),
             );
