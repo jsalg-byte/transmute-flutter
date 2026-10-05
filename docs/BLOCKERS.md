@@ -59,15 +59,10 @@ on physical devices. Browser responsive verification remains separate.
 all three), then provide or authorize the associated signing and store-release
 workflow. Do not treat an unsigned build as a distributable iOS app.
 
-## Browser and release verification
+## Adversarial UX Audit & Data Remediation (2026-10-05)
 
-The usual project default is user-owned browser review. For the competitor
-upgrade and OpenGym elevation slices, the user explicitly authorized agent
-browser verification. All 15 vertical slices (Milestones 1–4) have been fully elevated with
-`TransmutePanel` surface elevation, 1px structural borders, tabular numerals
-(`FontFeature.tabularFigures()`), 48px touch targets, Olympic barbell plate
-calculator dialog, persistent rest timer banner, and OpenGym 1,324-movement atlas integration. Responsive layout
-testing covers 375×844 (SE), 390×844 (iPhone 14/15), 430×932 (Pro Max), 768×1024
-(tablet), and 1200×900 (desktop) viewports across `/dashboard`, `/plans`,
-`/exercises`, `/progress`, `/nutrition`, `/history`, `/ranks`, `/ranks/gallery`,
-`/ranks/bodygraph`, `/fasting`, `/friends`, `/arcana`, `/goals`, and `/planning`. Production `release/web` has been compiled, checked in, and deployed to `https://transmute.mzootfb.xyz` (HTTP 200).
+An adversarial mobile UX audit identified and remediated three high-friction defects across mobile and desktop views:
+1. **P0: Nutrition Calorie & Macro Rollup Disconnect (`/#/nutrition`)**: Food record meal entries previously did not sum to the header gauge and macro bars due to disconnected mock/view values and parchment styling. Header gauges now dynamically compute `consumed = sum(meal.calories)` and `remaining = max(0, calorieGoal - consumed)`, dynamically sum macros (`protein`, `carbs`, `fat`) directly from active diary entries, and utilize dark `TransmutePanel` styling with 1px neutral borders.
+2. **P0: Exercise Catalog Unification**: Bridged OpenGym's 1,324 exercises with legacy catalog items in `ApiPlanRepository.searchExercises` so workout plan builders, quick session dialogs, and active workout replacement flows query the unified atlas.
+3. **P1: Mobile IA Consolidation**: Streamlined mobile bottom navigation from 6 items to a strict 5-tab hierarchy: `Today` (`/dashboard`), `Train` (`/plans`), `Exercises` (`/exercises`), `Progress` (`/history`), and `Hub` (action triggering the modal destination sheet for Fasting, Nutrition, Arcana, Social, and Settings).
+

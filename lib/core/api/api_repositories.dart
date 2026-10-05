@@ -6,6 +6,7 @@ import 'dart:convert';
 
 import '../domain/models.dart';
 import '../domain/repositories.dart';
+import '../data/opengym_catalog.dart';
 
 class SecureSessionStore {
   const SecureSessionStore(this._storage, {this.namespace = ''});
@@ -584,11 +585,29 @@ class ApiPlanRepository implements PlanRepository {
       (value) => _exercise(value as Map<String, dynamic>),
     );
     final needle = query.trim().toLowerCase();
-    return all
+    final serverResults = all
         .where(
           (item) => needle.isEmpty || item.name.toLowerCase().contains(needle),
         )
         .toList();
+
+    // Query OpenGym 1,324 exercises catalog
+    final openGymResults = await OpenGymCatalog.search(
+      query: needle,
+      limit: 60,
+    );
+
+    final combined = <Exercise>[...serverResults];
+    final seenNames = serverResults.map((e) => e.name.toLowerCase()).toSet();
+
+    for (final exercise in openGymResults) {
+      if (!seenNames.contains(exercise.name.toLowerCase())) {
+        seenNames.add(exercise.name.toLowerCase());
+        combined.add(exercise);
+      }
+    }
+
+    return combined.take(60).toList();
   }
 
   @override

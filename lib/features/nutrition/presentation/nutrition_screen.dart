@@ -141,6 +141,7 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         _DayHeader(
           day: _day,
           diary: diary,
+          meals: meals,
           onPrevious: () =>
               setState(() => _day = _day.subtract(const Duration(days: 1))),
           onNext: () =>
@@ -235,37 +236,34 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
         ),
         const SizedBox(height: 8),
         if (meals.isEmpty)
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.no_meals_outlined,
-                    size: 40,
-                    color: Theme.of(context).colorScheme.outline,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'No food logged on this date.',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Tap Log meal or use the sections below to track your meals.',
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
+          const TransmutePanel(
+            padding: EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.no_meals_outlined,
+                  size: 40,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'No food logged on this date.',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Tap Add Meal or use the sections below to track your meals.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
         ...MealType.values.map((type) {
           final group = meals.where((meal) => meal.mealType == type).toList();
           final groupCals = group.fold<double>(0, (sum, m) => sum + m.caloriesKcal).round();
 
-          return Card(
-            margin: const EdgeInsets.only(top: 12),
-            child: Padding(
+          return Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: TransmutePanel(
               padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -579,6 +577,7 @@ class _DayHeader extends StatelessWidget {
   const _DayHeader({
     required this.day,
     required this.diary,
+    required this.meals,
     required this.onPrevious,
     required this.onNext,
     required this.onSetTarget,
@@ -587,6 +586,7 @@ class _DayHeader extends StatelessWidget {
 
   final DateTime day;
   final NutritionDiaryDay diary;
+  final List<NutritionMeal> meals;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onSetTarget;
@@ -596,8 +596,26 @@ class _DayHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final target = diary.target;
-    final consumed = diary.consumedCalories;
-    final remaining = diary.remainingCalories;
+
+    // Dynamically roll up from actual logged meals to guarantee state consistency
+    final consumed = meals.fold<int>(
+      0,
+      (sum, m) => sum + m.caloriesKcal.round(),
+    );
+    final remaining = target != null ? (target.caloriesTarget - consumed) : null;
+
+    final consumedProtein = meals.fold<double>(
+      0.0,
+      (sum, m) => sum + m.proteinG,
+    );
+    final consumedCarbs = meals.fold<double>(
+      0.0,
+      (sum, m) => sum + m.carbsG,
+    );
+    final consumedFat = meals.fold<double>(
+      0.0,
+      (sum, m) => sum + m.fatG,
+    );
 
     final double progress;
     if (target != null && target.caloriesTarget > 0) {
@@ -606,11 +624,10 @@ class _DayHeader extends StatelessWidget {
       progress = 0.0;
     }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
+    return TransmutePanel(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
             // Date navigation row
             Row(
               children: [
@@ -750,7 +767,7 @@ class _DayHeader extends StatelessWidget {
             // Macro progress bars
             _MacroBar(
               label: 'Protein',
-              consumed: diary.consumedProteinG,
+              consumed: consumedProtein,
               target: target?.proteinGTarget,
               unit: 'g',
               color: Colors.blueAccent,
@@ -758,7 +775,7 @@ class _DayHeader extends StatelessWidget {
             const SizedBox(height: 8),
             _MacroBar(
               label: 'Carbs',
-              consumed: diary.consumedCarbsG,
+              consumed: consumedCarbs,
               target: target?.carbsGTarget,
               unit: 'g',
               color: Colors.amberAccent.shade700,
@@ -766,7 +783,7 @@ class _DayHeader extends StatelessWidget {
             const SizedBox(height: 8),
             _MacroBar(
               label: 'Fat',
-              consumed: diary.consumedFatG,
+              consumed: consumedFat,
               target: target?.fatGTarget,
               unit: 'g',
               color: Colors.redAccent,
@@ -784,8 +801,7 @@ class _DayHeader extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
 

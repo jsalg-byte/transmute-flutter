@@ -61,29 +61,33 @@ class AppShell extends ConsumerWidget {
   final double? desktopContentMaxWidth;
 
   static const _primary = <_ShellDestination>[
-    _ShellDestination('Workout', '/session', Icons.fitness_center_outlined),
     _ShellDestination('Today', '/dashboard', Icons.home_outlined),
-    _ShellDestination('Ranks', '/ranks', Icons.workspace_premium_outlined),
-    _ShellDestination('Nutrition', '/nutrition', Icons.restaurant_outlined),
-    _ShellDestination('Friends', '/friends', Icons.people_outline),
-    _ShellDestination('Profile', '/profile', Icons.person_outline),
+    _ShellDestination('Train', '/plans', Icons.fitness_center_outlined),
+    _ShellDestination('Exercises', '/exercises', Icons.sports_gymnastics),
+    _ShellDestination('Progress', '/history', Icons.trending_up_outlined),
+    _ShellDestination('Hub', '_hub', Icons.grid_view_outlined),
   ];
 
   static const _training = <_ShellDestination>[
+    _ShellDestination('Active workout', '/session'),
     _ShellDestination('Workout plans', '/plans'),
     _ShellDestination('Exercise library', '/exercises'),
     _ShellDestination('Workout history', '/history'),
   ];
 
   static const _growth = <_ShellDestination>[
-    _ShellDestination('Arcana', '/arcana'),
+    _ShellDestination('Ranks & bodygraph', '/ranks'),
+    _ShellDestination('Nutrition diary', '/nutrition'),
+    _ShellDestination('Fasting tracker', '/fasting'),
+    _ShellDestination('Arcana & deck', '/arcana'),
     _ShellDestination('Goals', '/goals'),
     _ShellDestination('Planning', '/planning'),
     _ShellDestination('Progress photos', '/progress'),
-    _ShellDestination('Fasting', '/fasting'),
+    _ShellDestination('Friends & social', '/friends'),
   ];
 
   static const _account = <_ShellDestination>[
+    _ShellDestination('Profile', '/profile'),
     _ShellDestination('Settings', '/settings'),
   ];
 
@@ -122,13 +126,14 @@ class AppShell extends ConsumerWidget {
                         child: Column(
                           children: [
                             for (final destination in _primary)
-                              _DesktopNavItem(
-                                destination: destination,
-                                selected: _isSelected(
-                                  location,
-                                  destination.route,
+                              if (destination.route != '_hub')
+                                _DesktopNavItem(
+                                  destination: destination,
+                                  selected: _isSelected(
+                                    location,
+                                    destination.route,
+                                  ),
                                 ),
-                              ),
                           ],
                         ),
                       ),
@@ -193,6 +198,15 @@ class AppShell extends ConsumerWidget {
         child: child,
       ),
     );
+    void handleDestinationSelected(int index) {
+      final dest = _primary[index];
+      if (dest.route == '_hub') {
+        _showNavigationSheet(context, ref);
+      } else {
+        context.go(dest.route);
+      }
+    }
+
     if (width < 600) {
       return Scaffold(
         appBar: AppBar(
@@ -211,7 +225,7 @@ class AppShell extends ConsumerWidget {
         bottomNavigationBar: NavigationBar(
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           selectedIndex: safeIndex,
-          onDestinationSelected: (index) => context.go(_primary[index].route),
+          onDestinationSelected: handleDestinationSelected,
           destinations: [
             for (final item in _primary)
               NavigationDestination(
@@ -227,7 +241,7 @@ class AppShell extends ConsumerWidget {
         children: [
           NavigationRail(
             selectedIndex: safeIndex,
-            onDestinationSelected: (index) => context.go(_primary[index].route),
+            onDestinationSelected: handleDestinationSelected,
             labelType: NavigationRailLabelType.all,
             leading: const Padding(
               padding: EdgeInsets.only(top: 16),
@@ -263,20 +277,22 @@ class AppShell extends ConsumerWidget {
   }
 
   static bool _isSelected(String location, String route) {
-    if (route == '/session') {
-      return location == '/session' ||
-          location.startsWith('/plans') ||
-          location.startsWith('/exercises');
+    if (route == '_hub') return false;
+    if (route == '/plans') {
+      return location == '/plans' ||
+          location.startsWith('/plans/') ||
+          location == '/session';
     }
-    if (route == '/profile') {
-      return location == '/profile' ||
-          location.startsWith('/history') ||
-          location.startsWith('/arcana') ||
-          location.startsWith('/goals') ||
-          location.startsWith('/planning') ||
-          location.startsWith('/progress') ||
-          location.startsWith('/settings') ||
-          location.startsWith('/fasting');
+    if (route == '/exercises') {
+      return location == '/exercises' ||
+          location.startsWith('/exercises/') ||
+          location == '/';
+    }
+    if (route == '/history') {
+      return location == '/history' ||
+          location.startsWith('/history/') ||
+          location == '/progress' ||
+          location.startsWith('/progress/');
     }
     return location == route || location.startsWith('$route/');
   }
@@ -352,93 +368,95 @@ class _CompactNavigationMenu extends ConsumerWidget {
             final columns = constraints.maxWidth >= 600 ? 3 : 2;
             final itemWidth =
                 (constraints.maxWidth - (columns - 1) * 8) / columns;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Menu',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.light_mode_outlined, size: 18),
-                    Tooltip(
-                      message: isDark ? 'Use light mode' : 'Use dark mode',
-                      child: Switch(
-                        value: isDark,
-                        onChanged: (useDark) => _setThemePreference(
-                          context,
-                          ref,
-                          preference,
-                          useDark,
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Menu',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                    ),
-                    const Icon(Icons.dark_mode_outlined, size: 18),
-                    IconButton(
-                      tooltip: 'Close navigation',
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-                const Divider(),
-                for (final section in sections) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8, bottom: 2),
-                    child: Text(
-                      section.label,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 2,
-                    children: [
-                      for (final destination in section.destinations)
-                        SizedBox(
-                          width: itemWidth,
-                          height: 44,
-                          child: TextButton(
-                            style: TextButton.styleFrom(
-                              alignment: Alignment.centerLeft,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                              ),
-                            ),
-                            onPressed: () => onSelect(destination.route),
-                            child: Text(
-                              destination.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                      const Spacer(),
+                      const Icon(Icons.light_mode_outlined, size: 18),
+                      Tooltip(
+                        message: isDark ? 'Use light mode' : 'Use dark mode',
+                        child: Switch(
+                          value: isDark,
+                          onChanged: (useDark) => _setThemePreference(
+                            context,
+                            ref,
+                            preference,
+                            useDark,
                           ),
                         ),
+                      ),
+                      const Icon(Icons.dark_mode_outlined, size: 18),
+                      IconButton(
+                        tooltip: 'Close navigation',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close),
+                      ),
                     ],
                   ),
-                ],
-                const Divider(height: 16),
-                SizedBox(
-                  height: 44,
-                  child: TextButton.icon(
-                    style: TextButton.styleFrom(
-                      alignment: Alignment.centerLeft,
+                  const Divider(),
+                  for (final section in sections) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, bottom: 2),
+                      child: Text(
+                        section.label,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
                     ),
-                    onPressed: onSignOut,
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Sign out'),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 2,
+                      children: [
+                        for (final destination in section.destinations)
+                          SizedBox(
+                            width: itemWidth,
+                            height: 44,
+                            child: TextButton(
+                              style: TextButton.styleFrom(
+                                alignment: Alignment.centerLeft,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                              ),
+                              onPressed: () => onSelect(destination.route),
+                              child: Text(
+                                destination.label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                  const Divider(height: 16),
+                  SizedBox(
+                    height: 44,
+                    child: TextButton.icon(
+                      style: TextButton.styleFrom(
+                        alignment: Alignment.centerLeft,
+                      ),
+                      onPressed: onSignOut,
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Sign out'),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         ),

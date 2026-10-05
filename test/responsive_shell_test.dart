@@ -82,12 +82,11 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
     for (final label in [
-      'Workout',
       'Today',
-      'Ranks',
-      'Nutrition',
-      'Friends',
-      'Profile',
+      'Train',
+      'Exercises',
+      'Progress',
+      'Hub',
     ]) {
       expect(find.text(label), findsOneWidget);
     }
@@ -108,7 +107,7 @@ void main() {
               size: Size(375, 812),
               textScaler: TextScaler.linear(2),
             ),
-            child: const AppShell(title: 'Workout', child: SizedBox.expand()),
+            child: const AppShell(title: 'Today', child: SizedBox.expand()),
           ),
         ),
       ],
@@ -131,19 +130,14 @@ void main() {
     expect(find.byType(Switch), findsOneWidget);
 
     for (final label in [
-      'Workout',
+      'Active workout',
       'Exercise library',
-      'Nutrition',
+      'Nutrition diary',
       'Progress photos',
-      'Fasting',
+      'Fasting tracker',
       'Settings',
     ]) {
-      expect(
-        find.text(label),
-        label == 'Workout' || label == 'Nutrition'
-            ? findsWidgets
-            : findsOneWidget,
-      );
+      expect(find.text(label), findsOneWidget);
     }
   });
 
@@ -159,12 +153,10 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(390, 844));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final paths = <String>[
-      '/session',
       '/dashboard',
-      '/ranks',
-      '/nutrition',
-      '/friends',
-      '/profile',
+      '/plans',
+      '/exercises',
+      '/history',
     ];
     final router = GoRouter(
       initialLocation: '/dashboard',
@@ -189,11 +181,9 @@ void main() {
     await tester.pumpAndSettle();
 
     for (final (label, path) in [
-      ('Workout', '/session'),
-      ('Ranks', '/ranks'),
-      ('Nutrition', '/nutrition'),
-      ('Friends', '/friends'),
-      ('Profile', '/profile'),
+      ('Train', '/plans'),
+      ('Exercises', '/exercises'),
+      ('Progress', '/history'),
     ]) {
       await tester.tap(find.widgetWithText(NavigationDestination, label));
       await tester.pumpAndSettle();
@@ -202,18 +192,21 @@ void main() {
     await tester.tap(find.widgetWithText(NavigationDestination, 'Today'));
     await tester.pumpAndSettle();
     expect(find.text('Current /dashboard'), findsOneWidget);
+
+    // Verify Hub opens modal bottom sheet
+    await tester.tap(find.widgetWithText(NavigationDestination, 'Hub'));
+    await tester.pumpAndSettle();
+    expect(find.text('GROWTH'), findsOneWidget);
   });
 
   testWidgets('1440dp uses the desktop sidebar navigation', (tester) async {
     await pumpShell(tester, 1440);
     expect(find.text('TRANSMUTE'), findsOneWidget);
     for (final label in [
-      'Workout',
       'Today',
-      'Ranks',
-      'Nutrition',
-      'Friends',
-      'Profile',
+      'Train',
+      'Exercises',
+      'Progress',
       'More destinations',
     ]) {
       expect(find.text(label), findsOneWidget);
