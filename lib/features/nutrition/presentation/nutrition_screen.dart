@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1103,11 +1105,22 @@ class _MealLogDialogState extends ConsumerState<_MealLogDialog> {
                   onSave: _save,
                 ),
               ],
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _saving ? null : _addNewFood,
-                icon: const Icon(Icons.add),
-                label: const Text('Add NEW food'),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _saving ? null : _addNewFood,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add NEW food'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: _saving ? null : _photoAnalyze,
+                    icon: const Icon(Icons.photo_camera_outlined),
+                    label: const Text('Photo meal'),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1120,6 +1133,77 @@ class _MealLogDialogState extends ConsumerState<_MealLogDialog> {
         ),
       ],
     );
+  }
+
+  Future<void> _photoAnalyze() async {
+    try {
+      final selected = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+        maxWidth: 2400,
+      );
+      if (selected == null) return;
+      final bytes = await selected.readAsBytes();
+
+      if (!mounted) return;
+      // Show loading indicator dialog with cancellation
+      final analysis = await showDialog<FoodPhotoAnalysis?>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) => _FoodPhotoLoadingDialog(
+          bytes: bytes,
+          analyze: () => ref.read(nutritionRepositoryProvider).analyzeFoodPhoto(bytes),
+        ),
+      );
+
+      if (analysis == null || !mounted) return;
+      if (analysis.candidates.isEmpty) {
+        _failure(
+          context,
+          const AppFailure(
+            'no_food_candidates',
+            'No recognizable foods were found in this photo. Search or add the food manually.',
+          ),
+        );
+        return;
+      }
+
+      // Open Candidate Review Dialog
+      final reviewed = await showDialog<FoodCandidateReviewResult>(
+        context: context,
+        builder: (_) => FoodCandidateReviewDialog(
+          analysis: analysis,
+          imageBytes: bytes,
+          initialMealType: _type,
+          day: widget.day,
+        ),
+      );
+
+      if (reviewed == null || !mounted) return;
+
+      // On confirm, create the food and meal
+      setState(() => _saving = true);
+      final createdFood = await ref.read(nutritionRepositoryProvider).createFood(reviewed.food);
+      await ref.read(nutritionRepositoryProvider).createMeal(
+        reviewed.mealType,
+        [MealItemInput(foodId: createdFood.id, grams: reviewed.portionGrams)],
+        consumedAt: _dayAtNow(widget.day),
+      );
+
+      if (mounted) Navigator.pop(context, true);
+    } on AppFailure catch (error) {
+      _failure(context, error);
+    } catch (_) {
+      _failure(
+        context,
+        const AppFailure(
+          'food_photo_failed',
+          'Unable to analyze the food photo. Try a clearer angle or enter manually.',
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _addNewFood() async {
@@ -1845,4 +1929,488 @@ void _failure(BuildContext context, AppFailure error) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(error.message)));
+}
+
+class FoodCandidateReviewResult {
+  const FoodCandidateReviewResult({
+    required this.food,
+    required this.portionGrams,
+    required this.mealType,
+  });
+
+  final Food food;
+  final double portionGrams;
+  final MealType mealType;
+}
+
+class _FoodPhotoLoadingDialog extends StatefulWidget {
+  const _FoodPhotoLoadingDialog({
+    required this.bytes,
+    required this.analyze,
+  });
+
+  final List<int> bytes;
+  final Future<FoodPhotoAnalysis> Function() analyze;
+
+  @override
+  State<_FoodPhotoLoadingDialog> createState() => _FoodPhotoLoadingDialogState();
+}
+
+class _FoodPhotoLoadingDialogState extends State<_FoodPhotoLoadingDialog> {
+  bool _cancelled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  Future<void> _start() async {
+    try {
+      final result = await widget.analyze();
+      if (!_cancelled && mounted) {
+        Navigator.of(context).pop(result);
+      }
+    } catch (e) {
+      if (!_cancelled && mounted) {
+        Navigator.of(context).pop(null);
+        if (e is AppFailure) {
+          _failure(context, e);
+        } else {
+          _failure(
+            context,
+            const AppFailure(
+              'photo_analysis_failed',
+              'Failed to analyze food photo. Please try again or add manually.',
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Analyzing Food Photo'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.memory(
+              Uint8List.fromList(widget.bytes),
+              height: 160,
+              width: 220,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                height: 160,
+                width: 220,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: const Icon(Icons.restaurant_outlined, size: 48),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const CircularProgressIndicator(),
+          const SizedBox(height: 12),
+          const Text('Identifying foods and portion estimates...'),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            _cancelled = true;
+            Navigator.of(context).pop(null);
+          },
+          child: const Text('Cancel'),
+        ),
+      ],
+    );
+  }
+}
+
+class FoodCandidateReviewDialog extends StatefulWidget {
+  const FoodCandidateReviewDialog({
+    super.key,
+    required this.analysis,
+    required this.imageBytes,
+    required this.initialMealType,
+    required this.day,
+  });
+
+  final FoodPhotoAnalysis analysis;
+  final List<int> imageBytes;
+  final MealType initialMealType;
+  final DateTime day;
+
+  @override
+  State<FoodCandidateReviewDialog> createState() => _FoodCandidateReviewDialogState();
+}
+
+class _FoodCandidateReviewDialogState extends State<FoodCandidateReviewDialog> {
+  late int _selectedIndex = 0;
+  late final TextEditingController _nameController;
+  late final TextEditingController _portionController;
+  late final TextEditingController _caloriesController;
+  late final TextEditingController _proteinController;
+  late final TextEditingController _carbsController;
+  late final TextEditingController _fatController;
+  late MealType _mealType;
+  late ServingUnit _servingUnit;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _mealType = widget.initialMealType;
+    final candidate = widget.analysis.candidates.first;
+    final portion = widget.analysis.suggestedPortionGrams ??
+        candidate.estimatedPortionGrams ??
+        candidate.servingSizeValue ??
+        100;
+
+    _nameController = TextEditingController(text: candidate.name);
+    _portionController = TextEditingController(text: portion.toStringAsFixed(0));
+    _caloriesController = TextEditingController(text: candidate.caloriesKcal.toStringAsFixed(0));
+    _proteinController = TextEditingController(text: candidate.proteinG.toStringAsFixed(1));
+    _carbsController = TextEditingController(text: candidate.carbsG.toStringAsFixed(1));
+    _fatController = TextEditingController(text: candidate.fatG.toStringAsFixed(1));
+    _servingUnit = candidate.servingSizeUnit ?? ServingUnit.g;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _portionController.dispose();
+    _caloriesController.dispose();
+    _proteinController.dispose();
+    _carbsController.dispose();
+    _fatController.dispose();
+    super.dispose();
+  }
+
+  void _selectCandidate(int index) {
+    if (index == _selectedIndex) return;
+    final candidate = widget.analysis.candidates[index];
+    final portion = candidate.estimatedPortionGrams ??
+        widget.analysis.suggestedPortionGrams ??
+        candidate.servingSizeValue ??
+        100;
+
+    setState(() {
+      _selectedIndex = index;
+      _nameController.text = candidate.name;
+      _portionController.text = portion.toStringAsFixed(0);
+      _caloriesController.text = candidate.caloriesKcal.toStringAsFixed(0);
+      _proteinController.text = candidate.proteinG.toStringAsFixed(1);
+      _carbsController.text = candidate.carbsG.toStringAsFixed(1);
+      _fatController.text = candidate.fatG.toStringAsFixed(1);
+      _servingUnit = candidate.servingSizeUnit ?? ServingUnit.g;
+      _error = null;
+    });
+  }
+
+  void _recalculateForPortion(String value) {
+    final newPortion = double.tryParse(value);
+    if (newPortion == null || newPortion <= 0) return;
+
+    final candidate = widget.analysis.candidates[_selectedIndex];
+    final basePortion = candidate.estimatedPortionGrams ??
+        candidate.servingSizeValue ??
+        100;
+
+    if (basePortion > 0) {
+      final ratio = newPortion / basePortion;
+      setState(() {
+        _caloriesController.text = (candidate.caloriesKcal * ratio).toStringAsFixed(0);
+        _proteinController.text = (candidate.proteinG * ratio).toStringAsFixed(1);
+        _carbsController.text = (candidate.carbsG * ratio).toStringAsFixed(1);
+        _fatController.text = (candidate.fatG * ratio).toStringAsFixed(1);
+      });
+    }
+  }
+
+  void _confirm() {
+    final name = _nameController.text.trim();
+    final portion = double.tryParse(_portionController.text);
+    final cals = double.tryParse(_caloriesController.text);
+    final p = double.tryParse(_proteinController.text);
+    final c = double.tryParse(_carbsController.text);
+    final f = double.tryParse(_fatController.text);
+
+    if (name.length < 2) {
+      setState(() => _error = 'Enter a valid food name (at least 2 letters).');
+      return;
+    }
+    if (portion == null || portion <= 0 || portion > 5000) {
+      setState(() => _error = 'Enter a valid portion amount (1 - 5,000).');
+      return;
+    }
+    if (cals == null || cals < 0 || p == null || p < 0 || c == null || c < 0 || f == null || f < 0) {
+      setState(() => _error = 'Enter valid non-negative nutrition numbers.');
+      return;
+    }
+
+    final food = Food(
+      id: 'draft',
+      name: name,
+      caloriesKcal: cals,
+      proteinG: p,
+      carbsG: c,
+      fatG: f,
+      servingSizeValue: portion,
+      servingSizeUnit: _servingUnit,
+    );
+
+    Navigator.of(context).pop(
+      FoodCandidateReviewResult(
+        food: food,
+        portionGrams: portion,
+        mealType: _mealType,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final candidates = widget.analysis.candidates;
+
+    return AlertDialog(
+      title: const Text('Review Food & Portion'),
+      content: SizedBox(
+        width: 520,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Photo preview + source banner
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      Uint8List.fromList(widget.imageBytes),
+                      width: 90,
+                      height: 90,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 90,
+                        height: 90,
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        child: const Icon(Icons.restaurant_outlined),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Logging for ${_displayDate(widget.day)}',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Chip(
+                          avatar: const Icon(Icons.auto_awesome, size: 14),
+                          label: Text(
+                            widget.analysis.source == 'simulation'
+                                ? 'Simulation Candidate'
+                                : 'AI Recognition',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Verify suggestions before confirming. You have full edit control.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Meal category dropdown
+              DropdownButtonFormField<MealType>(
+                initialValue: _mealType,
+                decoration: const InputDecoration(
+                  labelText: 'Meal Category',
+                  prefixIcon: Icon(Icons.restaurant_outlined),
+                ),
+                items: MealType.values
+                    .map(
+                      (type) => DropdownMenuItem(
+                        value: type,
+                        child: Text(_mealLabel(type)),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _mealType = val);
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Food Candidate selector if multiple candidates
+              if (candidates.length > 1) ...[
+                Text(
+                  'Suggested candidates:',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: List.generate(candidates.length, (index) {
+                    final cand = candidates[index];
+                    final isSelected = index == _selectedIndex;
+                    final confText = cand.confidence != null
+                        ? ' (${(cand.confidence! * 100).round()}%)'
+                        : '';
+                    return ChoiceChip(
+                      label: Text('${cand.name}$confText'),
+                      selected: isSelected,
+                      onSelected: (_) => _selectCandidate(index),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // Editable Food Name
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Food Name',
+                  prefixIcon: Icon(Icons.edit_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Editable Portion Amount & Unit
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextField(
+                      controller: _portionController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Portion Amount',
+                        prefixIcon: Icon(Icons.scale_outlined),
+                      ),
+                      onChanged: _recalculateForPortion,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                    Expanded(
+                      flex: 1,
+                      child: DropdownButtonFormField<ServingUnit>(
+                        initialValue: _servingUnit,
+                        isExpanded: true,
+                        isDense: true,
+                        items: ServingUnit.values
+                            .map(
+                              (u) => DropdownMenuItem(
+                                value: u,
+                                child: Text(servingUnitLabel(u)),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (u) {
+                          if (u != null) setState(() => _servingUnit = u);
+                        },
+                        decoration: const InputDecoration(labelText: 'Unit'),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Macronutrients header
+              Text(
+                'Nutritional Values (for this portion):',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _caloriesController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Calories (kcal)'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _proteinController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Protein (g)'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _carbsController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Carbs (g)'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _fatController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Fat (g)'),
+                    ),
+                  ),
+                ],
+              ),
+
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: const Text('Discard'),
+        ),
+        ElevatedButton.icon(
+          onPressed: _confirm,
+          icon: const Icon(Icons.check),
+          label: const Text('Confirm as Meal'),
+        ),
+      ],
+    );
+  }
 }

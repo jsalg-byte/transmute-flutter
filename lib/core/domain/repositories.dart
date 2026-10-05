@@ -231,6 +231,7 @@ abstract class NutritionRepository {
   Future<void> uploadMealPhoto(String mealId, ProgressPhotoUpload upload);
   Future<NutritionLookup> lookupBarcode(String code);
   Future<NutritionLookup> parseNutritionLabel(List<int> bytes);
+  Future<FoodPhotoAnalysis> analyzeFoodPhoto(List<int> bytes);
 }
 
 abstract class ArcanaRepository {

@@ -571,6 +571,44 @@ class NutritionLookup {
   final double? confidence;
 }
 
+class FoodCandidate {
+  const FoodCandidate({
+    required this.name,
+    required this.caloriesKcal,
+    required this.proteinG,
+    required this.carbsG,
+    required this.fatG,
+    this.servingSizeValue,
+    this.servingSizeUnit,
+    this.servingSizeText,
+    this.confidence,
+    this.estimatedPortionGrams,
+  });
+
+  final String name;
+  final double caloriesKcal;
+  final double proteinG;
+  final double carbsG;
+  final double fatG;
+  final double? servingSizeValue;
+  final ServingUnit? servingSizeUnit;
+  final String? servingSizeText;
+  final double? confidence;
+  final double? estimatedPortionGrams;
+}
+
+class FoodPhotoAnalysis {
+  const FoodPhotoAnalysis({
+    required this.candidates,
+    required this.source,
+    this.suggestedPortionGrams,
+  });
+
+  final List<FoodCandidate> candidates;
+  final String source;
+  final double? suggestedPortionGrams;
+}
+
 enum ArcanaStage { unrevealed, revealed, refined, illuminated, mastered }
 
 enum ArcanaSlot { past, present, becoming }

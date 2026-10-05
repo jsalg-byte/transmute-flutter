@@ -1820,6 +1820,49 @@ class ApiNutritionRepository implements NutritionRepository {
       ),
     );
   }
+
+  @override
+  Future<FoodPhotoAnalysis> analyzeFoodPhoto(List<int> bytes) async {
+    if (bytes.length > 9 * 1024 * 1024) {
+      throw const AppFailure(
+        'food_photo_too_large',
+        'Choose a food photo smaller than 9 MB.',
+      );
+    }
+    final body = await _request(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/nutrition-photo/analyze',
+        data: {'imageBase64': base64Encode(bytes)},
+      ),
+    );
+    final value = body.data!;
+    final candidatesList = (value['candidates'] as List<dynamic>?) ?? [];
+    return FoodPhotoAnalysis(
+      source: value['source'] as String? ?? 'ai',
+      suggestedPortionGrams: value['suggestedPortionGrams'] == null
+          ? null
+          : _number(value['suggestedPortionGrams']),
+      candidates: candidatesList.map((item) {
+        final map = item as Map<String, dynamic>;
+        return FoodCandidate(
+          name: map['name'] as String? ?? 'Food',
+          caloriesKcal: _number(map['caloriesKcal']),
+          proteinG: _number(map['proteinG']),
+          carbsG: _number(map['carbsG']),
+          fatG: _number(map['fatG']),
+          servingSizeValue: map['servingSizeValue'] == null
+              ? null
+              : _number(map['servingSizeValue']),
+          servingSizeUnit: _servingUnit(map['servingSizeUnit']),
+          servingSizeText: map['servingSizeText'] as String?,
+          confidence: map['confidence'] == null ? null : _number(map['confidence']),
+          estimatedPortionGrams: map['estimatedPortionGrams'] == null
+              ? null
+              : _number(map['estimatedPortionGrams']),
+        );
+      }).toList(),
+    );
+  }
 }
 
 class ApiArcanaRepository implements ArcanaRepository {

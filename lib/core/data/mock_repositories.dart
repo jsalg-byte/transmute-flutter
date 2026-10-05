@@ -877,6 +877,47 @@ class MockNutritionRepository implements NutritionRepository {
       'Nutrition-label parsing requires API mode. Create the food manually in mock mode.',
     );
   }
+
+  @override
+  Future<FoodPhotoAnalysis> analyzeFoodPhoto(List<int> bytes) async {
+    if (bytes.length > 9 * 1024 * 1024) {
+      throw const AppFailure(
+        'food_photo_too_large',
+        'Choose a food photo smaller than 9 MB.',
+      );
+    }
+    // Labeled simulation candidate in mock mode
+    return const FoodPhotoAnalysis(
+      source: 'simulation',
+      suggestedPortionGrams: 280,
+      candidates: [
+        FoodCandidate(
+          name: 'Grilled chicken salad',
+          caloriesKcal: 360,
+          proteinG: 38,
+          carbsG: 12,
+          fatG: 16,
+          servingSizeValue: 280,
+          servingSizeUnit: ServingUnit.g,
+          servingSizeText: '280 g bowl',
+          confidence: 0.88,
+          estimatedPortionGrams: 280,
+        ),
+        FoodCandidate(
+          name: 'Caesar chicken wrap',
+          caloriesKcal: 480,
+          proteinG: 32,
+          carbsG: 44,
+          fatG: 20,
+          servingSizeValue: 1,
+          servingSizeUnit: ServingUnit.piece,
+          servingSizeText: '1 wrap',
+          confidence: 0.65,
+          estimatedPortionGrams: 240,
+        ),
+      ],
+    );
+  }
 }
 
 class MockArcanaRepository implements ArcanaRepository {
