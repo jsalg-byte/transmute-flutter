@@ -374,6 +374,21 @@ final goalRepositoryProvider = Provider<GoalRepository>(
 final goalsProvider = FutureProvider<List<Goal>>(
   (ref) => ref.watch(goalRepositoryProvider).listGoals(),
 );
+
+final bodyweightRepositoryProvider = Provider<BodyweightRepository>(
+  (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
+      ? MockBodyweightRepository(ref.watch(mockStoreProvider))
+      : ApiBodyweightRepository(ref.watch(dioProvider)),
+);
+final bodyweightMeasurementsProvider =
+    FutureProvider<List<BodyweightMeasurement>>(
+      (ref) => ref.watch(bodyweightRepositoryProvider).listMeasurements(),
+    );
+final latestBodyweightProvider = Provider<BodyweightMeasurement?>((ref) {
+  final measurements = ref.watch(bodyweightMeasurementsProvider).asData?.value;
+  if (measurements == null || measurements.isEmpty) return null;
+  return measurements.first;
+});
 final planningRepositoryProvider = Provider<PlanningRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockPlanningRepository(ref.watch(mockStoreProvider))

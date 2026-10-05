@@ -251,12 +251,23 @@ abstract class GoalRepository {
   Future<List<Goal>> listGoals();
   Future<Goal> createGoal(Goal goal);
   Future<Goal> updateStatus(String goalId, GoalStatus status);
+  Future<void> deleteGoal(String goalId);
   Future<void> assess(
     String goalId,
     double value,
     String note, {
     String? decision,
   });
+}
+
+abstract class BodyweightRepository {
+  Future<List<BodyweightMeasurement>> listMeasurements();
+  Future<BodyweightMeasurement> logMeasurement({
+    required String measuredAt,
+    required double weightKg,
+    String? notes,
+  });
+  Future<void> deleteMeasurement(String id);
 }
 
 abstract class PlanningRepository {

@@ -1896,6 +1896,8 @@ class ApiGoalRepository implements GoalRepository {
           'targetValue': goal.target,
           'unit': goal.unit,
           'targetDate': goal.targetDate.toIso8601String().substring(0, 10),
+          if (goal.exerciseId != null) 'exerciseId': goal.exerciseId,
+          if (goal.trackingMode != null) 'trackingMode': goal.trackingMode!.name,
         },
       ),
     );
@@ -1912,6 +1914,10 @@ class ApiGoalRepository implements GoalRepository {
     );
     return _goal(body.data!['goal'] as Map<String, dynamic>);
   }
+
+  @override
+  Future<void> deleteGoal(String goalId) =>
+      _request(() => _dio.delete<void>('/v1/goals/$goalId'));
 
   @override
   Future<void> assess(
@@ -1931,6 +1937,46 @@ class ApiGoalRepository implements GoalRepository {
       ),
     );
   }
+}
+
+class ApiBodyweightRepository implements BodyweightRepository {
+  ApiBodyweightRepository(this._dio);
+  final Dio _dio;
+
+  @override
+  Future<List<BodyweightMeasurement>> listMeasurements() async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/bodyweight'),
+    );
+    return (body.data!['measurements'] as List<dynamic>)
+        .map((value) => _bodyweightMeasurement(value as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<BodyweightMeasurement> logMeasurement({
+    required String measuredAt,
+    required double weightKg,
+    String? notes,
+  }) async {
+    final body = await _request(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/bodyweight',
+        data: {
+          'measuredAt': measuredAt,
+          'weightKg': weightKg,
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+        },
+      ),
+    );
+    return _bodyweightMeasurement(
+      body.data!['measurement'] as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<void> deleteMeasurement(String id) =>
+      _request(() => _dio.delete<void>('/v1/bodyweight/$id'));
 }
 
 class ApiPlanningRepository implements PlanningRepository {
@@ -2093,10 +2139,26 @@ Goal _goal(Map<String, dynamic> map) => Goal(
   unit: map['measurement_method'] as String,
   targetDate: DateTime.parse(map['target_date'] as String),
   status: GoalStatus.values.byName(map['status'] as String),
+  exerciseId: map['exercise_id'] as String?,
+  trackingMode: map['tracking_mode'] != null
+      ? ExerciseTrackingMode.values.byName(map['tracking_mode'] as String)
+      : null,
+  exerciseName: map['exercise_name'] as String?,
   assessments: ((map['assessments'] as List<dynamic>?) ?? const [])
       .map((item) => _assessment(item as Map<String, dynamic>))
       .toList(),
 );
+
+BodyweightMeasurement _bodyweightMeasurement(Map<String, dynamic> map) =>
+    BodyweightMeasurement(
+      id: map['id'] as String,
+      measuredAt: map['measuredAt'] as String,
+      weightKg: (map['weightKg'] as num).toDouble(),
+      notes: map['notes'] as String?,
+      createdAt: map['createdAt'] != null
+          ? DateTime.tryParse(map['createdAt'] as String)
+          : null,
+    );
 GoalAssessment _assessment(Map<String, dynamic> map) => GoalAssessment(
   id: map['id'] as String,
   assessedAt: DateTime.parse(map['assessed_on'] as String),

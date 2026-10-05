@@ -120,7 +120,9 @@ class _GoalCard extends ConsumerWidget {
               ],
             ),
             Text(
-              '${goal.category.name} · ${goal.baseline} → ${goal.target} ${goal.unit} by ${goal.targetDate.month}/${goal.targetDate.day}/${goal.targetDate.year}',
+              '${goal.category.name}'
+              '${goal.exerciseName != null ? ' · ${goal.exerciseName}' : ''}'
+              ' · ${goal.baseline} → ${goal.target} ${goal.unit} by ${goal.targetDate.month}/${goal.targetDate.day}/${goal.targetDate.year}',
             ),
             const SizedBox(height: 10),
             LinearProgressIndicator(value: ratio),
@@ -147,18 +149,60 @@ class _GoalCard extends ConsumerWidget {
                     ),
                   ),
             ],
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => _assess(context, ref),
-                icon: const Icon(Icons.fact_check_outlined),
-                label: const Text('Record assessment'),
-              ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Delete goal',
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  onPressed: () => _deleteGoal(context, ref),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () => _assess(context, ref),
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: const Text('Record assessment'),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _deleteGoal(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Delete goal?'),
+        content: Text('Are you sure you want to delete "${goal.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      try {
+        await ref.read(goalRepositoryProvider).deleteGoal(goal.id);
+        ref.invalidate(goalsProvider);
+      } on AppFailure catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        }
+      }
+    }
   }
 
   Future<void> _assess(BuildContext context, WidgetRef ref) async {
@@ -274,18 +318,28 @@ double _progress(double baseline, double target, double current) {
   return raw.clamp(0, 1).toDouble();
 }
 
-class _GoalDialog extends StatefulWidget {
+class _GoalDialog extends ConsumerStatefulWidget {
   const _GoalDialog();
   @override
-  State<_GoalDialog> createState() => _GoalDialogState();
+  ConsumerState<_GoalDialog> createState() => _GoalDialogState();
 }
 
-class _GoalDialogState extends State<_GoalDialog> {
+class _GoalDialogState extends ConsumerState<_GoalDialog> {
   final title = TextEditingController();
   final base = TextEditingController(text: '0');
-  final target = TextEditingController(text: '1');
-  final unit = TextEditingController(text: 'count');
+  final target = TextEditingController(text: '100');
+  final unit = TextEditingController(text: 'kg');
   GoalCategory category = GoalCategory.strength;
+  Exercise? selectedExercise;
+
+  @override
+  void initState() {
+    super.initState();
+    final weightUnit =
+        ref.read(authControllerProvider).user?.weightUnit ?? WeightUnit.kg;
+    unit.text = weightUnit.name;
+  }
+
   @override
   void dispose() {
     title.dispose();
@@ -296,75 +350,124 @@ class _GoalDialogState extends State<_GoalDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('New measurable goal'),
-    content: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: title,
-            maxLength: 160,
-            decoration: const InputDecoration(labelText: 'Goal title'),
-          ),
-          DropdownButtonFormField(
-            initialValue: category,
-            items: GoalCategory.values
-                .map(
-                  (item) =>
-                      DropdownMenuItem(value: item, child: Text(item.name)),
-                )
-                .toList(),
-            onChanged: (value) => setState(() => category = value!),
-            decoration: const InputDecoration(labelText: 'Category'),
-          ),
-          TextField(
-            controller: base,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Baseline'),
-          ),
-          TextField(
-            controller: target,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Target'),
-          ),
-          TextField(
-            controller: unit,
-            maxLength: 32,
-            decoration: const InputDecoration(labelText: 'Unit'),
-          ),
-        ],
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      ElevatedButton(
-        onPressed: () {
-          final b = double.tryParse(base.text);
-          final t = double.tryParse(target.text);
-          if (title.text.trim().length >= 2 &&
-              b != null &&
-              t != null &&
-              unit.text.trim().isNotEmpty)
-            Navigator.pop(
-              context,
-              Goal(
-                id: 'draft-${DateTime.now().microsecondsSinceEpoch}',
-                title: title.text.trim(),
-                category: category,
-                baseline: b,
-                target: t,
-                unit: unit.text.trim(),
-                targetDate: DateTime.now().add(const Duration(days: 90)),
-                status: GoalStatus.active,
+  Widget build(BuildContext context) {
+    final exercisesAsync = ref.watch(exerciseSearchProvider(''));
+    final weightUnit =
+        ref.watch(authControllerProvider).user?.weightUnit ?? WeightUnit.kg;
+
+    return AlertDialog(
+      title: const Text('New measurable goal'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DropdownButtonFormField<GoalCategory>(
+              initialValue: category,
+              items: GoalCategory.values
+                  .map(
+                    (item) => DropdownMenuItem(value: item, child: Text(item.name)),
+                  )
+                  .toList(),
+              onChanged: (value) => setState(() {
+                category = value!;
+                if (category == GoalCategory.strength) {
+                  unit.text = weightUnit.name;
+                } else if (category == GoalCategory.body) {
+                  unit.text = weightUnit.name;
+                  title.text = 'Bodyweight target';
+                }
+              }),
+              decoration: const InputDecoration(labelText: 'Category'),
+            ),
+            const SizedBox(height: 8),
+            if (category == GoalCategory.strength) ...[
+              exercisesAsync.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (_, _) => const Text('Could not load exercise catalog'),
+                data: (exercises) => DropdownButtonFormField<Exercise>(
+                  initialValue: selectedExercise,
+                  isExpanded: true,
+                  hint: const Text('Select target exercise'),
+                  items: exercises
+                      .map(
+                        (e) => DropdownMenuItem(value: e, child: Text(e.name, overflow: TextOverflow.ellipsis)),
+                      )
+                      .toList(),
+                  onChanged: (e) {
+                    setState(() {
+                      selectedExercise = e;
+                      if (e != null && title.text.isEmpty) {
+                        title.text = '${e.name} Target';
+                      }
+                    });
+                  },
+                  decoration: const InputDecoration(labelText: 'Linked exercise'),
+                ),
               ),
-            );
-        },
-        child: const Text('Create'),
+              const SizedBox(height: 8),
+            ],
+            TextField(
+              controller: title,
+              maxLength: 160,
+              decoration: const InputDecoration(labelText: 'Goal title'),
+            ),
+            TextField(
+              controller: base,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Baseline'),
+            ),
+            TextField(
+              controller: target,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Target'),
+            ),
+            TextField(
+              controller: unit,
+              maxLength: 32,
+              decoration: const InputDecoration(labelText: 'Unit'),
+            ),
+          ],
+        ),
       ),
-    ],
-  );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final b = double.tryParse(base.text);
+            final t = double.tryParse(target.text);
+            if (title.text.trim().length >= 2 &&
+                b != null &&
+                t != null &&
+                unit.text.trim().isNotEmpty) {
+              Navigator.pop(
+                context,
+                Goal(
+                  id: 'draft-${DateTime.now().microsecondsSinceEpoch}',
+                  title: title.text.trim(),
+                  category: category,
+                  baseline: b,
+                  target: t,
+                  unit: unit.text.trim(),
+                  targetDate: DateTime.now().add(const Duration(days: 90)),
+                  status: GoalStatus.active,
+                  exerciseId: selectedExercise?.id,
+                  exerciseName: selectedExercise?.name,
+                  trackingMode: selectedExercise != null
+                      ? (selectedExercise!.category == 'timed'
+                          ? ExerciseTrackingMode.timed
+                          : ExerciseTrackingMode.reps)
+                      : null,
+                ),
+              );
+            }
+          },
+          child: const Text('Create'),
+        ),
+      ],
+    );
+  }
 }
+

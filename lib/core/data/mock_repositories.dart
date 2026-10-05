@@ -291,6 +291,7 @@ class MockStore {
   ];
   final List<NutritionMeal> meals = [];
   final List<Goal> goals = [];
+  final List<BodyweightMeasurement> bodyweightMeasurements = [];
   final List<TrainingBlock> blocks = [];
   final List<WeeklyReview> reviews = [];
   late List<FriendRequest> incomingFriends;
@@ -1225,6 +1226,9 @@ class MockGoalRepository implements GoalRepository {
       unit: goal.unit,
       targetDate: goal.targetDate,
       status: goal.status,
+      exerciseId: goal.exerciseId,
+      trackingMode: goal.trackingMode,
+      exerciseName: goal.exerciseName,
     );
     _store.goals.insert(0, created);
     return created;
@@ -1246,10 +1250,18 @@ class MockGoalRepository implements GoalRepository {
       unit: old.unit,
       targetDate: old.targetDate,
       status: status,
+      exerciseId: old.exerciseId,
+      trackingMode: old.trackingMode,
+      exerciseName: old.exerciseName,
       assessments: old.assessments,
     );
     _store.goals[index] = updated;
     return updated;
+  }
+
+  @override
+  Future<void> deleteGoal(String goalId) async {
+    _store.goals.removeWhere((goal) => goal.id == goalId);
   }
 
   @override
@@ -1277,6 +1289,9 @@ class MockGoalRepository implements GoalRepository {
       unit: old.unit,
       targetDate: old.targetDate,
       status: old.status,
+      exerciseId: old.exerciseId,
+      trackingMode: old.trackingMode,
+      exerciseName: old.exerciseName,
       assessments: [
         GoalAssessment(
           id: _store.next('assessment'),
@@ -1288,6 +1303,47 @@ class MockGoalRepository implements GoalRepository {
         ...old.assessments,
       ],
     );
+  }
+}
+
+class MockBodyweightRepository implements BodyweightRepository {
+  MockBodyweightRepository(this._store);
+  final MockStore _store;
+
+  @override
+  Future<List<BodyweightMeasurement>> listMeasurements() async {
+    final sorted = [..._store.bodyweightMeasurements]
+      ..sort((a, b) => b.measuredAt.compareTo(a.measuredAt));
+    return sorted;
+  }
+
+  @override
+  Future<BodyweightMeasurement> logMeasurement({
+    required String measuredAt,
+    required double weightKg,
+    String? notes,
+  }) async {
+    if (weightKg <= 0 || weightKg >= 1000) {
+      throw const AppFailure(
+        'invalid_weight',
+        'Please enter a valid weight measurement.',
+      );
+    }
+    _store.bodyweightMeasurements.removeWhere((m) => m.measuredAt == measuredAt);
+    final created = BodyweightMeasurement(
+      id: _store.next('bodyweight'),
+      measuredAt: measuredAt,
+      weightKg: weightKg,
+      notes: notes,
+      createdAt: DateTime.now(),
+    );
+    _store.bodyweightMeasurements.insert(0, created);
+    return created;
+  }
+
+  @override
+  Future<void> deleteMeasurement(String id) async {
+    _store.bodyweightMeasurements.removeWhere((m) => m.id == id);
   }
 }
 

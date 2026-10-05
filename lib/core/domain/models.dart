@@ -187,6 +187,9 @@ class Goal {
     required this.unit,
     required this.targetDate,
     required this.status,
+    this.exerciseId,
+    this.trackingMode,
+    this.exerciseName,
     this.assessments = const [],
   });
   final String id;
@@ -197,7 +200,41 @@ class Goal {
   final String unit;
   final DateTime targetDate;
   final GoalStatus status;
+  final String? exerciseId;
+  final ExerciseTrackingMode? trackingMode;
+  final String? exerciseName;
   final List<GoalAssessment> assessments;
+
+  double get current => assessments.isEmpty ? baseline : assessments.first.value;
+
+  double get progressRatio {
+    if ((target - baseline).abs() < 0.0001) return 0.0;
+    final ratio = (current - baseline) / (target - baseline);
+    return ratio.clamp(0.0, 1.0);
+  }
+
+  int get daysRemaining {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final targetDay = DateTime(targetDate.year, targetDate.month, targetDate.day);
+    return targetDay.difference(today).inDays;
+  }
+}
+
+class BodyweightMeasurement {
+  const BodyweightMeasurement({
+    required this.id,
+    required this.measuredAt,
+    required this.weightKg,
+    this.notes,
+    this.createdAt,
+  });
+
+  final String id;
+  final String measuredAt; // 'YYYY-MM-DD'
+  final double weightKg;
+  final String? notes;
+  final DateTime? createdAt;
 }
 
 enum TrainingBlockStatus { draft, active, completed, archived }

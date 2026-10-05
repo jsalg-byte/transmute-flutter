@@ -47,7 +47,6 @@ class _ForYouView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final palette = TransmutePalette.of(context);
     return ListView(
       padding: const EdgeInsets.only(top: 18, bottom: 28),
       children: [
@@ -66,19 +65,7 @@ class _ForYouView extends ConsumerWidget {
         const SizedBox(height: 26),
         Text('Goals', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 12),
-        TransmutePanel(
-          child: Row(
-            children: [
-              Icon(Icons.flag_outlined, color: palette.oxide),
-              const SizedBox(width: 12),
-              const Expanded(child: Text('Review your saved training goals.')),
-              TextButton(
-                onPressed: () => context.go('/goals'),
-                child: const Text('View goals'),
-              ),
-            ],
-          ),
-        ),
+        const _TodayGoalsSection(),
         const SizedBox(height: 26),
         Text(
           'Last 14 Workouts',
@@ -617,6 +604,294 @@ class _DiscoveryGrid extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _TodayGoalsSection extends ConsumerWidget {
+  const _TodayGoalsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = TransmutePalette.of(context);
+    final unit =
+        ref.watch(preferencesProvider).asData?.value.weightUnit ??
+        WeightUnit.kg;
+    final goalsAsync = ref.watch(goalsProvider);
+    final latestWeight = ref.watch(latestBodyweightProvider);
+
+    return goalsAsync.when(
+      loading: () => const TransmuteStatePanel(
+        kind: TransmuteStateKind.loading,
+        title: 'Loading goals',
+        message: 'Reading your training and body targets...',
+      ),
+      error: (_, _) => TransmutePanel(
+        child: Row(
+          children: [
+            Icon(Icons.flag_outlined, color: palette.oxide),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Goals currently unavailable.')),
+            TextButton(
+              onPressed: () => ref.invalidate(goalsProvider),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+      data: (goals) {
+        // Look for bodyweight goal
+        final bodyGoal = goals.where((g) => g.category == GoalCategory.body || g.title.toLowerCase().contains('weight')).firstOrNull;
+
+        if (bodyGoal == null && latestWeight == null) {
+          return TransmutePanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.monitor_weight_outlined, color: palette.oxide),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Bodyweight & Targets',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text('Track your bodyweight and progress toward targeted benchmarks.'),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    TransmuteButton(
+                      label: 'Log weight',
+                      icon: Icons.add,
+                      onPressed: () => _logWeight(context, ref, unit),
+                    ),
+                    const SizedBox(width: 12),
+                    TextButton(
+                      onPressed: () => context.go('/goals'),
+                      child: const Text('Set goal'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }
+
+        // We have either a bodyweight goal or a logged measurement
+        final currentWeightKg = latestWeight?.weightKg ?? bodyGoal?.current;
+        final currentWeightDisplay = currentWeightKg != null
+            ? (unit == WeightUnit.lb ? currentWeightKg * 2.2046226218 : currentWeightKg)
+            : null;
+        final targetWeightDisplay = bodyGoal != null
+            ? (bodyGoal.unit.toLowerCase().contains('lb') && unit == WeightUnit.kg
+                ? bodyGoal.target / 2.2046226218
+                : (!bodyGoal.unit.toLowerCase().contains('lb') && unit == WeightUnit.lb
+                    ? bodyGoal.target * 2.2046226218
+                    : bodyGoal.target))
+            : null;
+
+        final ratio = bodyGoal != null && currentWeightKg != null
+            ? _calculateGoalRatio(bodyGoal.baseline, bodyGoal.target, currentWeightKg)
+            : (bodyGoal?.progressRatio ?? 0.0);
+
+        final daysLeft = bodyGoal?.daysRemaining;
+
+        return TransmutePanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          bodyGoal?.title.toUpperCase() ?? 'CURRENT BODYWEIGHT',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: palette.oxide,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              currentWeightDisplay != null
+                                  ? currentWeightDisplay.toStringAsFixed(1)
+                                  : 'Add weight',
+                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (currentWeightDisplay != null) ...[
+                              const SizedBox(width: 4),
+                              Text(
+                                unit.name,
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  color: palette.muted,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (targetWeightDisplay != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Target: ${targetWeightDisplay.toStringAsFixed(1)} ${unit.name}'
+                            '${daysLeft != null ? (daysLeft >= 0 ? ' · $daysLeft days left' : ' · Overdue') : ''}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: palette.muted,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (bodyGoal != null)
+                    _GoalProgressGauge(
+                      ratio: ratio,
+                      palette: palette,
+                      percentageText: '${(ratio * 100).round()}%',
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  TransmuteButton(
+                    label: currentWeightDisplay == null ? 'Log weight' : 'Update weight',
+                    icon: Icons.add,
+                    onPressed: () => _logWeight(context, ref, unit),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => context.go('/goals'),
+                    child: const Text('View all goals'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  double _calculateGoalRatio(double baseline, double target, double current) {
+    if ((target - baseline).abs() < 0.0001) return 0.0;
+    final ratio = (current - baseline) / (target - baseline);
+    return ratio.clamp(0.0, 1.0);
+  }
+
+  Future<void> _logWeight(BuildContext context, WidgetRef ref, WeightUnit unit) async {
+    final controller = TextEditingController();
+    final notesController = TextEditingController();
+    final dateStr = DateTime.now().toIso8601String().substring(0, 10);
+
+    final logged = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Log bodyweight'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Weight (${unit.name})',
+                hintText: unit == WeightUnit.lb ? '180.5' : '82.0',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: notesController,
+              decoration: const InputDecoration(
+                labelText: 'Notes (optional)',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final val = double.tryParse(controller.text);
+              if (val == null || val <= 0) return;
+              final kg = unit == WeightUnit.lb ? val / 2.2046226218 : val;
+              try {
+                await ref.read(bodyweightRepositoryProvider).logMeasurement(
+                  measuredAt: dateStr,
+                  weightKg: kg,
+                  notes: notesController.text.trim().isNotEmpty ? notesController.text.trim() : null,
+                );
+                Navigator.pop(dialog, true);
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+                }
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (logged == true) {
+      ref.invalidate(bodyweightMeasurementsProvider);
+      ref.invalidate(goalsProvider);
+    }
+  }
+}
+
+class _GoalProgressGauge extends StatelessWidget {
+  const _GoalProgressGauge({
+    required this.ratio,
+    required this.palette,
+    required this.percentageText,
+  });
+
+  final double ratio;
+  final TransmutePalette palette;
+  final String percentageText;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 72,
+      height: 72,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressIndicator(
+            value: ratio,
+            strokeWidth: 6,
+            backgroundColor: palette.divider,
+            color: palette.oxide,
+          ),
+          Text(
+            percentageText,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: palette.ink,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -87,6 +87,8 @@ class ProfileHubScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           const _ProfileActivitySection(),
+          const SizedBox(height: 20),
+          const _ProfileStrengthGoalsSection(),
           const SizedBox(height: 24),
           Text('Your record', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 10),
@@ -459,3 +461,185 @@ class _HubLink extends StatelessWidget {
     ),
   );
 }
+
+class _ProfileStrengthGoalsSection extends ConsumerWidget {
+  const _ProfileStrengthGoalsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final palette = TransmutePalette.of(context);
+    final unit =
+        ref.watch(preferencesProvider).asData?.value.weightUnit ??
+        WeightUnit.kg;
+    final goalsAsync = ref.watch(goalsProvider);
+
+    return goalsAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
+      data: (goals) {
+        final strengthGoals = goals.where((g) => g.category == GoalCategory.strength).toList();
+        if (strengthGoals.isEmpty) {
+          return TransmutePanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.flag_outlined, color: palette.oxide),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Strength target',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Set a strength goal linked to an exercise to track your estimated 1RM progression.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: palette.muted,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => context.go('/goals'),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Set strength goal'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final topGoal = strengthGoals.first;
+        final exerciseRanksAsync = ref.watch(
+          exerciseRanksProvider((query: '', mode: null)),
+        );
+        final rank = exerciseRanksAsync.asData?.value
+            .where((r) => r.exercise.id == topGoal.exerciseId)
+            .firstOrNull;
+
+        // Current value: prefer rank bestValue (confirmed estimated 1RM or max rep) if available
+        final currentEstimated1RM = rank?.bestValue ?? topGoal.current;
+        final currentDisplay = (topGoal.unit.toLowerCase().contains('lb') || unit == WeightUnit.lb)
+            ? (topGoal.unit.toLowerCase().contains('kg') ? currentEstimated1RM * 2.2046226218 : currentEstimated1RM)
+            : currentEstimated1RM;
+        final targetDisplay = (topGoal.unit.toLowerCase().contains('lb') || unit == WeightUnit.lb)
+            ? (topGoal.unit.toLowerCase().contains('kg') ? topGoal.target * 2.2046226218 : topGoal.target)
+            : topGoal.target;
+
+        final ratio = (topGoal.target - topGoal.baseline).abs() > 0.0001
+            ? ((currentEstimated1RM - topGoal.baseline) / (topGoal.target - topGoal.baseline)).clamp(0.0, 1.0)
+            : topGoal.progressRatio;
+
+        final daysLeft = topGoal.daysRemaining;
+
+        return TransmutePanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'STRENGTH TARGET · ${topGoal.exerciseName?.toUpperCase() ?? topGoal.title.toUpperCase()}',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: palette.oxide,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              currentDisplay.toStringAsFixed(1),
+                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              topGoal.unit,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                color: palette.muted,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '(est. 1RM)',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: palette.muted,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Target: ${targetDisplay.toStringAsFixed(1)} ${topGoal.unit}'
+                          '${daysLeft >= 0 ? ' · $daysLeft days left' : ' · Overdue'}',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: palette.muted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: 64,
+                    height: 64,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          value: ratio,
+                          strokeWidth: 5,
+                          backgroundColor: palette.divider,
+                          color: palette.oxide,
+                        ),
+                        Text(
+                          '${(ratio * 100).round()}%',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: palette.ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Text(
+                    '${strengthGoals.length} active strength goal${strengthGoals.length == 1 ? '' : 's'}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: palette.muted,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => context.go('/goals'),
+                    child: const Text('View goals'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
