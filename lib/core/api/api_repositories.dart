@@ -1863,6 +1863,80 @@ class ApiNutritionRepository implements NutritionRepository {
       }).toList(),
     );
   }
+
+  @override
+  Future<List<Recipe>> getRecipes({String? query}) async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>(
+        '/v1/recipes',
+        queryParameters: {
+          if (query != null && query.trim().isNotEmpty) 'query': query.trim(),
+        },
+      ),
+    );
+    final list = (body.data!['recipes'] as List<dynamic>?) ?? [];
+    return list.map((item) => _recipe(item as Map<String, dynamic>)).toList();
+  }
+
+  @override
+  Future<Recipe> getRecipe(String recipeId) async {
+    final body = await _request(
+      () => _dio.get<Map<String, dynamic>>('/v1/recipes/$recipeId'),
+    );
+    return _recipe(body.data!['recipe'] as Map<String, dynamic>);
+  }
+
+  @override
+  Future<void> logRecipeAsMeal({
+    required String recipeId,
+    required double portionServings,
+    required MealType mealType,
+    required DateTime consumedAt,
+  }) async {
+    await _request(
+      () => _dio.post<Map<String, dynamic>>(
+        '/v1/recipes/$recipeId/log',
+        data: {
+          'portionServings': portionServings,
+          'mealType': mealType.name,
+          'consumedAt': consumedAt.toUtc().toIso8601String(),
+        },
+      ),
+    );
+  }
+}
+
+Recipe _recipe(Map<String, dynamic> map) {
+  final ingredientsList = (map['ingredients'] as List<dynamic>?) ?? [];
+  final instructionsList = (map['instructions'] as List<dynamic>?) ?? [];
+
+  return Recipe(
+    id: map['id'] as String,
+    title: map['title'] as String,
+    description: map['description'] as String? ?? '',
+    authorName: map['authorName'] as String? ?? 'Transmute Alchemist',
+    servings: (map['servings'] as num?)?.toInt() ?? 1,
+    servingCaloriesKcal: _number(map['servingCaloriesKcal']),
+    servingProteinG: _number(map['servingProteinG']),
+    servingCarbsG: _number(map['servingCarbsG']),
+    servingFatG: _number(map['servingFatG']),
+    servingSizeGrams: map['servingSizeGrams'] == null
+        ? 100
+        : _number(map['servingSizeGrams']),
+    servingSizeUnit: _servingUnit(map['servingSizeUnit']) ?? ServingUnit.g,
+    imageUrl: map['imageUrl'] as String?,
+    ingredients: ingredientsList.map((item) {
+      final ing = item as Map<String, dynamic>;
+      return RecipeIngredient(
+        name: ing['name'] as String? ?? '',
+        amount: _number(ing['amount']),
+        unit: ing['unit'] as String? ?? 'g',
+      );
+    }).toList(),
+    instructions: instructionsList.map((item) => item.toString()).toList(),
+    version: (map['version'] as num?)?.toInt() ?? 1,
+    isCurated: map['isCurated'] == true,
+  );
 }
 
 class ApiArcanaRepository implements ArcanaRepository {

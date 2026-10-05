@@ -232,6 +232,14 @@ abstract class NutritionRepository {
   Future<NutritionLookup> lookupBarcode(String code);
   Future<NutritionLookup> parseNutritionLabel(List<int> bytes);
   Future<FoodPhotoAnalysis> analyzeFoodPhoto(List<int> bytes);
+  Future<List<Recipe>> getRecipes({String? query});
+  Future<Recipe> getRecipe(String recipeId);
+  Future<void> logRecipeAsMeal({
+    required String recipeId,
+    required double portionServings,
+    required MealType mealType,
+    required DateTime consumedAt,
+  });
 }
 
 abstract class ArcanaRepository {

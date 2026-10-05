@@ -17,6 +17,7 @@ import '../features/fasting/presentation/fasting_screen.dart';
 import '../features/goals/presentation/goals_screen.dart';
 import '../features/not_found/presentation/not_found_screen.dart';
 import '../features/nutrition/presentation/nutrition_screen.dart';
+import '../features/nutrition/presentation/recipe_screens.dart';
 import '../features/planning/presentation/planning_screen.dart';
 import '../features/progress/presentation/progress_screen.dart';
 import '../features/ranks/presentation/ranks_screens.dart';
@@ -133,6 +134,7 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
           builder: (_, _) => const ExerciseLibraryScreen(),
         ),
         GoRoute(path: '/nutrition', builder: (_, _) => const NutritionScreen()),
+        GoRoute(path: '/recipes', builder: (_, _) => const RecipeDiscoveryScreen()),
         GoRoute(path: '/progress', builder: (_, _) => const ProgressScreen()),
         GoRoute(path: '/fasting', builder: (_, _) => const FastingScreen()),
         GoRoute(path: '/goals', builder: (_, _) => const GoalsScreen()),

@@ -348,6 +348,141 @@ class MockStore {
   late List<FriendRequest> outgoingFriends;
   late List<FriendActivity> friendActivity;
   final List<RoutineShare> routineShares = [];
+  final List<Recipe> recipes = [
+    const Recipe(
+      id: 'a1000000-0000-4000-8000-000000000001',
+      title: 'Alchemical Greek Yogurt Berry Bowl',
+      description: 'High-protein alchemical breakfast bowl packed with slow-digesting casein, antioxidant-rich mixed berries, and wholesome rolled oats.',
+      authorName: 'Master Alchemist',
+      servings: 1,
+      servingCaloriesKcal: 350,
+      servingProteinG: 32.0,
+      servingCarbsG: 42.0,
+      servingFatG: 4.5,
+      servingSizeGrams: 300,
+      servingSizeUnit: ServingUnit.g,
+      imageUrl: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=600&auto=format&fit=crop&q=80',
+      ingredients: [
+        RecipeIngredient(name: 'Non-fat Greek Yogurt', amount: 200, unit: 'g'),
+        RecipeIngredient(name: 'Mixed Berries (Fresh)', amount: 60, unit: 'g'),
+        RecipeIngredient(name: 'Rolled Oats', amount: 30, unit: 'g'),
+        RecipeIngredient(name: 'Raw Honey', amount: 10, unit: 'g'),
+      ],
+      instructions: [
+        'Combine non-fat Greek yogurt with raw honey or stevia in a ceramic bowl.',
+        'Layer with fresh raspberries, blueberries, and sliced strawberries.',
+        'Top with toasted rolled oats and chia seeds for texture and vital micronutrients.',
+      ],
+      version: 1,
+      isCurated: true,
+    ),
+    const Recipe(
+      id: 'a1000000-0000-4000-8000-000000000002',
+      title: 'Transmuted Flame-Grilled Chicken & Jasmine Rice',
+      description: 'Clean lean fuel engineered for post-workout muscle protein synthesis and glycogen restoration.',
+      authorName: 'Flame Alchemist',
+      servings: 1,
+      servingCaloriesKcal: 520,
+      servingProteinG: 48.0,
+      servingCarbsG: 58.0,
+      servingFatG: 8.0,
+      servingSizeGrams: 420,
+      servingSizeUnit: ServingUnit.g,
+      imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop&q=80',
+      ingredients: [
+        RecipeIngredient(name: 'Chicken Breast (Skinless)', amount: 200, unit: 'g'),
+        RecipeIngredient(name: 'Jasmine Rice (Cooked)', amount: 150, unit: 'g'),
+        RecipeIngredient(name: 'Broccoli Florets', amount: 70, unit: 'g'),
+      ],
+      instructions: [
+        'Season chicken breast with smoked paprika, sea salt, black pepper, and garlic powder.',
+        'Grill over medium-high heat for 6-7 minutes per side until reaching 165°F.',
+        'Serve over warm steamed jasmine rice with tender steamed broccoli florets and a squeeze of fresh lime.',
+      ],
+      version: 1,
+      isCurated: true,
+    ),
+    const Recipe(
+      id: 'a1000000-0000-4000-8000-000000000003',
+      title: 'Golden Elixir Overnight Oats',
+      description: 'Nutrient-dense overnight oats infused with turmeric, cinnamon, whey protein, and golden flaxseed.',
+      authorName: 'Elixir Artisan',
+      servings: 1,
+      servingCaloriesKcal: 410,
+      servingProteinG: 30.0,
+      servingCarbsG: 52.0,
+      servingFatG: 9.0,
+      servingSizeGrams: 320,
+      servingSizeUnit: ServingUnit.g,
+      imageUrl: 'https://images.unsplash.com/photo-1517673132405-a56a62b18caf?w=600&auto=format&fit=crop&q=80',
+      ingredients: [
+        RecipeIngredient(name: 'Rolled Oats', amount: 50, unit: 'g'),
+        RecipeIngredient(name: 'Vanilla Whey Protein', amount: 25, unit: 'g'),
+        RecipeIngredient(name: 'Unsweetened Almond Milk', amount: 200, unit: 'ml'),
+        RecipeIngredient(name: 'Ground Turmeric & Cinnamon', amount: 5, unit: 'g'),
+      ],
+      instructions: [
+        'In a mason jar, combine rolled oats, vanilla whey isolate, and ground turmeric/cinnamon.',
+        'Pour in unsweetened almond milk and stir until completely homogenous.',
+        'Seal and refrigerate overnight (at least 6 hours). Stir well and serve chilled.',
+      ],
+      version: 1,
+      isCurated: true,
+    ),
+    const Recipe(
+      id: 'a1000000-0000-4000-8000-000000000004',
+      title: 'Pan-Seared Atlantic Salmon & Sweet Potato Mash',
+      description: 'Rich in omega-3 fatty acids and complex low-glycemic carbohydrates to maximize recovery and joint mobility.',
+      authorName: 'Iron Scribe',
+      servings: 1,
+      servingCaloriesKcal: 580,
+      servingProteinG: 42.0,
+      servingCarbsG: 46.0,
+      servingFatG: 22.0,
+      servingSizeGrams: 400,
+      servingSizeUnit: ServingUnit.g,
+      imageUrl: 'https://images.unsplash.com/photo-1467003909585-2f8a72700288?w=600&auto=format&fit=crop&q=80',
+      ingredients: [
+        RecipeIngredient(name: 'Wild Salmon Fillet', amount: 180, unit: 'g'),
+        RecipeIngredient(name: 'Sweet Potato (Mashed)', amount: 160, unit: 'g'),
+        RecipeIngredient(name: 'Asparagus Spears', amount: 60, unit: 'g'),
+      ],
+      instructions: [
+        'Steam or bake diced sweet potatoes until fork-tender, then mash with a touch of sea salt and nutmeg.',
+        'Sear fresh wild salmon fillet skin-down in a hot skillet for 4 minutes until crisp, then flip for 3 minutes.',
+        'Plate alongside roasted asparagus spears and lemon wedges.',
+      ],
+      version: 1,
+      isCurated: true,
+    ),
+    const Recipe(
+      id: 'a1000000-0000-4000-8000-000000000005',
+      title: 'Crimson Quinoa & Tempeh Alchemy Plate',
+      description: 'Complete plant-based amino acid profile combined with roasted root vegetables and tahini glaze.',
+      authorName: 'Verdant Transmuter',
+      servings: 1,
+      servingCaloriesKcal: 460,
+      servingProteinG: 28.0,
+      servingCarbsG: 54.0,
+      servingFatG: 14.0,
+      servingSizeGrams: 380,
+      servingSizeUnit: ServingUnit.g,
+      imageUrl: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&auto=format&fit=crop&q=80',
+      ingredients: [
+        RecipeIngredient(name: 'Cooked Red Quinoa', amount: 150, unit: 'g'),
+        RecipeIngredient(name: 'Organic Tempeh', amount: 120, unit: 'g'),
+        RecipeIngredient(name: 'Massaged Tuscan Kale', amount: 80, unit: 'g'),
+        RecipeIngredient(name: 'Tahini Glaze', amount: 30, unit: 'g'),
+      ],
+      instructions: [
+        'Simmer red quinoa in vegetable broth for 15 minutes until light and fluffy.',
+        'Cube organic tempeh and pan-crisp with tamari and smoked paprika.',
+        'Toss with roasted sweet peppers, massaged kale, and a light drizzle of lemon tahini dressing.',
+      ],
+      version: 1,
+      isCurated: true,
+    ),
+  ];
   UserPreferences preferences = const UserPreferences(
     weightUnit: WeightUnit.lb,
     activePlanId: 'upper-a',
@@ -916,6 +1051,81 @@ class MockNutritionRepository implements NutritionRepository {
           estimatedPortionGrams: 240,
         ),
       ],
+    );
+  }
+
+  @override
+  Future<List<Recipe>> getRecipes({String? query}) async {
+    final needle = query?.trim().toLowerCase();
+    if (needle == null || needle.isEmpty) {
+      return List<Recipe>.unmodifiable(_store.recipes);
+    }
+    return _store.recipes
+        .where(
+          (r) =>
+              r.title.toLowerCase().contains(needle) ||
+              r.description.toLowerCase().contains(needle),
+        )
+        .toList();
+  }
+
+  @override
+  Future<Recipe> getRecipe(String recipeId) async {
+    final recipe = _store.recipes
+        .where((r) => r.id == recipeId)
+        .firstOrNull;
+    if (recipe == null) {
+      throw const AppFailure('recipe_not_found', 'Recipe not found.');
+    }
+    return recipe;
+  }
+
+  @override
+  Future<void> logRecipeAsMeal({
+    required String recipeId,
+    required double portionServings,
+    required MealType mealType,
+    required DateTime consumedAt,
+  }) async {
+    final recipe = await getRecipe(recipeId);
+    if (portionServings <= 0 || portionServings > 50) {
+      throw const AppFailure('invalid_portion', 'Portion servings must be between 0.1 and 50.');
+    }
+
+    final foodName = '${recipe.title} (Recipe v${recipe.version})';
+    var food = _store.foods.where((f) => f.name == foodName).firstOrNull;
+    if (food == null) {
+      food = Food(
+        id: _store.next('food'),
+        name: foodName,
+        caloriesKcal: recipe.servingCaloriesKcal,
+        proteinG: recipe.servingProteinG,
+        carbsG: recipe.servingCarbsG,
+        fatG: recipe.servingFatG,
+        servingSizeValue: 1,
+        servingSizeUnit: ServingUnit.serving,
+        servingSizeText: '1 serving',
+      );
+      _store.foods.add(food);
+    }
+
+    final mealId = _store.next('meal');
+    _store.meals.add(
+      NutritionMeal(
+        id: mealId,
+        foodId: food.id,
+        foodName: food.name,
+        mealType: mealType,
+        grams: portionServings,
+        consumedAt: consumedAt,
+        caloriesKcal: recipe.servingCaloriesKcal * portionServings,
+        proteinG: recipe.servingProteinG * portionServings,
+        carbsG: recipe.servingCarbsG * portionServings,
+        fatG: recipe.servingFatG * portionServings,
+        servingSizeValue: 1,
+        servingSizeUnit: ServingUnit.serving,
+        servingSizeText: '1 serving',
+      ),
     );
   }
 }

@@ -201,6 +201,12 @@ final dailyNutritionTargetProvider = FutureProvider.family<DailyNutritionTarget?
 final nutritionDiaryDayProvider = FutureProvider.family<NutritionDiaryDay, String>(
   (ref, date) => ref.watch(nutritionRepositoryProvider).getDiaryDay(date),
 );
+final recipesProvider = FutureProvider.family<List<Recipe>, String?>((ref, query) {
+  return ref.watch(nutritionRepositoryProvider).getRecipes(query: query);
+});
+final recipeDetailProvider = FutureProvider.family<Recipe, String>((ref, id) {
+  return ref.watch(nutritionRepositoryProvider).getRecipe(id);
+});
 final arcanaRepositoryProvider = Provider<ArcanaRepository>(
   (ref) => ref.watch(repositoryModeProvider) == RepositoryMode.mock
       ? MockArcanaRepository()

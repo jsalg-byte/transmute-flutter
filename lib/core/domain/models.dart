@@ -609,6 +609,56 @@ class FoodPhotoAnalysis {
   final double? suggestedPortionGrams;
 }
 
+class RecipeIngredient {
+  const RecipeIngredient({
+    required this.name,
+    required this.amount,
+    this.unit = 'g',
+  });
+
+  final String name;
+  final double amount;
+  final String unit;
+}
+
+class Recipe {
+  const Recipe({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.authorName,
+    required this.servings,
+    required this.servingCaloriesKcal,
+    required this.servingProteinG,
+    required this.servingCarbsG,
+    required this.servingFatG,
+    this.servingSizeGrams = 100,
+    this.servingSizeUnit = ServingUnit.g,
+    this.imageUrl,
+    this.ingredients = const [],
+    this.instructions = const [],
+    this.version = 1,
+    this.isCurated = true,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final String authorName;
+  final int servings;
+  final double servingCaloriesKcal;
+  final double servingProteinG;
+  final double servingCarbsG;
+  final double servingFatG;
+  final double servingSizeGrams;
+  final ServingUnit servingSizeUnit;
+  final String? imageUrl;
+  final List<RecipeIngredient> ingredients;
+  final List<String> instructions;
+  final int version;
+  final bool isCurated;
+}
+
 enum ArcanaStage { unrevealed, revealed, refined, illuminated, mastered }
 
 enum ArcanaSlot { past, present, becoming }

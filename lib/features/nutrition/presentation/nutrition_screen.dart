@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
@@ -91,17 +92,40 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
             ),
             PopupMenuButton<String>(
               onSelected: (value) {
+                if (value == 'recipes') context.push('/recipes');
                 if (value == 'barcode') _barcode();
                 if (value == 'label') _readLabel();
               },
               itemBuilder: (_) => const [
                 PopupMenuItem(
+                  value: 'recipes',
+                  child: Row(
+                    children: [
+                      Icon(Icons.menu_book, size: 20),
+                      SizedBox(width: 8),
+                      Text('Discover recipes'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
                   value: 'barcode',
-                  child: Text('Scan or enter barcode'),
+                  child: Row(
+                    children: [
+                      Icon(Icons.qr_code_scanner, size: 20),
+                      SizedBox(width: 8),
+                      Text('Scan or enter barcode'),
+                    ],
+                  ),
                 ),
                 PopupMenuItem(
                   value: 'label',
-                  child: Text('Read nutrition label'),
+                  child: Row(
+                    children: [
+                      Icon(Icons.document_scanner, size: 20),
+                      SizedBox(width: 8),
+                      Text('Read nutrition label'),
+                    ],
+                  ),
                 ),
               ],
               tooltip: 'Nutrition tools',
@@ -124,7 +148,72 @@ class _NutritionScreenState extends ConsumerState<NutritionScreen> {
           onSetTarget: () => _openTargetDialog(diary.target),
           onAddMeal: () => _openMealDialog(record),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
+        InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => context.push('/recipes'),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.7),
+                  Theme.of(context).colorScheme.surfaceContainerHighest,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.soup_kitchen_outlined,
+                    size: 28,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Discover Curated Recipes',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'High-protein alchemical meals with verified macros & preparation guides.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
         if (recentFoods.isNotEmpty) ...[
           Text(
             'Recently Logged',
