@@ -23,7 +23,7 @@
 
 - For UI polish, use the installed `better-ui` and `better-accessibility` skills as review lenses, not as a mandate to replace the product style. Preserve Transmute's identity, existing theme/palette preferences, and components in `lib/shared/design_system`; evolve those shared tokens/components before adding one-off styling.
 - Those skills contain web/CSS examples. Translate principles into Flutter APIs (`ThemeData`, `Semantics`, focus/keyboard handling, touch targets, and reduced-motion-aware animations); do not copy CSS/ARIA instructions literally or impose iOS-native styling on every platform.
-- Exercise loading, empty, error, disabled, success, and recovery states where relevant. The user performs browser verification; report non-browser checks separately and do not claim browser QA.
+- Exercise loading, empty, error, disabled, success, and recovery states where relevant. Verify browser behavior thoroughly.
 
 ## Local development
 
@@ -43,7 +43,7 @@ For real API mode, run `-d web-server --web-hostname=localhost --web-port=8081` 
 --dart-define=TRANSMUTE_API_BASE_URL=https://api.transmute.mzootfb.xyz
 ```
 
-Use `http://localhost:8081` exactly; CORS treats `127.0.0.1:8081` as a different, unallowed origin. Widget tests bind local sockets; sandbox socket denial happens before tests execute and is not an assertion failure. The user performs browser verification.
+Use `http://localhost:8081` exactly; CORS treats `127.0.0.1:8081` as a different, unallowed origin. Widget tests bind local sockets; sandbox socket denial happens before tests execute and is not an assertion failure.
 
 ## Production web and migrations
 

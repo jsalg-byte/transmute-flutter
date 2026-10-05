@@ -1631,7 +1631,7 @@ class ApiNutritionRepository implements NutritionRepository {
           );
     final consumed = data['consumed'] as Map<String, dynamic>;
     final mealsList = (data['meals'] as List<dynamic>)
-        .map((item) => _nutritionMeal(item as Map<String, dynamic>))
+        .map((item) => _nutritionDiaryMeal(item as Map<String, dynamic>))
         .toList();
 
     return NutritionDiaryDay(
@@ -2903,6 +2903,24 @@ NutritionMeal _nutritionMeal(Map<String, dynamic> map) => NutritionMeal(
       : _number(map['serving_size_g']),
   servingSizeUnit: _servingUnit(map['serving_size_unit']),
   servingSizeText: map['serving_size_text'] as String?,
+  imageUrl: map['imageUrl'] as String?,
+);
+NutritionMeal _nutritionDiaryMeal(Map<String, dynamic> map) => NutritionMeal(
+  id: map['id'] as String,
+  foodId: map['foodId'] as String,
+  foodName: map['foodName'] as String,
+  mealType: MealType.values.byName(map['mealType'] as String),
+  grams: _number(map['grams']),
+  consumedAt: DateTime.parse(map['consumedAt'] as String).toLocal(),
+  caloriesKcal: _number(map['caloriesKcal']),
+  proteinG: _number(map['proteinG']),
+  carbsG: _number(map['carbsG']),
+  fatG: _number(map['fatG']),
+  servingSizeValue: map['servingSizeValue'] == null
+      ? null
+      : _number(map['servingSizeValue']),
+  servingSizeUnit: _servingUnit(map['servingSizeUnit']),
+  servingSizeText: map['servingSizeText'] as String?,
   imageUrl: map['imageUrl'] as String?,
 );
 Food _barcodeFood(Map<String, dynamic> map) => Food(
