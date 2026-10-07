@@ -837,21 +837,23 @@ class _ResultsHeading extends StatelessWidget {
   );
 }
 
-class _ExerciseAccordion extends StatefulWidget {
+class _ExerciseAccordion extends ConsumerStatefulWidget {
   const _ExerciseAccordion({super.key, required this.exercise});
   final Exercise exercise;
 
   @override
-  State<_ExerciseAccordion> createState() => _ExerciseAccordionState();
+  ConsumerState<_ExerciseAccordion> createState() => _ExerciseAccordionState();
 }
 
-class _ExerciseAccordionState extends State<_ExerciseAccordion> {
+class _ExerciseAccordionState extends ConsumerState<_ExerciseAccordion> {
   var _isExpanded = false;
 
   @override
   Widget build(BuildContext context) {
     final palette = TransmutePalette.of(context);
     final ex = widget.exercise;
+    final bookmarks = ref.watch(bookmarkedExercisesProvider).value ?? <String>{};
+    final isBookmarked = bookmarks.contains(ex.id);
     final hasCues = ex.instructions.isNotEmpty;
     final hasMuscles = ex.primaryMuscles.isNotEmpty || ex.secondaryMuscles.isNotEmpty;
     final hasMedia = ex.gifUrl != null || ex.imageUrl != null || ex.demoUrl != null;
@@ -864,9 +866,26 @@ class _ExerciseAccordionState extends State<_ExerciseAccordion> {
         }),
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        title: Text(
-          ex.name,
-          style: Theme.of(context).textTheme.titleMedium,
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                ex.name,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            IconButton(
+              tooltip: isBookmarked ? 'Remove from saved' : 'Save exercise',
+              icon: Icon(
+                isBookmarked ? Icons.bookmark : Icons.bookmark_border,
+                color: isBookmarked ? palette.oxide : palette.muted,
+                size: 20,
+              ),
+              onPressed: () {
+                ref.read(bookmarkedExercisesProvider.notifier).toggle(ex.id);
+              },
+            ),
+          ],
         ),
         subtitle: Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,

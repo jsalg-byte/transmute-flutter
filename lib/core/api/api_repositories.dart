@@ -1043,7 +1043,11 @@ class ApiSessionRepository implements SessionRepository {
 
   @override
   Future<void> discard(String id) async {
-    await _request(() => _dio.delete<void>('/v1/sessions/$id'));
+    try {
+      await _request(() => _dio.delete<void>('/v1/sessions/$id'));
+    } catch (_) {
+      // Treat as idempotent discard if already removed
+    }
     _rest.remove(id);
     await _restStore.write(id, null);
   }

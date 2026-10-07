@@ -2,17 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:transmute_flutter/features/arcana/presentation/arcana_screen.dart';
 import 'package:transmute_flutter/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:transmute_flutter/features/exercise_library/presentation/exercise_library_screen.dart';
-import 'package:transmute_flutter/features/fasting/presentation/fasting_screen.dart';
-import 'package:transmute_flutter/features/goals/presentation/goals_screen.dart';
 import 'package:transmute_flutter/features/nutrition/presentation/nutrition_screen.dart';
-import 'package:transmute_flutter/features/planning/presentation/planning_screen.dart';
 import 'package:transmute_flutter/features/progress/presentation/progress_screen.dart';
 import 'package:transmute_flutter/features/ranks/presentation/rank_overview_screens.dart';
 import 'package:transmute_flutter/features/ranks/presentation/ranks_screens.dart';
-import 'package:transmute_flutter/features/social/presentation/social_hub_screen.dart';
 import 'package:transmute_flutter/features/workout_history/presentation/history_screens.dart';
 import 'package:transmute_flutter/features/workout_plans/presentation/plan_screens.dart';
 
@@ -31,11 +26,6 @@ void main() {
         ),
         GoRoute(path: '/progress', builder: (_, _) => const ProgressScreen()),
         GoRoute(path: '/nutrition', builder: (_, _) => const NutritionScreen()),
-        GoRoute(path: '/fasting', builder: (_, _) => const FastingScreen()),
-        GoRoute(path: '/friends', builder: (_, _) => const SocialHubScreen()),
-        GoRoute(path: '/arcana', builder: (_, _) => const ArcanaScreen()),
-        GoRoute(path: '/goals', builder: (_, _) => const GoalsScreen()),
-        GoRoute(path: '/planning', builder: (_, _) => const PlanningScreen()),
         GoRoute(path: '/history', builder: (_, _) => const HistoryScreen()),
         GoRoute(path: '/ranks', builder: (_, _) => const OverallRanksScreen()),
         GoRoute(
@@ -65,11 +55,6 @@ void main() {
       ('/exercises', 'Exercise library'),
       ('/progress', 'Progress'),
       ('/nutrition', 'Nutrition'),
-      ('/fasting', 'Fasting'),
-      ('/friends', 'Friends & Social'),
-      ('/arcana', 'Personal Arcana'),
-      ('/goals', 'Goals'),
-      ('/planning', 'Planning'),
       ('/history', 'Workout history'),
       ('/ranks', 'Your Rank'),
       ('/ranks/gallery', 'Search exercise ranks'),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -627,6 +628,68 @@ final openGymCatalogProvider = FutureProvider<List<Exercise>>((ref) {
   return OpenGymCatalog.loadAll();
 });
 
+final bookmarkedExercisesProvider =
+    AsyncNotifierProvider<BookmarkedExercisesController, Set<String>>(
+      BookmarkedExercisesController.new,
+    );
+
+class BookmarkedExercisesController extends AsyncNotifier<Set<String>> {
+  static const _key = 'transmute.bookmarked_exercise_ids';
+
+  @override
+  Future<Set<String>> build() async {
+    try {
+      final raw = await ref.read(secureStoreProvider).storage.read(key: _key);
+      if (raw == null || raw.isEmpty) return <String>{};
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      return decoded.map((e) => e.toString()).toSet();
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  Future<void> toggle(String exerciseId) async {
+    final current = Set<String>.from(state.value ?? <String>{});
+    if (current.contains(exerciseId)) {
+      current.remove(exerciseId);
+    } else {
+      current.add(exerciseId);
+    }
+    state = AsyncData(current);
+    try {
+      await ref
+          .read(secureStoreProvider)
+          .storage
+          .write(key: _key, value: jsonEncode(current.toList()));
+    } catch (_) {
+      // Keep optimistic state if storage fails
+    }
+  }
+
+  bool isBookmarked(String exerciseId) {
+    return state.value?.contains(exerciseId) ?? false;
+  }
+}
+
+final unifiedExerciseCatalogProvider =
+    FutureProvider<List<Exercise>>((ref) async {
+      final baseList = await ref.watch(planRepositoryProvider).searchExercises('');
+      final openGymList = await OpenGymCatalog.loadAll();
+      final seenIds = <String>{};
+      final result = <Exercise>[];
+      for (final ex in baseList) {
+        if (seenIds.add(ex.id)) {
+          result.add(ex);
+        }
+      }
+      for (final ex in openGymList) {
+        if (seenIds.add(ex.id)) {
+          result.add(ex);
+        }
+      }
+      return result;
+    });
+
 class OpenGymSearchParams {
   const OpenGymSearchParams({
     this.query = '',
@@ -1152,8 +1215,23 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
   }
 
   Future<void> discard() async {
-    final current = state.value!;
-    await ref.read(sessionRepositoryProvider).discard(current.id);
+    final current = state.value;
+    if (current == null) {
+      _stopSync();
+      state = const AsyncData(null);
+      ref.invalidate(plansProvider);
+      ref.invalidate(workoutEntryProvider);
+      ref.invalidate(historyProvider);
+      ref.invalidate(recentRecordProvider);
+      ref.invalidate(dailyOverviewProvider);
+      ref.invalidate(nextWorkoutRecommendationProvider);
+      return;
+    }
+    try {
+      await ref.read(sessionRepositoryProvider).discard(current.id);
+    } catch (_) {
+      // Idempotent: safe if already deleted on server or mock store
+    }
     final userId = _userId;
     if (userId != null) {
       await ref.read(pendingSetStoreProvider).removeSession(userId, current.id);
@@ -1164,5 +1242,7 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     ref.invalidate(workoutEntryProvider);
     ref.invalidate(historyProvider);
     ref.invalidate(recentRecordProvider);
+    ref.invalidate(dailyOverviewProvider);
+    ref.invalidate(nextWorkoutRecommendationProvider);
   }
 }

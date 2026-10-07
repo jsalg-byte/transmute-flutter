@@ -933,13 +933,15 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
       ),
     );
     if (yes == true) {
-      await ref.read(activeSessionProvider.notifier).discard();
+      try {
+        await ref.read(activeSessionProvider.notifier).discard();
+      } catch (_) {}
       HapticFeedback.heavyImpact();
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Workout discarded.')),
         );
-        context.go('/plans');
+        context.go('/dashboard');
       }
     }
   }

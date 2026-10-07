@@ -3779,7 +3779,6 @@ class MockSessionRepository implements SessionRepository {
 
   @override
   Future<void> discard(String id) async {
-    _requireActive(id);
     _store.active = null;
   }
 
