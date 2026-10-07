@@ -13,11 +13,10 @@ class PreLoginEntryRoute extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isRestoring =
-        ref.watch(authControllerProvider).status == AuthStatus.loading;
-    return isRestoring
-        ? const AuthLoadingSplashScreen()
-        : const PreLoginOnboardingScreen();
+    final status = ref.watch(authControllerProvider).status;
+    return status == AuthStatus.signedOut
+        ? const PreLoginOnboardingScreen()
+        : const AuthLoadingSplashScreen();
   }
 }
 

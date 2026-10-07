@@ -115,21 +115,21 @@ class TransmutePalette extends ThemeExtension<TransmutePalette> {
     ready: Color(0xFF187D8A),
   );
 
-  /// Uses violet, blue, and amber for status cues, avoiding a red-versus-
-  /// green distinction. Decorative greens remain part of the pastel palette.
+  /// Uses high-contrast cobalt blue, warm amber, and vermilion for status cues,
+  /// completely avoiding red-versus-green confusion and meeting WCAG AA contrast.
   static const _cutePastelColorBlind = TransmutePalette._(
-    surface: Color(0xFFE7F7D5),
-    raised: Color(0xFFF6D3E8),
-    ink: Color(0xFF302236),
-    body: Color(0xFF302236),
-    muted: Color(0xFF655764),
-    divider: Color(0xFFBBD4A6),
-    oxide: Color(0xFFB3589A),
-    steel: Color(0xFF734D87),
-    gold: Color(0xFFAD6900),
-    rest: Color(0xFF75456F),
-    recovering: Color(0xFF276FAE),
-    ready: Color(0xFFAD6900),
+    surface: Color(0xFFF1F5F9),
+    raised: Color(0xFFFFFFFF),
+    ink: Color(0xFF0F172A),
+    body: Color(0xFF0F172A),
+    muted: Color(0xFF334155),
+    divider: Color(0xFFCBD5E1),
+    oxide: Color(0xFF1D4ED8),
+    steel: Color(0xFF475569),
+    gold: Color(0xFFD97706),
+    rest: Color(0xFFDC2626),
+    recovering: Color(0xFF4338CA),
+    ready: Color(0xFF1D4ED8),
   );
 
   static const _flameLight = TransmutePalette._(

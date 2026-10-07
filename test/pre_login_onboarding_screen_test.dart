@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:transmute_flutter/features/authentication/presentation/pre_login_onboarding_screen.dart';
@@ -103,5 +104,15 @@ void main() {
     await tester.tap(find.text('Sign in'));
     await tester.pumpAndSettle();
     expect(find.text('Sign-in form'), findsOneWidget);
+  });
+
+  testWidgets('PreLoginEntryRoute renders loading splash while restoring', (tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(home: PreLoginEntryRoute()),
+      ),
+    );
+    expect(find.byType(AuthLoadingSplashScreen), findsOneWidget);
+    expect(find.byType(PreLoginOnboardingScreen), findsNothing);
   });
 }

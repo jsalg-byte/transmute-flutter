@@ -1136,7 +1136,10 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
         .complete(current.id);
     _stopSync();
     state = const AsyncData(null);
+    ref.invalidate(plansProvider);
+    ref.invalidate(workoutEntryProvider);
     ref.invalidate(historyProvider);
+    ref.invalidate(recentRecordProvider);
     ref.invalidate(lastPerformedPlanDayProvider);
     ref.invalidate(exerciseRanksProvider);
     ref.invalidate(rankOverviewProvider);
@@ -1157,5 +1160,9 @@ class ActiveSessionController extends AsyncNotifier<WorkoutSession?> {
     }
     _stopSync();
     state = const AsyncData(null);
+    ref.invalidate(plansProvider);
+    ref.invalidate(workoutEntryProvider);
+    ref.invalidate(historyProvider);
+    ref.invalidate(recentRecordProvider);
   }
 }

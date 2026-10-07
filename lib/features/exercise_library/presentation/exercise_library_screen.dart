@@ -93,7 +93,55 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
               });
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          // Unified filter chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                FilterChip(
+                  label: const Text('All'),
+                  selected: _mode == _LibraryCatalogMode.openGym && _selectedEquipment == null,
+                  onSelected: (_) => setState(() {
+                    _mode = _LibraryCatalogMode.openGym;
+                    _selectedEquipment = null;
+                  }),
+                ),
+                const SizedBox(width: 6),
+                FilterChip(
+                  label: const Text('Saved'),
+                  selected: _mode == _LibraryCatalogMode.saved,
+                  onSelected: (_) => setState(() {
+                    _mode = _LibraryCatalogMode.saved;
+                    _selectedEquipment = null;
+                  }),
+                ),
+                for (final eq in [
+                  'body weight',
+                  'barbell',
+                  'dumbbell',
+                  'cable',
+                  'machine',
+                  'band',
+                ]) ...[
+                  const SizedBox(width: 6),
+                  FilterChip(
+                    label: Text(
+                      eq == 'body weight'
+                          ? 'Bodyweight'
+                          : eq[0].toUpperCase() + eq.substring(1),
+                    ),
+                    selected: _mode == _LibraryCatalogMode.openGym && _selectedEquipment == eq,
+                    onSelected: (_) => setState(() {
+                      _mode = _LibraryCatalogMode.openGym;
+                      _selectedEquipment = _selectedEquipment == eq ? null : eq;
+                    }),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           TextField(
             controller: _query,
             textInputAction: TextInputAction.search,

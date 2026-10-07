@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -880,19 +881,21 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     }
     try {
       final done = await ref.read(activeSessionProvider.notifier).complete();
-      if (done.rankUpdates.isNotEmpty && context.mounted) {
-        final update = done.rankUpdates.first;
+      HapticFeedback.mediumImpact();
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              update.established
-                  ? 'Personal ${update.tier.name} rank established.'
-                  : 'Personal rank improved to ${update.tier.name}.',
+              done.rankUpdates.isNotEmpty
+                  ? (done.rankUpdates.first.established
+                      ? 'Workout completed! Personal ${done.rankUpdates.first.tier.name} rank established.'
+                      : 'Workout completed! Personal rank improved to ${done.rankUpdates.first.tier.name}.')
+                  : 'Workout completed!',
             ),
           ),
         );
+        context.go('/history/${done.id}');
       }
-      if (context.mounted) context.go('/history/${done.id}');
     } on AppFailure catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -931,7 +934,13 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     );
     if (yes == true) {
       await ref.read(activeSessionProvider.notifier).discard();
-      if (context.mounted) context.go('/plans');
+      HapticFeedback.heavyImpact();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Workout discarded.')),
+        );
+        context.go('/plans');
+      }
     }
   }
 }
@@ -1317,6 +1326,84 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 fontWeight: FontWeight.w800,
               ),
             ),
+            const SizedBox(height: 6),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 240) return const SizedBox.shrink();
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: TransmutePalette.of(context).surface,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: compact ? 36 : 46,
+                        child: Text(
+                          'SET',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: TransmutePalette.of(context).muted,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          'PREV',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: TransmutePalette.of(context).muted,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 3,
+                        child: Text(
+                          exercise.trackingMode == ExerciseTrackingMode.timed
+                              ? 'TIME'
+                              : unit == WeightUnit.lb
+                              ? 'LBS'
+                              : 'KG',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: TransmutePalette.of(context).muted,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                      if (exercise.trackingMode == ExerciseTrackingMode.reps)
+                        Expanded(
+                          flex: 2,
+                          child: Text(
+                            'REPS',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: TransmutePalette.of(context).muted,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      SizedBox(
+                        width: compact ? 64 : 72,
+                        child: Text(
+                          'ACTION',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: TransmutePalette.of(context).muted,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
             SizedBox(height: compact ? 4 : 8),
             for (var index = 0; index < visibleSets.length; index += 1)
               _SavedSetRow(
@@ -1458,6 +1545,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
             isWarmup: draft.isWarmup,
             durationSeconds: duration,
           );
+      HapticFeedback.lightImpact();
       // Rest-timer persistence is secondary to logging the set. It must not
       // hold the Log button in its loading state if the server is slow.
       unawaited(
@@ -2010,6 +2098,219 @@ class _ConfettiBurstPainter extends CustomPainter {
       oldDelegate.progress != progress || oldDelegate.colors != colors;
 }
 
+enum _KeypadFieldType { weight, reps, duration }
+
+class _WorkoutKeypadSheet extends StatelessWidget {
+  const _WorkoutKeypadSheet({
+    required this.controller,
+    required this.fieldType,
+    required this.unitLabel,
+    required this.onDone,
+    this.onNext,
+  });
+
+  final TextEditingController controller;
+  final _KeypadFieldType fieldType;
+  final String unitLabel;
+  final VoidCallback onDone;
+  final VoidCallback? onNext;
+
+  void _onDigit(String digit) {
+    final current = controller.text;
+    if (digit == '.') {
+      if (fieldType == _KeypadFieldType.reps) return; // Reps are integers
+      if (current.contains('.')) return;
+      controller.text = current.isEmpty ? '0.' : '$current.';
+    } else {
+      controller.text = '$current$digit';
+    }
+  }
+
+  void _onBackspace() {
+    final current = controller.text;
+    if (current.isNotEmpty) {
+      controller.text = current.substring(0, current.length - 1);
+    }
+  }
+
+  void _onAdd(double amount) {
+    final current = double.tryParse(controller.text) ?? 0.0;
+    final next = current + amount;
+    if (fieldType == _KeypadFieldType.reps) {
+      controller.text = next.round().toString();
+    } else {
+      controller.text = next == next.roundToDouble()
+          ? next.toStringAsFixed(0)
+          : next.toStringAsFixed(1);
+    }
+  }
+
+  void _onClear() {
+    controller.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    final isInteger = fieldType == _KeypadFieldType.reps;
+    final quickAdders = isInteger
+        ? const [1.0, 2.0, 5.0]
+        : const [2.5, 5.0, 10.0];
+
+    Widget buildButton(
+      String label, {
+      VoidCallback? onPressed,
+      Color? background,
+      Color? foreground,
+      Widget? icon,
+    }) {
+      return Expanded(
+        child: Padding(
+          padding: const EdgeInsets.all(3.0),
+          child: Material(
+            color: background ?? palette.surface,
+            borderRadius: BorderRadius.circular(8),
+            child: InkWell(
+              onTap: onPressed,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                height: 48,
+                alignment: Alignment.center,
+                child: icon ??
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: foreground ?? palette.ink,
+                      ),
+                    ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        12,
+        8,
+        12,
+        12 + MediaQuery.viewPaddingOf(context).bottom,
+      ),
+      decoration: BoxDecoration(
+        color: palette.surface,
+        border: Border(top: BorderSide(color: palette.divider)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x1A000000),
+            blurRadius: 10,
+            offset: Offset(0, -3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header / Quick adder row
+          Row(
+            children: [
+              for (final amount in quickAdders)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 36),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () => _onAdd(amount),
+                      child: Text(
+                        '+${amount == amount.roundToDouble() ? amount.toInt() : amount} $unitLabel',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 4),
+              TextButton(
+                style: TextButton.styleFrom(
+                  minimumSize: const Size(44, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: _onClear,
+                child: const Text('Clear', style: TextStyle(fontSize: 13)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Row 1: 1, 2, 3
+          Row(
+            children: [
+              buildButton('1', onPressed: () => _onDigit('1')),
+              buildButton('2', onPressed: () => _onDigit('2')),
+              buildButton('3', onPressed: () => _onDigit('3')),
+            ],
+          ),
+          // Row 2: 4, 5, 6
+          Row(
+            children: [
+              buildButton('4', onPressed: () => _onDigit('4')),
+              buildButton('5', onPressed: () => _onDigit('5')),
+              buildButton('6', onPressed: () => _onDigit('6')),
+            ],
+          ),
+          // Row 3: 7, 8, 9
+          Row(
+            children: [
+              buildButton('7', onPressed: () => _onDigit('7')),
+              buildButton('8', onPressed: () => _onDigit('8')),
+              buildButton('9', onPressed: () => _onDigit('9')),
+            ],
+          ),
+          // Row 4: . or Backspace, 0, Action / Done
+          Row(
+            children: [
+              if (isInteger)
+                buildButton(
+                  'C',
+                  onPressed: _onBackspace,
+                  icon: const Icon(Icons.backspace_outlined, size: 20),
+                )
+              else
+                buildButton('.', onPressed: () => _onDigit('.')),
+              buildButton('0', onPressed: () => _onDigit('0')),
+              if (!isInteger)
+                buildButton(
+                  '⌫',
+                  onPressed: _onBackspace,
+                  icon: const Icon(Icons.backspace_outlined, size: 20),
+                ),
+              if (onNext != null)
+                buildButton(
+                  'Next',
+                  background: palette.oxide,
+                  foreground: palette.raised,
+                  onPressed: onNext,
+                )
+              else
+                buildButton(
+                  'Done',
+                  background: palette.oxide,
+                  foreground: palette.raised,
+                  onPressed: onDone,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SetDraft {
   _SetDraft({int? targetDurationSeconds})
     : durationUnit = TimedDurationUnit.forSeconds(targetDurationSeconds);
@@ -2089,8 +2390,21 @@ class _SavedSetRow extends StatelessWidget {
             ),
           ],
         ];
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 5),
+        final palette = TransmutePalette.of(context);
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: set.pending
+                ? palette.surface
+                : palette.ready.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: set.pending
+                  ? palette.divider
+                  : palette.ready.withValues(alpha: 0.25),
+            ),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -2134,7 +2448,6 @@ class _SavedSetRow extends StatelessWidget {
                     children: controls,
                   ),
                 ),
-              const Divider(height: 8),
             ],
           ),
         );
@@ -2181,7 +2494,7 @@ class _SetDraftRow extends StatelessWidget {
   String? get _repsPlaceholder =>
       previous == null ? '8' : previous!.reps.toString();
 
-  Widget durationInput() => Row(
+  Widget durationInput(BuildContext context) => Row(
     children: [
       Expanded(
         child: TransmuteTextField(
@@ -2198,6 +2511,22 @@ class _SetDraftRow extends StatelessWidget {
           focusNode: draft.durationFocus,
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => onLog(),
+          onTap: () {
+            if (MediaQuery.sizeOf(context).width < 600) {
+              showModalBottomSheet<void>(
+                context: context,
+                builder: (ctx) => _WorkoutKeypadSheet(
+                  controller: draft.duration,
+                  fieldType: _KeypadFieldType.duration,
+                  unitLabel: draft.durationUnit.label,
+                  onDone: () {
+                    Navigator.pop(ctx);
+                    onLog();
+                  },
+                ),
+              );
+            }
+          },
         ),
       ),
       PopupMenuButton<TimedDurationUnit>(
@@ -2225,6 +2554,35 @@ class _SetDraftRow extends StatelessWidget {
       focusNode: draft.weightFocus,
       textInputAction: TextInputAction.next,
       onSubmitted: (_) => draft.repsFocus.requestFocus(),
+      onTap: () {
+        if (compact) {
+          showModalBottomSheet<void>(
+            context: context,
+            builder: (ctx) => _WorkoutKeypadSheet(
+              controller: draft.weight,
+              fieldType: _KeypadFieldType.weight,
+              unitLabel: unit.name,
+              onNext: () {
+                Navigator.pop(ctx);
+                draft.repsFocus.requestFocus();
+                showModalBottomSheet<void>(
+                  context: context,
+                  builder: (repsCtx) => _WorkoutKeypadSheet(
+                    controller: draft.reps,
+                    fieldType: _KeypadFieldType.reps,
+                    unitLabel: 'reps',
+                    onDone: () {
+                      Navigator.pop(repsCtx);
+                      onLog();
+                    },
+                  ),
+                );
+              },
+              onDone: () => Navigator.pop(ctx),
+            ),
+          );
+        }
+      },
     );
     Widget repsInput() => TransmuteTextField(
       controller: draft.reps,
@@ -2236,6 +2594,22 @@ class _SetDraftRow extends StatelessWidget {
       focusNode: draft.repsFocus,
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => onLog(),
+      onTap: () {
+        if (compact) {
+          showModalBottomSheet<void>(
+            context: context,
+            builder: (ctx) => _WorkoutKeypadSheet(
+              controller: draft.reps,
+              fieldType: _KeypadFieldType.reps,
+              unitLabel: 'reps',
+              onDone: () {
+                Navigator.pop(ctx);
+                onLog();
+              },
+            ),
+          );
+        }
+      },
     );
     final logButton = SizedBox(
       width: compact ? 64 : 72,
@@ -2300,7 +2674,7 @@ class _SetDraftRow extends StatelessWidget {
                         SizedBox(width: 28, child: numberLabel),
                         Expanded(
                           child: trackingMode == ExerciseTrackingMode.timed
-                              ? durationInput()
+                              ? durationInput(context)
                               : weightInput(),
                         ),
                       ],
@@ -2319,7 +2693,7 @@ class _SetDraftRow extends StatelessWidget {
                   SizedBox(width: compact ? 40 : 48, child: numberLabel),
                   Expanded(
                     child: trackingMode == ExerciseTrackingMode.timed
-                        ? durationInput()
+                        ? durationInput(context)
                         : weightInput(),
                   ),
                   if (trackingMode == ExerciseTrackingMode.reps) ...[

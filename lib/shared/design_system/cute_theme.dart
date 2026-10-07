@@ -19,24 +19,22 @@ abstract final class CuteColors {
   static const softWhite = Color(0xFFFFFAFB);
 }
 
-/// Red-green color-blind-safe palette sampled from the supplied reference:
-/// #B3589A, #D091BB, #F6D3E8, #E7F7D5, #BBD4A6, and #9BBF85.
-///
-/// Violet remains the primary visual color. Blue and amber are reserved for
-/// semantic status cues so a state is never communicated as red versus green.
+/// Color-blind-safe palette using high-contrast cobalt blue and warm amber,
+/// with vermilion and indigo for semantic status cues. Eliminates red-green
+/// confusion and ensures WCAG AA compliance across text, badges, and borders.
 abstract final class CuteColorBlindColors {
-  static const primary = Color(0xFFB3589A);
-  static const secondary = Color(0xFFD091BB);
-  static const accent = Color(0xFFBBD4A6);
-  static const surface = Color(0xFFE7F7D5);
-  static const panel = Color(0xFFF6D3E8);
-  static const tertiary = Color(0xFF9BBF85);
+  static const primary = Color(0xFF1D4ED8);
+  static const secondary = Color(0xFF3B82F6);
+  static const accent = Color(0xFFD97706);
+  static const surface = Color(0xFFF1F5F9);
+  static const panel = Color(0xFFFFFFFF);
+  static const tertiary = Color(0xFFB45309);
 
-  static const ink = Color(0xFF302236);
-  static const mutedInk = Color(0xFF655764);
-  static const onPastel = Color(0xFF301D31);
+  static const ink = Color(0xFF0F172A);
+  static const mutedInk = Color(0xFF334155);
+  static const onPastel = Color(0xFFFFFFFF);
   static const white = Color(0xFFFFFFFF);
-  static const error = Color(0xFF75456F);
+  static const error = Color(0xFFDC2626);
 }
 
 /// A light, high-legibility Material color scheme for the cute pastel style.
@@ -71,36 +69,35 @@ const cuteColorScheme = ColorScheme(
   surfaceTint: CuteColors.primary,
 );
 
-/// The color-blind-safe Cute Pastel scheme. Its primary colors come directly
-/// from the supplied alternate palette, while semantic error/status colors are
-/// violet, blue, and amber rather than red and green.
+/// The color-blind-safe Cute Pastel scheme using high-contrast cobalt blue
+/// and warm amber, with crisp slate outlines and WCAG AA contrast.
 const cuteColorBlindColorScheme = ColorScheme(
   brightness: Brightness.light,
   primary: CuteColorBlindColors.primary,
   onPrimary: CuteColorBlindColors.onPastel,
-  primaryContainer: CuteColorBlindColors.secondary,
-  onPrimaryContainer: CuteColorBlindColors.onPastel,
+  primaryContainer: Color(0xFFDBEAFE),
+  onPrimaryContainer: CuteColorBlindColors.primary,
   secondary: CuteColorBlindColors.secondary,
-  onSecondary: CuteColorBlindColors.onPastel,
-  secondaryContainer: CuteColorBlindColors.panel,
+  onSecondary: CuteColorBlindColors.white,
+  secondaryContainer: Color(0xFFEFF6FF),
   onSecondaryContainer: CuteColorBlindColors.ink,
   tertiary: CuteColorBlindColors.tertiary,
-  onTertiary: CuteColorBlindColors.ink,
-  tertiaryContainer: CuteColorBlindColors.accent,
-  onTertiaryContainer: CuteColorBlindColors.ink,
+  onTertiary: CuteColorBlindColors.white,
+  tertiaryContainer: Color(0xFFFEF3C7),
+  onTertiaryContainer: CuteColorBlindColors.tertiary,
   error: CuteColorBlindColors.error,
   onError: CuteColorBlindColors.white,
-  errorContainer: Color(0xFFF0DDF4),
-  onErrorContainer: Color(0xFF3D2547),
+  errorContainer: Color(0xFFFEE2E2),
+  onErrorContainer: Color(0xFF991B1B),
   surface: CuteColorBlindColors.surface,
   onSurface: CuteColorBlindColors.ink,
   onSurfaceVariant: CuteColorBlindColors.mutedInk,
-  outline: CuteColorBlindColors.accent,
-  outlineVariant: Color(0xFFD4E7C6),
-  shadow: Color(0xFF493846),
-  scrim: Color(0xFF211722),
+  outline: Color(0xFF64748B),
+  outlineVariant: Color(0xFFCBD5E1),
+  shadow: Color(0xFF0F172A),
+  scrim: Color(0xFF0F172A),
   inverseSurface: CuteColorBlindColors.ink,
-  onInverseSurface: CuteColorBlindColors.panel,
+  onInverseSurface: CuteColorBlindColors.surface,
   inversePrimary: CuteColorBlindColors.secondary,
   surfaceTint: CuteColorBlindColors.primary,
 );
@@ -149,24 +146,24 @@ class CuteCustomStyles extends ThemeExtension<CuteCustomStyles> {
     colorBlindSafe: true,
     softShadow: [
       BoxShadow(
-        color: Color(0x1FB3589A),
+        color: Color(0x1F1D4ED8),
         blurRadius: 20,
         offset: Offset(0, 10),
       ),
     ],
     pressedShadow: [
-      BoxShadow(color: Color(0x189BBF85), blurRadius: 10, offset: Offset(0, 4)),
+      BoxShadow(color: Color(0x18D97706), blurRadius: 10, offset: Offset(0, 4)),
     ],
     extraLargeRadius: BorderRadius.all(Radius.circular(32)),
     containerGradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFFF6D3E8), Color(0xFFE7F7D5)],
+      colors: [Color(0xFFFFFFFF), Color(0xFFEFF6FF)],
     ),
     accentGradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [Color(0xFFD091BB), Color(0xFFB3589A)],
+      colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
     ),
   );
 

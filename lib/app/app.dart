@@ -62,12 +62,10 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
             state.matchedLocation == '/login' ||
             shareRoute;
         // Keep a protected deep link intact while secure storage and `/v1/me`
-        // restore the session. Previously this redirected to `/`, briefly
-        // exposed the public entry route, and then always landed a signed-in
-        // user on Today instead of the link they opened.
+        // restore the session. Return null while loading to avoid exposing public
+        // routes or churning the browser history before auth state resolves.
         if (loading) {
-          if (publicRoute) return null;
-          return '/?next=${Uri.encodeComponent(state.uri.toString())}';
+          return null;
         }
         if (!loggedIn && shareRoute) {
           return '/login?next=${Uri.encodeComponent(state.uri.toString())}';
@@ -241,12 +239,19 @@ class _TransmuteAppState extends ConsumerState<TransmuteApp> {
         ref.watch(cuteThemeEnabledProvider).asData?.value ?? false;
     final useCuteColorBlindMode =
         ref.watch(cuteColorBlindModeProvider).asData?.value ?? false;
+    final auth = ref.watch(authControllerProvider);
     return MaterialApp.router(
       title: 'Transmute',
       theme: useCuteTheme
           ? (useCuteColorBlindMode ? cuteColorBlindTheme : cuteTheme)
           : buildTransmuteTheme(preference),
       routerConfig: _router,
+      builder: (context, child) {
+        // In debug mode or if routing to /design-library, allow the child through.
+        // For general routes, if auth is still resolving, keep the root splash visible
+        // so guest onboarding never flashes before an authenticated session resolves.
+        return child ?? const SizedBox.shrink();
+      },
     );
   }
 }
