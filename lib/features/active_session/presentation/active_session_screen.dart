@@ -720,101 +720,83 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
               );
         return Stack(
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  session.planName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: compact ? 22 : 26,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (session.origin == WorkoutSessionOrigin.freeform)
-                  Text(
-                    'FREEFORM · ${session.exercises.length} ${session.exercises.length == 1 ? 'exercise' : 'exercises'} · ${session.workingSetCount} ${session.workingSetCount == 1 ? 'working set' : 'working sets'}',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: TransmutePalette.of(context).muted,
+            Positioned.fill(
+              child: SingleChildScrollView(
+                controller: _compactScrollController,
+                padding: const EdgeInsets.only(bottom: 96),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      session.planName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: compact ? 22 : 26,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    alignment: WrapAlignment.end,
-                    children: [
-                      if (pendingCount > 0)
-                        _PendingSyncIndicator(pendingCount: pendingCount),
-                      TextButton(
-                        onPressed: pendingCount > 0
-                            ? null
-                            : () => _finish(context, ref, session),
-                        child: const Text('Finish'),
-                      ),
-                      IconButton(
-                        tooltip: 'Discard Workout',
-                        onPressed: () => _discard(context, ref, session),
-                        color: const Color(0xffA33B36),
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  session.planDayName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Started ${_time(session.startedAt)} · ${session.workingSetCount} working ${session.workingSetCount == 1 ? 'set' : 'sets'}',
-                ),
-                if (pendingCount > 0)
-                  Text(
-                    '$pendingCount ${pendingCount == 1 ? 'set is' : 'sets are'} saved on this device and must sync before finishing.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                const SizedBox(height: 8),
-                Expanded(
-                  child: wide
-                      ? SingleChildScrollView(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: movement,
-                        )
-                      : ListView(
-                          controller: _compactScrollController,
-                          padding: const EdgeInsets.only(bottom: 16),
-                          children: [movement],
+                    if (session.origin == WorkoutSessionOrigin.freeform)
+                      Text(
+                        'FREEFORM · ${session.exercises.length} ${session.exercises.length == 1 ? 'exercise' : 'exercises'} · ${session.workingSetCount} ${session.workingSetCount == 1 ? 'working set' : 'working sets'}',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: TransmutePalette.of(context).muted,
                         ),
-                ),
-                if (selected != null) ...[
-                  const SizedBox(height: 8),
-                  if (compact) ...[
+                      ),
                     Align(
                       alignment: Alignment.centerRight,
-                      child: _RestTimer(session: session),
+                      child: Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        alignment: WrapAlignment.end,
+                        children: [
+                          if (pendingCount > 0)
+                            _PendingSyncIndicator(pendingCount: pendingCount),
+                          TextButton(
+                            onPressed: pendingCount > 0
+                                ? null
+                                : () => _finish(context, ref, session),
+                            child: const Text('Finish'),
+                          ),
+                          IconButton(
+                            tooltip: 'Discard Workout',
+                            onPressed: () => _discard(context, ref, session),
+                            color: const Color(0xffA33B36),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      session.planDayName,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Started ${_time(session.startedAt)} · ${session.workingSetCount} working ${session.workingSetCount == 1 ? 'set' : 'sets'}',
+                    ),
+                    if (pendingCount > 0)
+                      Text(
+                        '$pendingCount ${pendingCount == 1 ? 'set is' : 'sets are'} saved on this device and must sync before finishing.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     const SizedBox(height: 8),
-                    SizedBox(width: double.infinity, child: action),
-                  ] else
-                    Row(
-                      children: [
-                        _RestTimer(session: session),
-                        const SizedBox(width: 12),
-                        Expanded(child: action!),
-                      ],
-                    ),
-                ] else
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: _RestTimer(session: session),
-                  ),
-              ],
+                    movement,
+                    if (action != null) ...[
+                      const SizedBox(height: 16),
+                      SizedBox(width: double.infinity, child: action),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: _RestTimer(session: session),
             ),
           ],
         );
