@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:transmute_flutter/core/data/opengym_catalog.dart';
 import 'package:transmute_flutter/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:transmute_flutter/features/exercise_library/presentation/exercise_library_screen.dart';
 import 'package:transmute_flutter/features/nutrition/presentation/nutrition_screen.dart';
@@ -12,6 +13,11 @@ import 'package:transmute_flutter/features/workout_history/presentation/history_
 import 'package:transmute_flutter/features/workout_plans/presentation/plan_screens.dart';
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    await OpenGymCatalog.loadAll();
+  });
+
   testWidgets('priority feature screens fit mobile and desktop viewports', (
     tester,
   ) async {

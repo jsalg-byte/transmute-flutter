@@ -580,9 +580,10 @@ class ApiPlanRepository implements PlanRepository {
 
   @override
   Future<List<Exercise>> searchExercises(String query) async {
+    await OpenGymCatalog.loadAll();
     final record = await _record();
     final all = (record['exercises'] as List<dynamic>).map(
-      (value) => _exercise(value as Map<String, dynamic>),
+      (value) => OpenGymCatalog.enrich(_exercise(value as Map<String, dynamic>)),
     );
     final needle = query.trim().toLowerCase();
     final serverResults = all

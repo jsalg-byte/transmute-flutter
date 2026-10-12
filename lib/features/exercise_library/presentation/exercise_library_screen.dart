@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../core/data/opengym_catalog.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/providers.dart';
 import '../../../shared/theme/transmute_palette.dart';
@@ -14,7 +15,7 @@ import '../../../shared/widgets/exercise_video_controller.dart';
 /// Body-led exercise discovery. The muscle groups are display groupings over
 /// the documented [Exercise.muscleGroup] metadata; no catalog fields or
 /// exercise records are modified here.
-enum _LibraryCatalogMode { saved, openGym }
+enum _LibraryCatalogMode { catalog, saved }
 
 class ExerciseLibraryScreen extends ConsumerStatefulWidget {
   const ExerciseLibraryScreen({super.key});
@@ -27,7 +28,7 @@ class ExerciseLibraryScreen extends ConsumerStatefulWidget {
 class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
   final _query = TextEditingController();
   final _selectedGroups = <String>{};
-  var _mode = _LibraryCatalogMode.saved;
+  var _mode = _LibraryCatalogMode.catalog;
   String? _selectedBodyPart;
   String? _selectedEquipment;
 
@@ -40,19 +41,17 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final queryText = _query.text.trim();
-    final savedResults = ref.watch(exerciseSearchProvider(_query.text));
-    final openGymResults = _mode == _LibraryCatalogMode.openGym
-        ? ref.watch(
-            openGymSearchProvider(
-              OpenGymSearchParams(
-                query: queryText,
-                bodyPart: _selectedBodyPart,
-                equipment: _selectedEquipment,
-                muscleGroup: _selectedGroups.isEmpty ? null : _selectedGroups.first,
-              ),
-            ),
-          )
-        : null;
+    final bookmarks = ref.watch(bookmarkedExercisesProvider).value ?? <String>{};
+    final catalogResults = ref.watch(
+      openGymSearchProvider(
+        OpenGymSearchParams(
+          query: queryText,
+          bodyPart: _selectedBodyPart,
+          equipment: _selectedEquipment,
+          muscleGroup: _selectedGroups.isEmpty ? null : _selectedGroups.first,
+        ),
+      ),
+    );
 
     return AppShell(
       title: 'Exercise library',
@@ -76,14 +75,14 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
           SegmentedButton<_LibraryCatalogMode>(
             segments: const [
               ButtonSegment<_LibraryCatalogMode>(
-                value: _LibraryCatalogMode.saved,
-                label: Text('Saved Movements'),
-                icon: Icon(Icons.bookmark_outline, size: 18),
+                value: _LibraryCatalogMode.catalog,
+                label: Text('Catalog'),
+                icon: Icon(Icons.fitness_center_outlined, size: 18),
               ),
               ButtonSegment<_LibraryCatalogMode>(
-                value: _LibraryCatalogMode.openGym,
-                label: Text('OpenGym Atlas (1,324)'),
-                icon: Icon(Icons.fitness_center_outlined, size: 18),
+                value: _LibraryCatalogMode.saved,
+                label: Text('Saved'),
+                icon: Icon(Icons.bookmark_outline, size: 18),
               ),
             ],
             selected: {_mode},
@@ -101,18 +100,8 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
               children: [
                 FilterChip(
                   label: const Text('All'),
-                  selected: _mode == _LibraryCatalogMode.openGym && _selectedEquipment == null,
+                  selected: _selectedEquipment == null,
                   onSelected: (_) => setState(() {
-                    _mode = _LibraryCatalogMode.openGym;
-                    _selectedEquipment = null;
-                  }),
-                ),
-                const SizedBox(width: 6),
-                FilterChip(
-                  label: const Text('Saved'),
-                  selected: _mode == _LibraryCatalogMode.saved,
-                  onSelected: (_) => setState(() {
-                    _mode = _LibraryCatalogMode.saved;
                     _selectedEquipment = null;
                   }),
                 ),
@@ -131,9 +120,9 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
                           ? 'Bodyweight'
                           : eq[0].toUpperCase() + eq.substring(1),
                     ),
-                    selected: _mode == _LibraryCatalogMode.openGym && _selectedEquipment == eq,
+                    selected: _mode == _LibraryCatalogMode.catalog && _selectedEquipment == eq,
                     onSelected: (_) => setState(() {
-                      _mode = _LibraryCatalogMode.openGym;
+                      _mode = _LibraryCatalogMode.catalog;
                       _selectedEquipment = _selectedEquipment == eq ? null : eq;
                     }),
                   ),
@@ -147,9 +136,9 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
             textInputAction: TextInputAction.search,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              labelText: _mode == _LibraryCatalogMode.saved
-                  ? 'Search exercises'
-                  : 'Search 1,324 OpenGym movements',
+              labelText: _mode == _LibraryCatalogMode.catalog
+                  ? 'Search exercise catalog'
+                  : 'Search saved exercises',
               hintText: 'Search by movement name',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _query.text.isEmpty
@@ -166,27 +155,13 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
           ),
           const SizedBox(height: 20),
           Expanded(
-            child: _mode == _LibraryCatalogMode.saved
-                ? savedResults.when(
-                    skipLoadingOnRefresh: true,
-                    loading: () => const _LibraryLoading(),
-                    error: (_, __) => _LibraryError(
-                      onRetry: () =>
-                          ref.invalidate(exerciseSearchProvider(_query.text)),
-                    ),
-                    data: (exercises) => _LibraryContent(
-                      exercises: exercises,
-                      query: queryText,
-                      selectedGroups: _selectedGroups,
-                      onGroupToggled: (group) => setState(() {
-                        if (!_selectedGroups.add(group)) {
-                          _selectedGroups.remove(group);
-                        }
-                      }),
-                      onGroupsCleared: () => setState(_selectedGroups.clear),
-                    ),
+            child: _mode == _LibraryCatalogMode.saved && bookmarks.isEmpty
+                ? _EmptySaved(
+                    onBrowseCatalog: () => setState(() {
+                      _mode = _LibraryCatalogMode.catalog;
+                    }),
                   )
-                : (openGymResults ?? const AsyncValue.loading()).when(
+                : catalogResults.when(
                     skipLoadingOnRefresh: true,
                     loading: () => const _LibraryLoading(),
                     error: (_, __) => _LibraryError(
@@ -196,29 +171,46 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
                             query: queryText,
                             bodyPart: _selectedBodyPart,
                             equipment: _selectedEquipment,
+                            muscleGroup: _selectedGroups.isEmpty
+                                ? null
+                                : _selectedGroups.first,
                           ),
                         ),
                       ),
                     ),
-                    data: (exercises) => _OpenGymLibraryContent(
-                      exercises: exercises,
-                      query: queryText,
-                      selectedGroups: _selectedGroups,
-                      selectedBodyPart: _selectedBodyPart,
-                      selectedEquipment: _selectedEquipment,
-                      onGroupToggled: (group) => setState(() {
-                        if (!_selectedGroups.add(group)) {
-                          _selectedGroups.remove(group);
-                        }
-                      }),
-                      onGroupsCleared: () => setState(_selectedGroups.clear),
-                      onBodyPartSelected: (bp) => setState(() {
-                        _selectedBodyPart = _selectedBodyPart == bp ? null : bp;
-                      }),
-                      onEquipmentSelected: (eq) => setState(() {
-                        _selectedEquipment = _selectedEquipment == eq ? null : eq;
-                      }),
-                    ),
+                    data: (allExercises) {
+                      final exercises = _mode == _LibraryCatalogMode.saved
+                          ? allExercises
+                              .where(
+                                (e) =>
+                                    bookmarks.contains(e.id) ||
+                                    bookmarks.contains(e.name.toLowerCase()),
+                              )
+                              .toList()
+                          : allExercises;
+
+                      return _OpenGymLibraryContent(
+                        exercises: exercises,
+                        query: queryText,
+                        selectedGroups: _selectedGroups,
+                        selectedBodyPart: _selectedBodyPart,
+                        selectedEquipment: _selectedEquipment,
+                        onGroupToggled: (group) => setState(() {
+                          if (!_selectedGroups.add(group)) {
+                            _selectedGroups.remove(group);
+                          }
+                        }),
+                        onGroupsCleared: () => setState(_selectedGroups.clear),
+                        onBodyPartSelected: (bp) => setState(() {
+                          _selectedBodyPart =
+                              _selectedBodyPart == bp ? null : bp;
+                        }),
+                        onEquipmentSelected: (eq) => setState(() {
+                          _selectedEquipment =
+                              _selectedEquipment == eq ? null : eq;
+                        }),
+                      );
+                    },
                   ),
           ),
         ],
@@ -227,92 +219,6 @@ class _ExerciseLibraryScreenState extends ConsumerState<ExerciseLibraryScreen> {
   }
 }
 
-class _LibraryContent extends StatelessWidget {
-  const _LibraryContent({
-    required this.exercises,
-    required this.query,
-    required this.selectedGroups,
-    required this.onGroupToggled,
-    required this.onGroupsCleared,
-  });
-  final List<Exercise> exercises;
-  final String query;
-  final Set<String> selectedGroups;
-  final ValueChanged<String> onGroupToggled;
-  final VoidCallback onGroupsCleared;
-
-  @override
-  Widget build(BuildContext context) {
-    final matched = exercises
-        .where(
-          (exercise) =>
-              query.isEmpty ||
-              exercise.name.toLowerCase().contains(query.toLowerCase()),
-        )
-        .toList();
-    final availableGroups = _knownGroups
-        .where(
-          (group) => matched.any((exercise) => exercise.muscleGroup == group),
-        )
-        .toSet();
-    final groups = [
-      ..._knownGroups.where(availableGroups.contains),
-      ...matched
-          .map((exercise) => exercise.muscleGroup)
-          .whereType<String>()
-          .where((group) => !_knownGroups.contains(group))
-          .toSet()
-          .toList()
-        ..sort(),
-    ];
-    final activeGroups = selectedGroups.where(groups.contains).toSet();
-    final visible = activeGroups.isEmpty
-        ? matched
-        : matched
-              .where((exercise) => activeGroups.contains(exercise.muscleGroup))
-              .toList();
-
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: _BodyMusclePicker(
-            availableGroups: availableGroups,
-            selectedGroups: activeGroups,
-            onGroupToggled: onGroupToggled,
-          ),
-        ),
-        SliverToBoxAdapter(child: const SizedBox(height: 24)),
-        if (matched.isEmpty)
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: 24),
-              child: _EmptySearch(),
-            ),
-          )
-        else ...[
-          SliverToBoxAdapter(
-            child: _ResultsHeading(
-              groups: activeGroups,
-              movementCount: visible.length,
-              query: query,
-              onClearGroups: activeGroups.isEmpty ? null : onGroupsCleared,
-            ),
-          ),
-          SliverToBoxAdapter(child: const SizedBox(height: 8)),
-          SliverList.separated(
-            itemCount: visible.length,
-            itemBuilder: (context, index) => _ExerciseAccordion(
-              key: ValueKey(visible[index].id),
-              exercise: visible[index],
-            ),
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 24)),
-        ],
-      ],
-    );
-  }
-}
 
 class _OpenGymLibraryContent extends StatelessWidget {
   const _OpenGymLibraryContent({
@@ -339,11 +245,28 @@ class _OpenGymLibraryContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = TransmutePalette.of(context);
-    final count = exercises.length;
+    final availableGroups = _knownGroups
+        .where(
+          (group) => exercises.any((exercise) => exercise.muscleGroup == group),
+        )
+        .toSet();
+    final activeGroups = selectedGroups.where(_knownGroups.contains).toSet();
+    final visible = activeGroups.isEmpty
+        ? exercises
+        : exercises
+              .where((exercise) => activeGroups.contains(exercise.muscleGroup))
+              .toList();
 
     return CustomScrollView(
       slivers: [
+        SliverToBoxAdapter(
+          child: _BodyMusclePicker(
+            availableGroups: availableGroups,
+            selectedGroups: activeGroups,
+            onGroupToggled: onGroupToggled,
+          ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 12)),
         SliverToBoxAdapter(
           child: Card(
             child: Padding(
@@ -353,7 +276,7 @@ class _OpenGymLibraryContent extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.tune, size: 18, color: palette.oxide),
+                      Icon(Icons.tune, size: 18, color: Theme.of(context).colorScheme.primary),
                       const SizedBox(width: 8),
                       Text(
                         'Taxonomy Filters',
@@ -381,7 +304,7 @@ class _OpenGymLibraryContent extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.1,
-                      color: palette.muted,
+                      color: TransmutePalette.of(context).muted,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -419,7 +342,7 @@ class _OpenGymLibraryContent extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1.1,
-                      color: palette.muted,
+                      color: TransmutePalette.of(context).muted,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -455,8 +378,8 @@ class _OpenGymLibraryContent extends StatelessWidget {
             ),
           ),
         ),
-        SliverToBoxAdapter(child: const SizedBox(height: 16)),
-        if (exercises.isEmpty)
+        const SliverToBoxAdapter(child: SizedBox(height: 16)),
+        if (visible.isEmpty)
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.only(bottom: 24),
@@ -465,40 +388,65 @@ class _OpenGymLibraryContent extends StatelessWidget {
           )
         else ...[
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-              child: Row(
-                children: [
-                  Text(
-                    '$count movements found',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    'OpenGym Atlas',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: palette.steel,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+            child: _ResultsHeading(
+              groups: activeGroups,
+              movementCount: visible.length,
+              query: query,
+              onClearGroups: activeGroups.isEmpty ? null : onGroupsCleared,
             ),
           ),
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
           SliverList.separated(
-            itemCount: exercises.length,
+            itemCount: visible.length,
             itemBuilder: (context, index) => _ExerciseAccordion(
-              key: ValueKey(exercises[index].id),
-              exercise: exercises[index],
+              key: ValueKey(visible[index].id),
+              exercise: visible[index],
             ),
             separatorBuilder: (_, _) => const SizedBox(height: 8),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
         ],
       ],
+    );
+  }
+}
+
+class _EmptySaved extends StatelessWidget {
+  const _EmptySaved({required this.onBrowseCatalog});
+  final VoidCallback onBrowseCatalog;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = TransmutePalette.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.bookmark_outline, size: 56, color: palette.muted),
+            const SizedBox(height: 16),
+            Text(
+              'No saved movements yet',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Tap the bookmark icon on any exercise in the Catalog to save it here for quick access.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: palette.muted),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              icon: const Icon(Icons.fitness_center_outlined, size: 18),
+              label: const Text('Browse Catalog'),
+              onPressed: onBrowseCatalog,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -851,9 +799,9 @@ class _ExerciseAccordionState extends ConsumerState<_ExerciseAccordion> {
   @override
   Widget build(BuildContext context) {
     final palette = TransmutePalette.of(context);
-    final ex = widget.exercise;
+    final ex = OpenGymCatalog.enrich(widget.exercise);
     final bookmarks = ref.watch(bookmarkedExercisesProvider).value ?? <String>{};
-    final isBookmarked = bookmarks.contains(ex.id);
+    final isBookmarked = bookmarks.contains(ex.id) || bookmarks.contains(ex.name.toLowerCase());
     final hasCues = ex.instructions.isNotEmpty;
     final hasMuscles = ex.primaryMuscles.isNotEmpty || ex.secondaryMuscles.isNotEmpty;
     final hasMedia = ex.gifUrl != null || ex.imageUrl != null || ex.demoUrl != null;

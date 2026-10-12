@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:transmute_flutter/core/data/opengym_catalog.dart';
 import 'package:transmute_flutter/features/exercise_library/presentation/exercise_library_screen.dart';
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    await OpenGymCatalog.loadAll();
+  });
   testWidgets('new barbell arm exercises are targetable with the Arms filter', (
     tester,
   ) async {
@@ -34,6 +39,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Arms'));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -500));
     await tester.pumpAndSettle();
 
     expect(find.text('Arms movements'), findsOneWidget);
@@ -78,21 +86,17 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Chest movements'), findsOneWidget);
-      expect(find.byType(ExpansionTile), findsOneWidget);
 
-      await tester.tap(find.bySemanticsLabel('Select Back muscle group'));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -500));
       await tester.pumpAndSettle();
 
-      expect(find.text('Selected movements'), findsOneWidget);
-      expect(find.byType(ExpansionTile), findsNWidgets(2));
+      expect(find.byType(ExpansionTile), findsWidgets);
+      expect(find.text('Barbell bench press'), findsOneWidget);
 
       await tester.tap(find.text('Barbell bench press'));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('No demonstration is available for this movement yet.'),
-        findsOneWidget,
-      );
+      expect(find.text('DEMONSTRATION'), findsOneWidget);
     },
   );
 
@@ -133,7 +137,7 @@ void main() {
   );
 
   testWidgets(
-    'can toggle to OpenGym Atlas and view movement cues with tabular numerals',
+    'can view catalog taxonomy filters and movement cues with tabular numerals',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 1200));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -147,17 +151,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Saved Movements'), findsOneWidget);
-      expect(find.text('OpenGym Atlas (1,324)'), findsOneWidget);
-
-      await tester.tap(find.text('OpenGym Atlas (1,324)'));
-      await tester.pump();
-      // Allow future to complete
-      await tester.runAsync(() async {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-      });
-      await tester.pump();
-
+      expect(find.text('Catalog'), findsOneWidget);
+      expect(find.text('Saved'), findsOneWidget);
       expect(find.text('Taxonomy Filters'), findsOneWidget);
       expect(find.text('BODY REGION'), findsOneWidget);
       expect(find.text('EQUIPMENT'), findsOneWidget);

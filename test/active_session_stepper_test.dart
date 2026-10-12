@@ -355,7 +355,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('SET LEDGER'), findsOneWidget);
+    expect(find.text('LOG'), findsOneWidget);
     expect(find.byTooltip('Edit set 1'), findsOneWidget);
     expect(find.text('Next Movement'), findsWidgets);
     expect(tester.takeException(), isNull);

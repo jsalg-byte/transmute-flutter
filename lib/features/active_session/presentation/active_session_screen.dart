@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../../core/data/opengym_catalog.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/domain/repositories.dart';
 import '../../../core/providers.dart';
@@ -1009,7 +1010,10 @@ class _WideMovementLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasDemo = exercise.demoUrl != null;
+    final resolvedMatch = OpenGymCatalog.findMatchSync(exercise.name);
+    final hasDemo = exercise.demoUrl != null ||
+        resolvedMatch?.demoUrl != null ||
+        resolvedMatch?.gifUrl != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1292,103 +1296,33 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 color: TransmutePalette.of(context).muted,
               ),
             ),
-            if (widget.showDemo && exercise.demoUrl != null) ...[
-              SizedBox(height: compact ? 4 : 8),
-              _SessionExerciseDemo(
-                name: exercise.name,
-                url: exercise.demoUrl!,
-                sourceName: exercise.demoSourceName,
-                expanded: _demoExpanded,
-                onToggle: () => setState(() => _demoExpanded = !_demoExpanded),
-              ),
-            ],
-            SizedBox(height: compact ? 10 : 16),
+            Builder(
+              builder: (context) {
+                final match = OpenGymCatalog.findMatchSync(exercise.name);
+                final demoUrl = exercise.demoUrl ?? match?.gifUrl ?? match?.demoUrl;
+                final demoSource = exercise.demoSourceName ?? match?.demoSourceName;
+                if (!widget.showDemo || demoUrl == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: EdgeInsets.only(bottom: compact ? 4 : 8),
+                  child: _SessionExerciseDemo(
+                    name: exercise.name,
+                    url: demoUrl,
+                    sourceName: demoSource,
+                    expanded: _demoExpanded,
+                    onToggle: () => setState(() => _demoExpanded = !_demoExpanded),
+                  ),
+                );
+              },
+            ),
+            SizedBox(height: compact ? 8 : 12),
             Text(
-              'SET LEDGER',
+              'LOG',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                 letterSpacing: 1.4,
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 6),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                if (constraints.maxWidth < 240) return const SizedBox.shrink();
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: TransmutePalette.of(context).surface,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: compact ? 36 : 46,
-                        child: Text(
-                          'SET',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: TransmutePalette.of(context).muted,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          'PREV',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: TransmutePalette.of(context).muted,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          exercise.trackingMode == ExerciseTrackingMode.timed
-                              ? 'TIME'
-                              : unit == WeightUnit.lb
-                              ? 'LBS'
-                              : 'KG',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: TransmutePalette.of(context).muted,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                      if (exercise.trackingMode == ExerciseTrackingMode.reps)
-                        Expanded(
-                          flex: 2,
-                          child: Text(
-                            'REPS',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: TransmutePalette.of(context).muted,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
-                      SizedBox(
-                        width: compact ? 64 : 72,
-                        child: Text(
-                          'ACTION',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: TransmutePalette.of(context).muted,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            SizedBox(height: compact ? 4 : 8),
+            SizedBox(height: compact ? 6 : 8),
             for (var index = 0; index < visibleSets.length; index += 1)
               _SavedSetRow(
                 set: visibleSets[index],
@@ -2376,8 +2310,8 @@ class _SavedSetRow extends StatelessWidget {
         ];
         final palette = TransmutePalette.of(context);
         return Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          margin: const EdgeInsets.symmetric(vertical: 2.5),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
             color: set.pending
                 ? palette.surface
@@ -2615,8 +2549,8 @@ class _SetDraftRow extends StatelessWidget {
               ),
               if (isSubmitting)
                 const SizedBox(
-                  width: 18,
-                  height: 18,
+                  width: 16,
+                  height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
             ],
@@ -2624,8 +2558,43 @@ class _SetDraftRow extends StatelessWidget {
         ),
       ),
     );
+    final warmupControl = InkWell(
+      onTap: disabled ? null : () => onWarmupChanged(!draft.isWarmup),
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: Checkbox(
+                value: draft.isWarmup,
+                onChanged: disabled
+                    ? null
+                    : (val) => onWarmupChanged(val ?? false),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'Warm-up',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight:
+                    draft.isWarmup ? FontWeight.w600 : FontWeight.normal,
+                color: draft.isWarmup
+                    ? Theme.of(context).colorScheme.primary
+                    : TransmutePalette.of(context).muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: compact ? 6 : 8),
+      padding: EdgeInsets.symmetric(vertical: compact ? 3 : 5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2634,28 +2603,43 @@ class _SetDraftRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   'SET ${number.toString().padLeft(2, '0')}  ·  PREVIOUS ${draft.isWarmup ? 'Warm-up' : _performanceLabel(previous, unit)}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: TransmutePalette.of(context).muted,
+                  ),
                 ),
               ),
-              if (isSubmitting) const Text('Saving…'),
+              if (isSubmitting)
+                Text(
+                  'Saving…',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           LayoutBuilder(
             builder: (context, constraints) {
-              final numberLabel = Text(
-                number.toString().padLeft(2, '0'),
-                style: const TextStyle(fontWeight: FontWeight.w800),
+              final numberLabel = SizedBox(
+                width: compact ? 28 : 36,
+                child: Text(
+                  number.toString().padLeft(2, '0'),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: compact ? 14 : 15,
+                    color: TransmutePalette.of(context).muted,
+                  ),
+                ),
               );
-              if (constraints.maxWidth < 240) {
+
+              if (constraints.maxWidth < 250) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
                       children: [
-                        SizedBox(width: 28, child: numberLabel),
+                        numberLabel,
                         Expanded(
                           child: trackingMode == ExerciseTrackingMode.timed
                               ? durationInput(context)
@@ -2663,43 +2647,76 @@ class _SetDraftRow extends StatelessWidget {
                         ),
                       ],
                     ),
-                    if (trackingMode == ExerciseTrackingMode.reps)
+                    if (trackingMode == ExerciseTrackingMode.reps) ...[
+                      const SizedBox(height: 4),
                       Padding(
-                        padding: const EdgeInsets.only(left: 28),
+                        padding: EdgeInsets.only(left: compact ? 28 : 36),
                         child: repsInput(),
                       ),
-                    Align(alignment: Alignment.centerRight, child: logButton),
+                    ],
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: warmupControl,
+                    ),
+                    const SizedBox(height: 4),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: logButton,
+                    ),
                   ],
                 );
               }
-              return Row(
-                children: [
-                  SizedBox(width: compact ? 40 : 48, child: numberLabel),
-                  Expanded(
-                    child: trackingMode == ExerciseTrackingMode.timed
-                        ? durationInput(context)
-                        : weightInput(),
-                  ),
-                  if (trackingMode == ExerciseTrackingMode.reps) ...[
-                    SizedBox(width: compact ? 10 : 16),
-                    Expanded(child: repsInput()),
+
+              final canFitInline = constraints.maxWidth >= 430 ||
+                  trackingMode == ExerciseTrackingMode.timed;
+
+              if (canFitInline) {
+                return Row(
+                  children: [
+                    numberLabel,
+                    Expanded(
+                      child: trackingMode == ExerciseTrackingMode.timed
+                          ? durationInput(context)
+                          : weightInput(),
+                    ),
+                    if (trackingMode == ExerciseTrackingMode.reps) ...[
+                      SizedBox(width: compact ? 8 : 12),
+                      Expanded(child: repsInput()),
+                    ],
+                    SizedBox(width: compact ? 8 : 12),
+                    warmupControl,
+                    SizedBox(width: compact ? 8 : 12),
+                    logButton,
                   ],
-                  SizedBox(width: compact ? 8 : 12),
-                  logButton,
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      numberLabel,
+                      Expanded(child: weightInput()),
+                      const SizedBox(width: 8),
+                      Expanded(child: repsInput()),
+                      const SizedBox(width: 8),
+                      logButton,
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Padding(
+                    padding: EdgeInsets.only(left: compact ? 28 : 36),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: warmupControl,
+                    ),
+                  ),
                 ],
               );
             },
           ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FilterChip(
-              label: const Text('Warm-up'),
-              selected: draft.isWarmup,
-              onSelected: disabled ? null : onWarmupChanged,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-          const Divider(height: 8),
         ],
       ),
     );
@@ -2792,16 +2809,22 @@ class _ExerciseDemoRailState extends State<_ExerciseDemoRail> {
   }
 
   @override
-  Widget build(BuildContext context) => TransmutePanel(
-    child: _SessionExerciseDemo(
-      name: widget.exercise.name,
-      url: widget.exercise.demoUrl!,
-      sourceName: widget.exercise.demoSourceName,
-      expanded: _expanded,
-      maxVideoHeight: 360,
-      onToggle: () => setState(() => _expanded = !_expanded),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final match = OpenGymCatalog.findMatchSync(widget.exercise.name);
+    final demoUrl = widget.exercise.demoUrl ?? match?.gifUrl ?? match?.demoUrl;
+    final demoSource = widget.exercise.demoSourceName ?? match?.demoSourceName;
+    if (demoUrl == null) return const SizedBox.shrink();
+    return TransmutePanel(
+      child: _SessionExerciseDemo(
+        name: widget.exercise.name,
+        url: demoUrl,
+        sourceName: demoSource,
+        expanded: _expanded,
+        maxVideoHeight: 360,
+        onToggle: () => setState(() => _expanded = !_expanded),
+      ),
+    );
+  }
 }
 
 class _SessionExerciseDemo extends StatelessWidget {
@@ -2820,10 +2843,18 @@ class _SessionExerciseDemo extends StatelessWidget {
   final double? maxVideoHeight;
   final VoidCallback onToggle;
 
+  bool get _isGif {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+    return uri.path.toLowerCase().endsWith('.gif');
+  }
+
   bool get _directVideo {
     final uri = Uri.tryParse(url);
     if (uri == null) return false;
     return uri.path.toLowerCase().endsWith('.mp4') ||
+        uri.path.toLowerCase().endsWith('.webm') ||
+        uri.scheme == 'asset' ||
         uri.host.toLowerCase().endsWith('firebasestorage.googleapis.com');
   }
 
@@ -2844,18 +2875,55 @@ class _SessionExerciseDemo extends StatelessWidget {
         ),
       ),
       if (expanded)
-        _directVideo
-            ? ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: maxVideoHeight ?? double.infinity,
-                ),
-                child: _DirectExerciseVideo(
-                  name: name,
-                  url: url,
-                  sourceName: sourceName,
+        _isGif
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxHeight: maxVideoHeight ?? 240,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Theme.of(context).dividerColor),
+                    color: Theme.of(context).colorScheme.surface,
+                  ),
+                  child: Center(
+                    child: Image.network(
+                      url,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const SizedBox(
+                          height: 180,
+                          child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      },
+                      errorBuilder: (_, _, _) => ListTile(
+                        title: const Text('Open Demo'),
+                        subtitle: Text(sourceName ?? 'External demo source'),
+                        trailing: const Icon(Icons.open_in_new),
+                        onTap: () => launchUrl(
+                          Uri.parse(url),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               )
-            : Card(
+            : _directVideo
+                ? ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxHeight: maxVideoHeight ?? double.infinity,
+                    ),
+                    child: _DirectExerciseVideo(
+                      name: name,
+                      url: url,
+                      sourceName: sourceName,
+                    ),
+                  )
+                : Card(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 child: ListTile(
                   title: const Text('Open Demo'),

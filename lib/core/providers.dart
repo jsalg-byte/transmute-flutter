@@ -675,19 +675,10 @@ final unifiedExerciseCatalogProvider =
     FutureProvider<List<Exercise>>((ref) async {
       final baseList = await ref.watch(planRepositoryProvider).searchExercises('');
       final openGymList = await OpenGymCatalog.loadAll();
-      final seenIds = <String>{};
-      final result = <Exercise>[];
-      for (final ex in baseList) {
-        if (seenIds.add(ex.id)) {
-          result.add(ex);
-        }
-      }
-      for (final ex in openGymList) {
-        if (seenIds.add(ex.id)) {
-          result.add(ex);
-        }
-      }
-      return result;
+      return OpenGymCatalog.mergeWithServerExercises(
+        serverExercises: baseList,
+        openGymExercises: openGymList,
+      );
     });
 
 class OpenGymSearchParams {
@@ -718,12 +709,16 @@ class OpenGymSearchParams {
 
 final openGymSearchProvider =
     FutureProvider.family<List<Exercise>, OpenGymSearchParams>(
-      (ref, params) => OpenGymCatalog.search(
-        query: params.query,
-        bodyPart: params.bodyPart,
-        equipment: params.equipment,
-        muscleGroup: params.muscleGroup,
-      ),
+      (ref, params) async {
+        final serverList = await ref.watch(planRepositoryProvider).searchExercises('');
+        return OpenGymCatalog.search(
+          query: params.query,
+          bodyPart: params.bodyPart,
+          equipment: params.equipment,
+          muscleGroup: params.muscleGroup,
+          baseExercises: serverList,
+        );
+      },
     );
 
 class RecentRecordItem {
