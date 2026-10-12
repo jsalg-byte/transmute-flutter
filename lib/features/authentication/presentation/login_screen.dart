@@ -22,6 +22,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _displayNameFocus = FocusNode();
   final _passwordFocus = FocusNode();
   bool _registering = false;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -172,19 +173,43 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                           focusNode: _passwordFocus,
                                           label: 'Password',
                                           hintText: registration
-                                              ? 'At least 8 characters'
+                                              ? 'At least 7 characters'
                                               : 'Your password',
                                           autofillHints: [
                                             registration
                                                 ? AutofillHints.newPassword
                                                 : AutofillHints.password,
                                           ],
-                                          obscureText: true,
+                                          obscureText: _obscurePassword,
+                                          suffixIcon: IconButton(
+                                            splashRadius: 20,
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(
+                                              minWidth: 36,
+                                              minHeight: 36,
+                                            ),
+                                            icon: Icon(
+                                              _obscurePassword
+                                                  ? Icons.visibility_outlined
+                                                  : Icons.visibility_off_outlined,
+                                              color: _oxide,
+                                              size: 20,
+                                            ),
+                                            tooltip: _obscurePassword
+                                                ? 'Show password'
+                                                : 'Hide password',
+                                            onPressed: () {
+                                              setState(() {
+                                                _obscurePassword =
+                                                    !_obscurePassword;
+                                              });
+                                            },
+                                          ),
                                           textInputAction: TextInputAction.done,
                                           onSubmitted: (_) => _submit(),
                                           validator: (value) =>
-                                              (value?.length ?? 0) < 8
-                                              ? 'Enter an 8–128 character password.'
+                                              (value?.length ?? 0) < 7
+                                              ? 'Enter a 7–128 character password.'
                                               : null,
                                         ),
                                       ],
@@ -348,6 +373,7 @@ class _LedgerField extends StatelessWidget {
     this.autofocus = false,
     this.obscureText = false,
     this.textCapitalization = TextCapitalization.none,
+    this.suffixIcon,
   });
 
   final TextEditingController controller;
@@ -361,6 +387,7 @@ class _LedgerField extends StatelessWidget {
   final bool autofocus;
   final bool obscureText;
   final TextCapitalization textCapitalization;
+  final Widget? suffixIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -383,6 +410,10 @@ class _LedgerField extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: _hintStyle,
+            suffixIcon: suffixIcon,
+            suffixIconConstraints: suffixIcon != null
+                ? const BoxConstraints(minWidth: 40, minHeight: 40)
+                : null,
             contentPadding: const EdgeInsets.only(top: 11, bottom: 12),
             enabledBorder: const UnderlineInputBorder(
               borderSide: BorderSide(color: _oxide),

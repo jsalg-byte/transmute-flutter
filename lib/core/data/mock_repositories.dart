@@ -1911,10 +1911,10 @@ class MockAuthRepository implements AuthRepository {
         'Username must be 3–64 characters with no spaces.',
       );
     }
-    if (password.length < 8 || password.length > 128) {
+    if (password.length < 7 || password.length > 128) {
       throw const AppFailure(
         'invalid_password',
-        'Password must be 8–128 characters.',
+        'Password must be 7–128 characters.',
       );
     }
     if (normalized == 'demo' || normalized == _registeredUser?.username) {
