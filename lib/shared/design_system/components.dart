@@ -294,8 +294,6 @@ class TransmuteTextField extends StatelessWidget {
     this.focusNode,
     this.textInputAction,
     this.onSubmitted,
-    this.readOnly = false,
-    this.onTap,
   });
   final TextEditingController? controller;
   final String? label;
@@ -311,8 +309,6 @@ class TransmuteTextField extends StatelessWidget {
   final FocusNode? focusNode;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
-  final bool readOnly;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -329,8 +325,6 @@ class TransmuteTextField extends StatelessWidget {
         onChanged: onChanged,
         onSubmitted: onSubmitted,
         inputFormatters: inputFormatters,
-        readOnly: readOnly,
-        onTap: onTap,
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,

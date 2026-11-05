@@ -9,6 +9,7 @@ import '../../../core/data/opengym_catalog.dart';
 import '../../../core/domain/models.dart';
 import '../../../core/providers.dart';
 import '../../../shared/theme/transmute_palette.dart';
+import '../../../shared/widgets/app_gif_view.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/exercise_video_controller.dart';
 
@@ -1024,25 +1025,12 @@ class _ExerciseGifDemo extends StatelessWidget {
         ),
         child: Semantics(
           label: '$name animated demonstration',
-          child: Image.network(
-            gifUrl,
+          child: AppGifView(
+            key: ValueKey('gif_$gifUrl'),
+            url: gifUrl,
+            altText: '$name animated demonstration',
             fit: BoxFit.contain,
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
-              return SizedBox(
-                height: 180,
-                child: Center(
-                  child: CircularProgressIndicator(
-                    value: loadingProgress.expectedTotalBytes != null
-                        ? loadingProgress.cumulativeBytesLoaded /
-                            loadingProgress.expectedTotalBytes!
-                        : null,
-                    strokeWidth: 2,
-                  ),
-                ),
-              );
-            },
-            errorBuilder: (_, __, ___) => imageUrl != null
+            errorBuilder: (_) => imageUrl != null
                 ? Image.network(
                     imageUrl!,
                     fit: BoxFit.contain,

@@ -16,6 +16,7 @@ import '../../../shared/design_system/design_system.dart';
 import '../../../shared/theme/transmute_palette.dart';
 import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/workout_launch_card.dart';
+import '../../../shared/widgets/app_gif_view.dart';
 import '../../../shared/widgets/exercise_video_controller.dart';
 import '../../quick_add/presentation/quick_add_dialog.dart';
 import '../../workout_plans/presentation/routine_dialogs.dart';
@@ -618,12 +619,12 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.session.id != widget.session.id) {
       _movementIndex = _resumeMovementIndex(widget.session);
-      _scrollCompactToTop(animate: false);
+      _scrollToTop(animate: false);
     } else if (_movementIndex >= widget.session.exercises.length) {
       _movementIndex = widget.session.exercises.isEmpty
           ? 0
           : widget.session.exercises.length - 1;
-      _scrollCompactToTop();
+      _scrollToTop();
     }
   }
 
@@ -637,21 +638,35 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     if (index == _movementIndex) return;
     FocusScope.of(context).unfocus();
     setState(() => _movementIndex = index);
-    _scrollCompactToTop();
+    _scrollToTop();
   }
 
-  void _scrollCompactToTop({bool animate = true}) {
+  void _scrollToTop({bool animate = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_compactScrollController.hasClients) return;
-      if (!animate || MediaQuery.sizeOf(context).width >= 1024) {
-        _compactScrollController.jumpTo(0);
-        return;
+      if (!mounted) return;
+      if (_compactScrollController.hasClients) {
+        if (!animate) {
+          _compactScrollController.jumpTo(0);
+        } else {
+          _compactScrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+          );
+        }
       }
-      _compactScrollController.animateTo(
-        0,
-        duration: DesignMotion.duration(context, DesignMotion.standard),
-        curve: DesignMotion.curve,
-      );
+      final primary = PrimaryScrollController.maybeOf(context);
+      if (primary != null && primary.hasClients) {
+        if (!animate) {
+          primary.jumpTo(0);
+        } else {
+          primary.animateTo(
+            0,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOut,
+          );
+        }
+      }
     });
   }
 
@@ -1305,6 +1320,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
                 return Padding(
                   padding: EdgeInsets.only(bottom: compact ? 4 : 8),
                   child: _SessionExerciseDemo(
+                    key: ValueKey('demo_${exercise.id}_$demoUrl'),
                     name: exercise.name,
                     url: demoUrl,
                     sourceName: demoSource,
@@ -2016,219 +2032,6 @@ class _ConfettiBurstPainter extends CustomPainter {
       oldDelegate.progress != progress || oldDelegate.colors != colors;
 }
 
-enum _KeypadFieldType { weight, reps, duration }
-
-class _WorkoutKeypadSheet extends StatelessWidget {
-  const _WorkoutKeypadSheet({
-    required this.controller,
-    required this.fieldType,
-    required this.unitLabel,
-    required this.onDone,
-    this.onNext,
-  });
-
-  final TextEditingController controller;
-  final _KeypadFieldType fieldType;
-  final String unitLabel;
-  final VoidCallback onDone;
-  final VoidCallback? onNext;
-
-  void _onDigit(String digit) {
-    final current = controller.text;
-    if (digit == '.') {
-      if (fieldType == _KeypadFieldType.reps) return; // Reps are integers
-      if (current.contains('.')) return;
-      controller.text = current.isEmpty ? '0.' : '$current.';
-    } else {
-      controller.text = '$current$digit';
-    }
-  }
-
-  void _onBackspace() {
-    final current = controller.text;
-    if (current.isNotEmpty) {
-      controller.text = current.substring(0, current.length - 1);
-    }
-  }
-
-  void _onAdd(double amount) {
-    final current = double.tryParse(controller.text) ?? 0.0;
-    final next = current + amount;
-    if (fieldType == _KeypadFieldType.reps) {
-      controller.text = next.round().toString();
-    } else {
-      controller.text = next == next.roundToDouble()
-          ? next.toStringAsFixed(0)
-          : next.toStringAsFixed(1);
-    }
-  }
-
-  void _onClear() {
-    controller.clear();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = TransmutePalette.of(context);
-    final isInteger = fieldType == _KeypadFieldType.reps;
-    final quickAdders = isInteger
-        ? const [1.0, 2.0, 5.0]
-        : const [2.5, 5.0, 10.0];
-
-    Widget buildButton(
-      String label, {
-      VoidCallback? onPressed,
-      Color? background,
-      Color? foreground,
-      Widget? icon,
-    }) {
-      return Expanded(
-        child: Padding(
-          padding: const EdgeInsets.all(3.0),
-          child: Material(
-            color: background ?? palette.surface,
-            borderRadius: BorderRadius.circular(8),
-            child: InkWell(
-              onTap: onPressed,
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                height: 48,
-                alignment: Alignment.center,
-                child: icon ??
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: foreground ?? palette.ink,
-                      ),
-                    ),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      padding: EdgeInsets.fromLTRB(
-        12,
-        8,
-        12,
-        12 + MediaQuery.viewPaddingOf(context).bottom,
-      ),
-      decoration: BoxDecoration(
-        color: palette.surface,
-        border: Border(top: BorderSide(color: palette.divider)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x1A000000),
-            blurRadius: 10,
-            offset: Offset(0, -3),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header / Quick adder row
-          Row(
-            children: [
-              for (final amount in quickAdders)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(0, 36),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                      onPressed: () => _onAdd(amount),
-                      child: Text(
-                        '+${amount == amount.roundToDouble() ? amount.toInt() : amount} $unitLabel',
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                      ),
-                    ),
-                  ),
-                ),
-              const SizedBox(width: 4),
-              TextButton(
-                style: TextButton.styleFrom(
-                  minimumSize: const Size(44, 36),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  visualDensity: VisualDensity.compact,
-                ),
-                onPressed: _onClear,
-                child: const Text('Clear', style: TextStyle(fontSize: 13)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          // Row 1: 1, 2, 3
-          Row(
-            children: [
-              buildButton('1', onPressed: () => _onDigit('1')),
-              buildButton('2', onPressed: () => _onDigit('2')),
-              buildButton('3', onPressed: () => _onDigit('3')),
-            ],
-          ),
-          // Row 2: 4, 5, 6
-          Row(
-            children: [
-              buildButton('4', onPressed: () => _onDigit('4')),
-              buildButton('5', onPressed: () => _onDigit('5')),
-              buildButton('6', onPressed: () => _onDigit('6')),
-            ],
-          ),
-          // Row 3: 7, 8, 9
-          Row(
-            children: [
-              buildButton('7', onPressed: () => _onDigit('7')),
-              buildButton('8', onPressed: () => _onDigit('8')),
-              buildButton('9', onPressed: () => _onDigit('9')),
-            ],
-          ),
-          // Row 4: . or Backspace, 0, Action / Done
-          Row(
-            children: [
-              if (isInteger)
-                buildButton(
-                  'C',
-                  onPressed: _onBackspace,
-                  icon: const Icon(Icons.backspace_outlined, size: 20),
-                )
-              else
-                buildButton('.', onPressed: () => _onDigit('.')),
-              buildButton('0', onPressed: () => _onDigit('0')),
-              if (!isInteger)
-                buildButton(
-                  '⌫',
-                  onPressed: _onBackspace,
-                  icon: const Icon(Icons.backspace_outlined, size: 20),
-                ),
-              if (onNext != null)
-                buildButton(
-                  'Next',
-                  background: palette.oxide,
-                  foreground: palette.raised,
-                  onPressed: onNext,
-                )
-              else
-                buildButton(
-                  'Done',
-                  background: palette.oxide,
-                  foreground: palette.raised,
-                  onPressed: onDone,
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SetDraft {
   _SetDraft({int? targetDurationSeconds})
     : durationUnit = TimedDurationUnit.forSeconds(targetDurationSeconds);
@@ -2429,22 +2232,6 @@ class _SetDraftRow extends StatelessWidget {
           focusNode: draft.durationFocus,
           textInputAction: TextInputAction.done,
           onSubmitted: (_) => onLog(),
-          onTap: () {
-            if (MediaQuery.sizeOf(context).width < 600) {
-              showModalBottomSheet<void>(
-                context: context,
-                builder: (ctx) => _WorkoutKeypadSheet(
-                  controller: draft.duration,
-                  fieldType: _KeypadFieldType.duration,
-                  unitLabel: draft.durationUnit.label,
-                  onDone: () {
-                    Navigator.pop(ctx);
-                    onLog();
-                  },
-                ),
-              );
-            }
-          },
         ),
       ),
       PopupMenuButton<TimedDurationUnit>(
@@ -2472,35 +2259,6 @@ class _SetDraftRow extends StatelessWidget {
       focusNode: draft.weightFocus,
       textInputAction: TextInputAction.next,
       onSubmitted: (_) => draft.repsFocus.requestFocus(),
-      onTap: () {
-        if (compact) {
-          showModalBottomSheet<void>(
-            context: context,
-            builder: (ctx) => _WorkoutKeypadSheet(
-              controller: draft.weight,
-              fieldType: _KeypadFieldType.weight,
-              unitLabel: unit.name,
-              onNext: () {
-                Navigator.pop(ctx);
-                draft.repsFocus.requestFocus();
-                showModalBottomSheet<void>(
-                  context: context,
-                  builder: (repsCtx) => _WorkoutKeypadSheet(
-                    controller: draft.reps,
-                    fieldType: _KeypadFieldType.reps,
-                    unitLabel: 'reps',
-                    onDone: () {
-                      Navigator.pop(repsCtx);
-                      onLog();
-                    },
-                  ),
-                );
-              },
-              onDone: () => Navigator.pop(ctx),
-            ),
-          );
-        }
-      },
     );
     Widget repsInput() => TransmuteTextField(
       controller: draft.reps,
@@ -2512,22 +2270,6 @@ class _SetDraftRow extends StatelessWidget {
       focusNode: draft.repsFocus,
       textInputAction: TextInputAction.done,
       onSubmitted: (_) => onLog(),
-      onTap: () {
-        if (compact) {
-          showModalBottomSheet<void>(
-            context: context,
-            builder: (ctx) => _WorkoutKeypadSheet(
-              controller: draft.reps,
-              fieldType: _KeypadFieldType.reps,
-              unitLabel: 'reps',
-              onDone: () {
-                Navigator.pop(ctx);
-                onLog();
-              },
-            ),
-          );
-        }
-      },
     );
     final logButton = SizedBox(
       width: compact ? 64 : 72,
@@ -2801,14 +2543,6 @@ class _ExerciseDemoRailState extends State<_ExerciseDemoRail> {
   var _expanded = false;
 
   @override
-  void didUpdateWidget(covariant _ExerciseDemoRail oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.exercise.id != widget.exercise.id) {
-      _expanded = false;
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     final match = OpenGymCatalog.findMatchSync(widget.exercise.name);
     final demoUrl = widget.exercise.demoUrl ?? match?.gifUrl ?? match?.demoUrl;
@@ -2816,6 +2550,7 @@ class _ExerciseDemoRailState extends State<_ExerciseDemoRail> {
     if (demoUrl == null) return const SizedBox.shrink();
     return TransmutePanel(
       child: _SessionExerciseDemo(
+        key: ValueKey('rail_demo_${widget.exercise.id}_$demoUrl'),
         name: widget.exercise.name,
         url: demoUrl,
         sourceName: demoSource,
@@ -2829,6 +2564,7 @@ class _ExerciseDemoRailState extends State<_ExerciseDemoRail> {
 
 class _SessionExerciseDemo extends StatelessWidget {
   const _SessionExerciseDemo({
+    super.key,
     required this.name,
     required this.url,
     required this.expanded,
@@ -2887,19 +2623,12 @@ class _SessionExerciseDemo extends StatelessWidget {
                     color: Theme.of(context).colorScheme.surface,
                   ),
                   child: Center(
-                    child: Image.network(
-                      url,
+                    child: AppGifView(
+                      key: ValueKey('gif_$url'),
+                      url: url,
+                      altText: '$name demonstration',
                       fit: BoxFit.contain,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const SizedBox(
-                          height: 180,
-                          child: Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        );
-                      },
-                      errorBuilder: (_, _, _) => ListTile(
+                      errorBuilder: (_) => ListTile(
                         title: const Text('Open Demo'),
                         subtitle: Text(sourceName ?? 'External demo source'),
                         trailing: const Icon(Icons.open_in_new),
@@ -2918,6 +2647,7 @@ class _SessionExerciseDemo extends StatelessWidget {
                       maxHeight: maxVideoHeight ?? double.infinity,
                     ),
                     child: _DirectExerciseVideo(
+                      key: ValueKey('video_$url'),
                       name: name,
                       url: url,
                       sourceName: sourceName,
@@ -2956,6 +2686,7 @@ class _SessionExerciseDemo extends StatelessWidget {
 
 class _DirectExerciseVideo extends StatefulWidget {
   const _DirectExerciseVideo({
+    super.key,
     required this.name,
     required this.url,
     this.sourceName,
@@ -2968,13 +2699,23 @@ class _DirectExerciseVideo extends StatefulWidget {
 }
 
 class _DirectExerciseVideoState extends State<_DirectExerciseVideo> {
-  late final VideoPlayerController _controller;
+  late VideoPlayerController _controller;
   String? _error;
   @override
   void initState() {
     super.initState();
     _controller = exerciseVideoController(widget.url);
     _initialize();
+  }
+
+  @override
+  void didUpdateWidget(_DirectExerciseVideo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _controller.dispose();
+      _controller = exerciseVideoController(widget.url);
+      _initialize();
+    }
   }
 
   Future<void> _initialize() async {
