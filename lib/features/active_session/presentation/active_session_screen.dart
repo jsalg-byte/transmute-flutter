@@ -18,6 +18,7 @@ import '../../../shared/widgets/app_shell.dart';
 import '../../../shared/widgets/workout_launch_card.dart';
 import '../../../shared/widgets/app_gif_view.dart';
 import '../../../shared/widgets/exercise_video_controller.dart';
+import '../../../shared/widgets/rest_timer_sound.dart';
 import '../../quick_add/presentation/quick_add_dialog.dart';
 import '../../workout_plans/presentation/routine_dialogs.dart';
 
@@ -1461,6 +1462,7 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
       return;
     }
     FocusScope.of(context).unfocus();
+    RestTimerSound.unlock();
     setState(() {
       _savingDraft = draft;
       _setIdsBeforeSave = widget.exercise.sets.map((set) => set.id).toSet();
@@ -2841,9 +2843,13 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
   Future<void> _tick() async {
     if (!mounted) return;
     final deadline = widget.session.restEndsAt;
-    if (deadline != null && !deadline.isAfter(DateTime.now().toUtc())) {
+    final now = DateTime.now().toUtc();
+    if (deadline != null && !deadline.isAfter(now)) {
       if (_clearingExpired) return;
       _clearingExpired = true;
+      if (now.difference(deadline).inSeconds <= 5) {
+        RestTimerSound.playDing();
+      }
       setState(() {
         _open = false;
         _autoOpened = false;
@@ -2868,10 +2874,12 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
   @override
   void didUpdateWidget(covariant _RestTimer oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.session.restEndsAt != widget.session.restEndsAt &&
-        widget.session.restEndsAt != null) {
-      _open = true;
-      _autoOpened = true;
+    if (oldWidget.session.restEndsAt != widget.session.restEndsAt) {
+      _clearingExpired = false;
+      if (widget.session.restEndsAt != null) {
+        _open = true;
+        _autoOpened = true;
+      }
     }
   }
 
@@ -3052,6 +3060,7 @@ class _RestTimerState extends ConsumerState<_RestTimer> {
 
 
   Future<void> _start(int seconds) async {
+    RestTimerSound.unlock();
     _clearingExpired = false;
     setState(() {
       _open = true;
