@@ -1,5 +1,6 @@
 import 'dart:js_interop';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:web/web.dart' as web;
 
 class PlatformGifView extends StatefulWidget {
@@ -52,11 +53,12 @@ class _PlatformGifViewState extends State<PlatformGifView> {
     };
 
     return SizedBox(
-      height: widget.height,
-      width: widget.width,
+      height: widget.height ?? 220,
+      width: widget.width ?? double.infinity,
       child: HtmlElementView.fromTagName(
         key: ValueKey('gif_${widget.url}'),
         tagName: 'img',
+        hitTestBehavior: PlatformViewHitTestBehavior.transparent,
         onElementCreated: (Object element) {
           final img = element as web.HTMLImageElement;
           img.src = widget.url;
@@ -67,6 +69,7 @@ class _PlatformGifViewState extends State<PlatformGifView> {
           img.style.height = '100%';
           img.style.objectFit = objectFit;
           img.style.display = 'block';
+          img.style.pointerEvents = 'none';
           img.onerror = ((web.Event _) {
             if (mounted) {
               setState(() => _hasError = true);

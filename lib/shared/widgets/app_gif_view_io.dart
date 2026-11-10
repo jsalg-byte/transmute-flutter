@@ -21,8 +21,8 @@ class PlatformGifView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: height,
-      width: width,
+      height: height ?? 220,
+      width: width ?? double.infinity,
       child: Image.network(
         url,
         fit: fit,

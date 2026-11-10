@@ -1108,13 +1108,18 @@ class _ExerciseDemoState extends State<_ExerciseDemo> {
     final controller = exerciseVideoController(widget.url);
     try {
       await controller.setLooping(true);
+      await controller.setVolume(0);
       await controller.initialize();
       if (!mounted) {
         await controller.dispose();
         return;
       }
       setState(() => _controller = controller);
-      if (widget.autoPlay) await controller.play();
+      if (widget.autoPlay) {
+        try {
+          await controller.play();
+        } catch (_) {}
+      }
     } catch (_) {
       await controller.dispose();
       if (mounted) {

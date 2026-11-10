@@ -672,6 +672,7 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(openGymCatalogProvider);
     final session = widget.session;
     final pendingCount = session.exercises
         .expand((exercise) => exercise.sets)
@@ -1025,10 +1026,7 @@ class _WideMovementLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resolvedMatch = OpenGymCatalog.findMatchSync(exercise.name);
-    final hasDemo = exercise.demoUrl != null ||
-        resolvedMatch?.demoUrl != null ||
-        resolvedMatch?.gifUrl != null;
+    final hasDemo = _resolveSessionExerciseDemo(exercise).url != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1313,9 +1311,10 @@ class _ExerciseCardState extends ConsumerState<_ExerciseCard> {
             ),
             Builder(
               builder: (context) {
-                final match = OpenGymCatalog.findMatchSync(exercise.name);
-                final demoUrl = exercise.demoUrl ?? match?.gifUrl ?? match?.demoUrl;
-                final demoSource = exercise.demoSourceName ?? match?.demoSourceName;
+                ref.watch(openGymCatalogProvider);
+                final resolvedDemo = _resolveSessionExerciseDemo(exercise);
+                final demoUrl = resolvedDemo.url;
+                final demoSource = resolvedDemo.sourceName;
                 if (!widget.showDemo || demoUrl == null) return const SizedBox.shrink();
                 return Padding(
                   padding: EdgeInsets.only(bottom: compact ? 4 : 8),
@@ -2531,22 +2530,49 @@ class _PendingSyncIndicator extends ConsumerWidget {
   }
 }
 
-class _ExerciseDemoRail extends StatefulWidget {
+({String? url, String? sourceName}) _resolveSessionExerciseDemo(
+  SessionExercise exercise,
+) {
+  final match = OpenGymCatalog.findMatchSync(exercise.name);
+  final existingUrl = exercise.demoUrl;
+  final existingIsGif =
+      existingUrl != null &&
+      (Uri.tryParse(existingUrl)?.path.toLowerCase().endsWith('.gif') ?? false);
+  if (existingIsGif) {
+    return (
+      url: existingUrl,
+      sourceName: exercise.demoSourceName ?? match?.demoSourceName,
+    );
+  }
+  if (match?.gifUrl != null) {
+    return (
+      url: match!.gifUrl,
+      sourceName: match.demoSourceName ?? 'OpenGym',
+    );
+  }
+  return (
+    url: existingUrl ?? match?.demoUrl,
+    sourceName: exercise.demoSourceName ?? match?.demoSourceName,
+  );
+}
+
+class _ExerciseDemoRail extends ConsumerStatefulWidget {
   const _ExerciseDemoRail({required this.exercise});
   final SessionExercise exercise;
 
   @override
-  State<_ExerciseDemoRail> createState() => _ExerciseDemoRailState();
+  ConsumerState<_ExerciseDemoRail> createState() => _ExerciseDemoRailState();
 }
 
-class _ExerciseDemoRailState extends State<_ExerciseDemoRail> {
+class _ExerciseDemoRailState extends ConsumerState<_ExerciseDemoRail> {
   var _expanded = false;
 
   @override
   Widget build(BuildContext context) {
-    final match = OpenGymCatalog.findMatchSync(widget.exercise.name);
-    final demoUrl = widget.exercise.demoUrl ?? match?.gifUrl ?? match?.demoUrl;
-    final demoSource = widget.exercise.demoSourceName ?? match?.demoSourceName;
+    ref.watch(openGymCatalogProvider);
+    final resolvedDemo = _resolveSessionExerciseDemo(widget.exercise);
+    final demoUrl = resolvedDemo.url;
+    final demoSource = resolvedDemo.sourceName;
     if (demoUrl == null) return const SizedBox.shrink();
     return TransmutePanel(
       child: _SessionExerciseDemo(
@@ -2628,6 +2654,8 @@ class _SessionExerciseDemo extends StatelessWidget {
                       url: url,
                       altText: '$name demonstration',
                       fit: BoxFit.contain,
+                      height: maxVideoHeight ?? 220,
+                      width: double.infinity,
                       errorBuilder: (_) => ListTile(
                         title: const Text('Open Demo'),
                         subtitle: Text(sourceName ?? 'External demo source'),
@@ -2721,8 +2749,12 @@ class _DirectExerciseVideoState extends State<_DirectExerciseVideo> {
   Future<void> _initialize() async {
     try {
       await _controller.setLooping(true);
+      await _controller.setVolume(0);
       await _controller.initialize();
-      await _controller.play();
+      if (mounted) setState(() {});
+      try {
+        await _controller.play();
+      } catch (_) {}
       if (mounted) setState(() {});
     } catch (_) {
       if (mounted) {
